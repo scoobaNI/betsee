@@ -12,8 +12,43 @@ export const isStricter = (a: Decision, b: Decision) => severity[a] > severity[b
 
 export type Resolution = 'approved' | 'rejected' | 'verified' | 'failed' | null;
 
+/** D22: an approval voided because its session ended reads like a rejection, labelled as voided. */
+export const isVoided = (action: Pick<ActionSummary, 'approval_state'>) => (action.approval_state as string) === 'voided';
+
+/**
+ * The approval state to show: a trace the Gateway marked voided stays voided; otherwise the approval
+ * record wins over the trace, whose state can be stale (FAIL-1, p-764).
+ */
+export function withApprovalState<A extends Pick<ActionSummary, 'trace_id' | 'approval_state'>>(
+  action: A,
+  recordState: Map<string, string>,
+): A {
+  if (isVoided(action)) return action;
+  const record = recordState.get(action.trace_id);
+  return record && record !== action.approval_state ? { ...action, approval_state: record as A['approval_state'] } : action;
+}
+
+const OBSERVATION_RECORDS = new Set(['tool_observation', 'security_observation']);
+const OBSERVATION_CAPABILITIES = new Set(['security.observe', 'tool.inspect']);
+
+/**
+ * A Gateway observation, not a decided request (FAIL-3, p-807): by record_type, else capability;
+ * agent 'gateway' and sub 'system' only as a fallback for records without record_type. Never by name.
+ */
+export function isObservation(action: Pick<ActionSummary, 'capability' | 'agent'> & { human?: { sub: string } }): boolean {
+  const recordType = (action as { record_type?: string }).record_type;
+  if (recordType) return OBSERVATION_RECORDS.has(recordType);
+  return OBSERVATION_CAPABILITIES.has(action.capability) || action.agent.id === 'gateway' || action.human?.sub === 'system';
+}
+
+const SEVERITY_RANK = { info: 0, low: 1, medium: 2, high: 3, critical: 4 } as const;
+export type Severity = keyof typeof SEVERITY_RANK;
+export const atLeastMedium = (severity: string | undefined): severity is Severity =>
+  severity !== undefined && severity in SEVERITY_RANK && SEVERITY_RANK[severity as Severity] >= SEVERITY_RANK.medium;
+
 /** Maps the contract's approval_state onto the DecisionChip's resolution words. */
 export function resolutionOf(action: Pick<ActionSummary, 'decision' | 'approval_state'>): Resolution {
+  if (isVoided(action)) return 'rejected';
   if (action.approval_state === 'approved') return action.decision === 'require_step_up' ? 'verified' : 'approved';
   if (action.approval_state === 'rejected') return action.decision === 'require_step_up' ? 'failed' : 'rejected';
   return null;

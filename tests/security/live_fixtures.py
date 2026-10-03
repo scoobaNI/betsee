@@ -24,11 +24,20 @@ def action(capability="crm.read", kind="crm_record", resource_id="crm/customer-1
     }
 
 
+def end_session(variable="session_id", token_variable="reset_token"):
+    # Close a session and void its pending approvals, so a case that leaves an unresolved
+    # require_approval does not change the shared pending-approval set. A demo-runner human token is
+    # confined to session creation (D7), so this uses the privileged browser token from release().
+    return {"path": {"$format": f"/api/v1/sessions/{{{variable}}}/end"}, "method": "POST", "headers": auth(token_variable), "json": {}}
+
+
 def plan(requests, agent="invoice-assistant", use_case="invoice-processing", delegated=None, tier="internal", human="maya", budget=1000):
     return {
         "setup": [{"oidc": {"username": "priya", "acr": "1"}, "save": {"reset_token": "access_token"}}, {"path": f"/api/v1/agents/{agent}/release", "method": "POST", "headers": auth("reset_token"), "json": {}}, token("betsee-demo-runner", "human_token", human), token(agent, "agent_token"), session(agent, use_case, delegated, tier, budget)],
         "steps": [{"request": request} for request in requests],
         "audit": {"path": "/api/v1/traces", "headers": auth("viewer_token")},
+        "cleanup": [end_session()],
+        "requires_active": [agent],
     }
 
 
@@ -57,9 +66,12 @@ def peer_plan(steps, use_case="regression-a2a-receiver", delegated=None, budget=
         "setup": [*release(agent), token("betsee-demo-runner", "human_token", human), token(agent, "agent_token"), session(agent, use_case, delegated, "internal", budget)],
         "steps": steps,
         "audit": {"path": "/api/v1/traces", "headers": auth("viewer_token")},
+        "requires_active": [agent],
     }
+    # Release first (un-quarantines, resets the breaker window), then end the session, so a failed
+    # end never leaves the agent quarantined.
     if cleanup_release:
-        plan["cleanup"] = release(agent, "cleanup_token")
+        plan["cleanup"] = [*release(agent, "cleanup_token"), end_session("session_id", "cleanup_token")]
     return plan
 
 
@@ -131,6 +143,7 @@ def build():
     peer = plan([receiver_send, sender_read, permitted_message, receiver_send], "research-agent", "regression-a2a-sender", ["files.read", "agent.message"], human="priya")
     peer["setup"].extend([token("research-peer", "receiver_token"), session("research-peer", "regression-a2a-receiver", ["files.read", "email.send"], variable="receiver_session_id")])
     peer["steps"][2]["trace"] = {"path": {"$format": "/api/v1/traces/{trace_id}"}, "headers": auth("viewer_token")}
+    peer["cleanup"] = [end_session(), end_session("receiver_session_id")]
     cases["a2a_receiver_taint"] = peer
     clean_payment = action("payments.transfer", "payment_account", "payments/nordfreight-supplier", parameters={"amount_cents": 4800000, "currency": "EUR", "invoice": "INV-F17"})
     approval_lookup = {"path": "/api/v1/approvals", "headers": auth("viewer_token"), "find": {"where": {"trace_id": {"$ref": "trace_id"}}}, "save": {"approval_id": "id"}, "check": {"requires_step_up": True, "parameters.amount_cents": 4800000}}
@@ -166,7 +179,12 @@ def build():
     cases["descriptor_drift"] = {
         "setup": [descriptor("drift"), *release("invoice-assistant"), token("betsee-demo-runner", "human_token", "maya"), token("invoice-assistant", "agent_token"), session("invoice-assistant", "invoice-processing", ["payments.transfer"], "internal", 5000)],
         "steps": [{"request": drift_payment}],
-        "cleanup": [descriptor("restore")],
+        # Restore the descriptor first so the pin is guaranteed even if ending the session fails. If
+        # payments was already drifted (act 6 on stage), the suite re-drifts it at teardown.
+        "cleanup": [descriptor("restore"), end_session()],
         "audit": {"path": "/api/v1/traces", "headers": auth("viewer_token")},
+        "requires_active": ["invoice-assistant"],
     }
-    return {"version": 1, "setup": [token("betsee-demo-runner", "viewer_token", "priya")], "cases": cases}
+    # A little more slack for persisted audit/event lookups keeps the end-of-suite cases robust when
+    # the stack is under load (the live run on stage follows a full rehearsal).
+    return {"version": 1, "setup": [token("betsee-demo-runner", "viewer_token", "priya")], "cases": cases, "audit_wait_seconds": 6}

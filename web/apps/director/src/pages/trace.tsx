@@ -9,13 +9,15 @@ import { Breakable, ReasonText } from '../components/reason.tsx';
 import { ECOSYSTEM_URL } from '../components/shell.tsx';
 import { EmptyState, ErrorCard, Skeleton } from '../components/states.tsx';
 import { callerLabel, callerOf, type Caller } from '../domain/caller.ts';
-import { becauseSentence, decisionLabel, reasonFromAnalyzer, resolutionOf } from '../domain/decision.ts';
+import { becauseSentence, decisionLabel, isVoided, reasonFromAnalyzer, resolutionOf } from '../domain/decision.ts';
+import { VoidedChip } from '../components/chips.tsx';
 import { formatDateTime, formatTime } from '../domain/format.ts';
 import { teamName } from '../domain/feed.ts';
 import { buildRail, decidingStage, formatDuration, type RailStage } from '../domain/pipeline.ts';
 
 /** After a human decides, the Gateway rewrites decision to allow; the sentence names the human step. */
 function verdictWords(trace: Trace): string {
+  if (isVoided(trace)) return 'Voided: the session ended before a human decided';
   const resolution = resolutionOf(trace);
   // After approval the Gateway clears step_up_required; a passed step-up span is the evidence then.
   const stepUp =
@@ -29,7 +31,7 @@ function DecisionSentence({ trace }: { trace: Trace }) {
   const policy = trace.policy_ids[0];
   return (
     <p className="font-display text-xl leading-snug">
-      <span className="font-semibold">{callerLabel(callerOf(trace.human))}</span>, through{' '}
+      <span className="font-semibold">{callerLabel(callerOf(trace.human, trace.agent.id))}</span>, through{' '}
       <span className="font-mono text-lg">{trace.agent.id}</span>, {trace.use_case ? `for ${trace.use_case.name}` : 'with no bound use case'}, asked for{' '}
       <span className="font-mono text-lg">{trace.capability}</span> on {trace.resource.type} {trace.resource.id} ({trace.resource.tier}).{' '}
       <span className="font-semibold">{verdictWords(trace)}</span>
@@ -84,7 +86,7 @@ function SevenQuestions({ trace, controls }: { trace: Trace; controls: Map<strin
     <div className="space-y-3">
       <div className="grid grid-cols-4 gap-3">
         <Cell label="Who initiated" icon="streamline-flex:user-circle-single">
-          <CallerLine caller={callerOf(trace.human)} />
+          <CallerLine caller={callerOf(trace.human, trace.agent.id)} />
         </Cell>
         <Cell label="Which agent" icon="streamline-flex:ai-chip-robot">
           <Link to={`/agents/${encodeURIComponent(trace.agent.id)}`} className="flex items-center gap-2 hover:text-accent-text">
@@ -133,14 +135,18 @@ function SevenQuestions({ trace, controls }: { trace: Trace; controls: Map<strin
           </div>
         </Cell>
         <Cell label="What decision" icon="streamline-flex:arrow-roadmap">
-          <DecisionChip
-            decision={trace.decision}
-            resolution={resolutionOf(trace)}
-            aiTightened={trace.ai_tightened}
-            modelLabel={trace.analyzer.model_label}
-            controlIds={trace.control_ids}
-            history={chipHistory(trace)}
-          />
+          {isVoided(trace) ? (
+            <VoidedChip />
+          ) : (
+            <DecisionChip
+              decision={trace.decision}
+              resolution={resolutionOf(trace)}
+              aiTightened={trace.ai_tightened}
+              modelLabel={trace.analyzer.model_label}
+              controlIds={trace.control_ids}
+              history={chipHistory(trace)}
+            />
+          )}
           <p className="mt-2 text-sm text-fg-secondary">
             <ReasonText text={becauseSentence(trace, (id) => controls.get(id))} />
           </p>

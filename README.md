@@ -150,12 +150,20 @@ cargo test --manifest-path gateway/Cargo.toml -p betsee-decision
 ./tests/run-security.sh
 ```
 
-The security suite sends real HTTP requests with real Keycloak tokens. Positive cases prove that
-allowed actions execute; negative cases prove that each deny holds: capability not delegated, tier
-above the session ceiling, no write-down, AI analysis unable to loosen a deny, an agent unable to
-use its human's privileges, foreign or forged sessions, wrong-audience and expired tokens, approval
-and step-up bypass, mediated agent messages, tool descriptor drift, budget, and quarantine. Each case
-names its ASI categories. See [`tests/README.md`](tests/README.md).
+The security suite has 37 cases and runs in under a minute against the live stack, with real HTTP
+requests and real Keycloak tokens (one step-up with Daniel's one-time code). Positive cases prove that
+allowed actions execute and match their audit rows; negative cases prove that each deny holds:
+capability not delegated, tier above the session ceiling, no write-down, AI analysis unable to loosen
+a deny, an agent unable to use its human's privileges, foreign or forged sessions, wrong-audience and
+expired tokens, cookie authentication refused, the route and role matrix, approval and step-up
+bypass, mediated agent messages, a reused trace id, tool descriptor drift, rate limit, budget and
+quarantine. Each case names its ASI categories. State-changing cases use a test-only agent and
+restore everything they touch, so the suite leaves the stack as it found it. See
+[`tests/README.md`](tests/README.md).
+
+The demo scenarios are automated too: `docker compose exec demo-runner python -m runner run <act>`
+plays one act through the real Gateway and exits non-zero if any step's decision differs from the
+expected one in [`demo/scenarios/`](demo/scenarios/).
 
 ## Repository layout
 

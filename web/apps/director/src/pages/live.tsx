@@ -1,9 +1,10 @@
-import { useAgents, useTraces } from '@betsee/api';
+import { useAgents, useApprovals, useSummary, useTraces } from '@betsee/api';
 import { KpiTile } from '@betsee/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { useMatch } from 'react-router';
 import { AgentTile } from '../components/agent-tile.tsx';
 import { EmptyState, ErrorCard, Skeleton } from '../components/states.tsx';
+import { isObservation, withApprovalState } from '../domain/decision.ts';
 import { computeKpis, groupByTeam, recentByAgent, teamName } from '../domain/feed.ts';
 import { formatCount } from '../domain/format.ts';
 
@@ -20,8 +21,20 @@ function useNow(everyMs = 30_000) {
 function StatStrip() {
   const agents = useAgents();
   const traces = useTraces();
+  const approvals = useApprovals();
+  const summary = useSummary();
   const now = useNow();
-  const kpis = useMemo(() => computeKpis(agents.data ?? [], traces.data ?? [], now), [agents.data, traces.data, now]);
+  const kpis = useMemo(() => {
+    // Observations are not decisions, and the approval record beats a stale trace state.
+    const recordState = new Map((approvals.data ?? []).map((a) => [a.trace_id, a.state as string]));
+    const decided = (traces.data ?? []).filter((a) => !isObservation(a)).map((a) => withApprovalState(a, recordState));
+    const local = computeKpis(agents.data ?? [], decided, now);
+    // FAIL-1: the Gateway's summary is authoritative for the four counts it carries (same as Home).
+    const s = summary.data;
+    return s
+      ? { ...local, agentsActive: s.agents_active, actions15m: s.actions_last_15m, denied15m: s.denied_last_15m, awaitingHuman: s.awaiting_human }
+      : local;
+  }, [agents.data, traces.data, approvals.data, summary.data, now]);
   if (agents.isPending || traces.isPending) {
     return (
       <div className="grid grid-cols-5 gap-3">

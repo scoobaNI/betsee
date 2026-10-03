@@ -2908,7 +2908,7 @@
           "ApprovalState":
             {
               "type": "string",
-              "enum": ["none", "pending", "approved", "rejected"],
+              "enum": ["none", "pending", "approved", "rejected", "voided"],
             },
           "Budget":
             {

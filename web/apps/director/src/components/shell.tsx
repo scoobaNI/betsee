@@ -1,9 +1,8 @@
-import { eventHub, useApprovals, useMe, useStreamStatus, useTraces } from '@betsee/api';
+import { eventHub, useApprovals, useMe, useStreamStatus, useSummary, useTraces } from '@betsee/api';
 import { Icon, MockBadge, StreamStatus } from '@betsee/ui';
 import { useMemo, useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router';
 import { useSignOut } from '../auth.tsx';
-import { isAwaitingHuman } from '../domain/decision.ts';
 import { useMockMode } from '../mock-mode.tsx';
 import { HumanAvatar } from './marks.tsx';
 import { OfflineBanner } from './states.tsx';
@@ -51,15 +50,14 @@ function NavRail() {
 }
 
 function AwaitingHuman() {
+  // FAIL-1 (p-764): the Gateway's summary is the one source, the same as the ecosystem Home; trace
+  // states can be stale. The approvals list only covers the moment before the summary loads.
+  const summary = useSummary();
   const approvals = useApprovals();
-  const traces = useTraces();
-  // The Approvals list is authoritative; the feed covers the moment before it refetches.
-  const count = useMemo(() => {
-    const ids = new Set<string>();
-    for (const a of approvals.data ?? []) if (a.state === 'pending') ids.add(a.trace_id);
-    for (const t of traces.data ?? []) if (isAwaitingHuman(t)) ids.add(t.trace_id);
-    return ids.size;
-  }, [approvals.data, traces.data]);
+  const count = useMemo(
+    () => summary.data?.awaiting_human ?? (approvals.data ?? []).filter((a) => a.state === 'pending').length,
+    [summary.data, approvals.data],
+  );
   return (
     <a
       href={`${ECOSYSTEM_URL}/approvals`}

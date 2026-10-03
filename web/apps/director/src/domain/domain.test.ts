@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { ActionSummary, Span } from '@betsee/api';
-import { becauseSentence, isStricter, outcomeTone, resolutionOf } from './decision.ts';
+import { atLeastMedium, becauseSentence, isObservation, isStricter, isVoided, outcomeTone, resolutionOf, withApprovalState } from './decision.ts';
 import { computeKpis, groupBursts, recentByAgent } from './feed.ts';
 import { callerLabel, callerOf } from './caller.ts';
 import { edgeStyle, type EdgeLatest } from './graph-style.ts';
@@ -258,5 +258,29 @@ describe('callers', () => {
     assert.equal(callerOf({ sub: 'unknown', display_name: 'Unknown' }).kind, 'unauthenticated');
     assert.equal(callerLabel(callerOf({ sub: 'system', display_name: 'Gateway observer' })), 'Gateway (system)');
     assert.equal(callerLabel(callerOf({ sub: 'u-1', display_name: 'Maya Chen' })), 'Maya Chen');
+    // Live data: the observer reports under the sub of the human whose action it observed.
+    assert.equal(callerOf({ sub: '00000000-0000-4000-8000-000000000002', display_name: 'Gateway security observer' }, 'gateway').kind, 'gateway');
+    assert.equal(callerOf({ sub: 'u-1', display_name: 'Maya Chen' }, 'gateway').kind, 'gateway');
+  });
+});
+
+describe('fix window (FAIL-1, FAIL-3, D22)', () => {
+  it('takes the approval state from the record over a stale trace, but keeps voided', () => {
+    const records = new Map([['t-1', 'rejected']]);
+    assert.equal(withApprovalState({ trace_id: 't-1', approval_state: 'pending' as const }, records).approval_state, 'rejected');
+    assert.equal(withApprovalState({ trace_id: 't-2', approval_state: 'pending' as const }, records).approval_state, 'pending');
+    const voided = { trace_id: 't-1', approval_state: 'voided' as unknown as 'pending' };
+    assert.ok(isVoided(withApprovalState(voided, records)));
+    assert.equal(resolutionOf({ decision: 'require_approval', approval_state: 'voided' as unknown as 'pending' }), 'rejected');
+  });
+
+  it('recognises Gateway observations and medium-or-higher severities', () => {
+    assert.ok(isObservation({ capability: 'security.observe', agent: { id: 'gateway', name: 'g', team: 'platform' } }));
+    assert.ok(isObservation({ capability: 'tool.inspect', agent: { id: 'system', name: 's', team: 'platform' } }));
+    assert.ok(!isObservation({ record_type: 'action', capability: 'security.observe', agent: { id: 'gateway', name: 'g', team: 'p' } } as never));
+    assert.ok(!isObservation({ capability: 'crm.read', agent: { id: 'invoice-assistant', name: 'i', team: 'finance' }, human: { sub: 'u-1' } }));
+    assert.ok(atLeastMedium('high'));
+    assert.ok(!atLeastMedium('low'));
+    assert.ok(!atLeastMedium(undefined));
   });
 });

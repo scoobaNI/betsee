@@ -456,13 +456,31 @@ async fn end_session(
         .map_err(|e| ApiError::unavailable(e, &id.0))?
     {
         if approval["state"] == "pending" && approval["request"]["session_id"] == session_id {
-            approval["state"] = json!("rejected");
+            approval["state"] = json!("voided");
             approval["decided_at"] = json!(now());
             gateway
                 .store
                 .put("approval", text(&approval, "id"), &approval)
                 .await
                 .map_err(|e| ApiError::unavailable(e, &id.0))?;
+            // The approval's trace still read approval_state "pending", so trace consumers
+            // (the Director feed and its awaiting-human count) saw a human still awaited on a
+            // session that has ended. Mark the trace voided and emit action.updated so every
+            // consumer stays true; a later run's audit suite voids approvals on every pass.
+            let trace_id = text(&approval, "trace_id").to_owned();
+            if let Some(mut trace) = gateway
+                .store
+                .get("trace", &trace_id)
+                .await
+                .map_err(|e| ApiError::unavailable(e, &id.0))?
+            {
+                trace["approval_state"] = json!("voided");
+                gateway
+                    .store
+                    .audit(&trace, "voided", Some("action.updated"))
+                    .await
+                    .map_err(|e| ApiError::unavailable(e, &id.0))?;
+            }
         }
     }
     gateway

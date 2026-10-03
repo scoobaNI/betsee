@@ -1,9 +1,10 @@
-import { useStreamStatus, useTraces, type ActionSummary } from '@betsee/api';
+import { useApprovals, useSecurityEvents, useStreamStatus, useTraces, type ActionSummary } from '@betsee/api';
 import { DecisionChip, Icon, TierBadge } from '@betsee/ui';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useMatch } from 'react-router';
-import { decisionLabel, outcomeTone, resolutionOf } from '../domain/decision.ts';
+import { decisionLabel, isObservation, isVoided, outcomeTone, resolutionOf, withApprovalState } from '../domain/decision.ts';
+import { GatewayMark, ObservedPill, VoidedChip } from './chips.tsx';
 import { groupBursts, type FeedEntry } from '../domain/feed.ts';
 import { formatDateTime, formatTime } from '../domain/format.ts';
 import { EmptyState, ErrorCard, Skeleton } from './states.tsx';
@@ -50,10 +51,23 @@ export function chipHistory(action: ActionSummary): string | undefined {
   return `${from} -> ${resolution[0]!.toUpperCase()}${resolution.slice(1)}`;
 }
 
-function FeedRow({ entry, selected, flash, rowWidth }: { entry: FeedEntry; selected: boolean; flash: boolean; rowWidth: number }) {
+function FeedRow({
+  entry,
+  selected,
+  flash,
+  rowWidth,
+  severity,
+}: {
+  entry: FeedEntry;
+  selected: boolean;
+  flash: boolean;
+  rowWidth: number;
+  severity: string | undefined;
+}) {
   const { action, count } = entry;
   const variant = splitChipFits(action, count, rowWidth) ? 'chip' : 'compact';
-  const deny = outcomeTone(action) === 'deny';
+  const observation = isObservation(action);
+  const deny = !observation && outcomeTone(action) === 'deny';
   const chip = {
     decision: action.decision,
     resolution: resolutionOf(action),
@@ -74,12 +88,19 @@ function FeedRow({ entry, selected, flash, rowWidth }: { entry: FeedEntry; selec
     >
       {deny && <span aria-hidden="true" className="absolute inset-y-2 left-0 w-0.5 rounded-pill bg-deny-fg" />}
       <span className="flex items-center gap-2">
-        <span className="shrink-0 font-mono text-sm font-medium">{action.agent.id}</span>
+        {observation ? (
+          <span className="flex shrink-0 items-center gap-2 text-sm font-medium">
+            <GatewayMark />
+            Gateway
+          </span>
+        ) : (
+          <span className="shrink-0 font-mono text-sm font-medium">{action.agent.id}</span>
+        )}
         {count > 1 && (
           <span className="rounded-xs border border-line-default px-1 font-mono text-2xs tabular-nums text-fg-secondary">x{count}</span>
         )}
         <span className="ml-auto flex shrink-0">
-          <DecisionChip {...chip} variant={variant} />
+          {observation ? <ObservedPill severity={severity} /> : isVoided(action) ? <VoidedChip /> : <DecisionChip {...chip} variant={variant} />}
         </span>
       </span>
       <span className="flex min-w-0 items-center gap-2 text-xs text-fg-secondary">
@@ -114,6 +135,8 @@ function useAnnouncement(actions: readonly ActionSummary[] | undefined) {
 
 export function LiveFeed() {
   const traces = useTraces();
+  const approvals = useApprovals();
+  const securityEvents = useSecurityEvents();
   const status = useStreamStatus();
   const reduceMotion = useReducedMotion();
   const match = useMatch('/traces/:traceId');
@@ -126,7 +149,11 @@ export function LiveFeed() {
   // Feed panel 384 (>= 1440) or 320, minus list and row padding.
   const rowWidth = (useWideFeed() ? 384 : 320) - 40;
 
-  const entries = useMemo(() => groupBursts(traces.data ?? []), [traces.data]);
+  // The approval record is authoritative; a trace's own approval_state can be stale (FAIL-1).
+  const recordState = useMemo(() => new Map((approvals.data ?? []).map((a) => [a.trace_id, a.state as string])), [approvals.data]);
+  const severityByTrace = useMemo(() => new Map((securityEvents.data ?? []).map((e) => [e.trace_id, e.severity as string])), [securityEvents.data]);
+  const actions = useMemo(() => (traces.data ?? []).map((a) => withApprovalState(a, recordState)), [traces.data, recordState]);
+  const entries = useMemo(() => groupBursts(actions), [actions]);
   const frozen = hovered || scrolledAway;
 
   useEffect(() => {
@@ -206,6 +233,7 @@ export function LiveFeed() {
                 >
                   <FeedRow
                     entry={entry}
+                    severity={severityByTrace.get(entry.action.trace_id)}
                     rowWidth={rowWidth}
                     selected={entry.traceIds.includes(match?.params.traceId ?? '')}
                     flash={flashes.has(entry.action.trace_id)}
@@ -218,7 +246,7 @@ export function LiveFeed() {
       </div>
       <footer className="flex items-center gap-2 border-t border-line-subtle px-4 py-2 text-2xs text-fg-tertiary">
         <Icon name="streamline-flex:information-circle" size={12} />
-        Every row is one request the Gateway decided. Open it for the trace.
+        Every row is a request the Gateway decided or an event it observed.
       </footer>
     </section>
   );

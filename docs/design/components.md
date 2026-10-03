@@ -227,6 +227,13 @@ Carries the act 2 line "Maya can see HR files. Her agent cannot."
   time, capability, resource, tier. The agent id never truncates: when it and a split AI-tightened
   chip do not fit on line 1, the chip uses its compact dot. The "n new" pill sits in the feed header
   or pushes the rows down; it never covers a row.
+- **Observation row** (FAIL-3): a feed row whose capability is `security.observe` or whose caller is
+  `system` is a Gateway observation, not a decided request. In the agent slot: the Gateway mark
+  `streamline-flex:shield-2` in `accent.text` and the name "Gateway". In the chip slot: a neutral pill
+  "Observed" (height 24, 1px `line-default`, `fg-secondary` text, icon
+  `streamline-flex:wave-signal-circle`), never a decision chip, no left bar. When the event carries a
+  severity of medium or above, a SeverityBadge follows the pill. Observation rows are excluded from
+  Allowed and Denied counts and from bursts of agent rows.
 - **ScenarioDock** (Director): floating, `surface.overlay` + blur 16, `radius.pill`, height 52,
   `e3`; segments Act 1 to Act 7 (tooltip: act title) + divider + "Reset scenario"
   (`streamline:arrow-reload-horizontal-1`). The running act uses `gradient.feature`; finished acts

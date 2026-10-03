@@ -115,7 +115,7 @@ function useGraph() {
       }
     }
     for (const t of recent) {
-      const caller = callerOf(t.human);
+      const caller = callerOf(t.human, t.agent.id);
       callers.set(caller.id, caller);
     }
     y = TOP + TEAM_GAP;
@@ -198,7 +198,7 @@ function useGraph() {
       }
     }
     for (const t of recent) {
-      const caller = callerOf(t.human).id;
+      const caller = callerOf(t.human, t.agent.id).id;
       bump(`s:${caller}:${t.agent.id}`, `human:${caller}`, `agent:${t.agent.id}`, 'session', latestOf(t));
       if (t.tool && t.capability !== 'agent.message') bump(`a:${t.agent.id}:${targetOf(t.tool)}`, `agent:${t.agent.id}`, targetOf(t.tool), 'action', latestOf(t));
     }

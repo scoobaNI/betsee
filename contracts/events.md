@@ -88,6 +88,10 @@ reading them does not rewrite the approval, trace or audit evidence.
 it only from a resolved approval or step-up span matching the recorded approver; a requested step-up
 does not prove that it happened.
 
+Ending a session voids its still-pending approvals: the approval record and its trace move to
+`approval_state` `voided` and emit an `action.updated` event, so the feed, the awaiting-human count
+and every other trace consumer stop reporting a human as awaited on a session that has ended.
+
 Every security event correlation resolves to a trace. Events outside an agent action use a
 `record_type: security_observation` trace; tool transitions use `tool_observation`. Summary action
 counters exclude both observation kinds. Summary reads are scoped to the human actor for employees.

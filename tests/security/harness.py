@@ -250,6 +250,10 @@ class LiveCase(unittest.TestCase):
         missing = prerequisites([plan, self.config.get("setup", [])])
         if missing:
             self.skipTest(f"PENDING: missing environment variables {', '.join(missing)}")
+        quarantined = set(self.config.get("demo_quarantined", []))
+        blocked = sorted(set(plan.get("requires_active", [])) & quarantined)
+        if blocked:
+            self.skipTest(f"PENDING: principal {', '.join(blocked)} is under demo quarantine; the suite does not release an agent it did not quarantine itself")
         steps = plan.get("steps", [])
         self.assertEqual(len(steps), len(self.case.outcomes), "Fixture must exercise every catalog outcome")
         paths = DEFAULT_FIELDS | self.config.get("fields", {})
@@ -298,9 +302,17 @@ class LiveCase(unittest.TestCase):
                     original = self.client.request(plan["original_trace"], variables)
                     self.assertEqual(original.status, 200)
                     self.assertEqual(original.body, variables["original_trace_snapshot"], "Caller trace reuse overwrote the original evidence")
-                    events = self.client.request(plan["security_events"], variables)
+                    # The correlated security event is persisted asynchronously, so poll within the
+                    # same slack the audit lookup uses rather than reading it once.
+                    reuse_deadline = time.monotonic() + self.config.get("audit_wait_seconds", 3)
+                    while True:
+                        events = self.client.request(plan["security_events"], variables)
+                        reuse_event = events.status == 200 and any(event.get("type") == "trace_id_reused" and event.get("trace_id") == variables["trace_id"] and event.get("attributes", {}).get("caller_trace_id") == original_id for event in events.body["items"])
+                        if reuse_event or time.monotonic() >= reuse_deadline:
+                            break
+                        time.sleep(0.1)
                     self.assertEqual(events.status, 200)
-                    self.assertTrue(any(event.get("type") == "trace_id_reused" and event.get("trace_id") == variables["trace_id"] and event.get("attributes", {}).get("caller_trace_id") == original_id for event in events.body["items"]), "Trace reuse must emit a correlated security event")
+                    self.assertTrue(reuse_event, "Trace reuse must emit a correlated security event")
                 if expected != "allow" and self.case.controls:
                     controls = read_required(action, paths, "controls")
                     self.assertTrue(set(self.case.controls) & set(controls), "Expected security control did not decide the blocked action")

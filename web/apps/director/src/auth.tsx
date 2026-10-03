@@ -18,6 +18,8 @@ export const oidcConfig = {
   onSigninCallback: (user: User | void) => {
     const target = typeof user?.state === 'string' && user.state.startsWith('/') ? user.state : '/';
     window.history.replaceState({}, document.title, target);
+    // The router only follows popstate; without it a deep link opened in a fresh tab lands on Live.
+    window.dispatchEvent(new PopStateEvent('popstate'));
   },
 };
 
