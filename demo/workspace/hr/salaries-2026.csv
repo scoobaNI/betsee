@@ -1,0 +1,5 @@
+employee_id,name,role,base_salary_eur,bonus_target_pct
+E-1001,Maya Chen,Finance analyst,58200,8
+E-1002,Daniel Ortiz,Security officer,71400,10
+E-1003,Priya Raman,Platform administrator,76800,10
+E-1004,Tomasz Nowak,Hub supervisor,49900,6

@@ -1,31 +1,33 @@
 import { useLiveSync, useMe } from '@betsee/api';
 import { useEffect } from 'react';
-import { Route, Routes, useLocation } from 'react-router';
-import { LiveFeed } from './components/feed.tsx';
+import { Navigate, Route, Routes, useLocation } from 'react-router';
+import { DemoDock } from './components/demo-dock.tsx';
 import { ErrorBoundary } from './components/error-boundary.tsx';
-import { ScenarioDock } from './components/scenario-dock.tsx';
-import { ECOSYSTEM_URL, Shell } from './components/shell.tsx';
-import { ErrorCard, FullPageMessage } from './components/states.tsx';
-import { AgentDrawer } from './pages/agent-drawer.tsx';
+import { Shell } from './components/shell.tsx';
+import { ECOSYSTEM_URL, ErrorCard, FullPageMessage } from './components/ui.tsx';
+import { ActivityPage } from './pages/activity.tsx';
+import { AgentPage } from './pages/agent.tsx';
+import { AgentsPage } from './pages/agents.tsx';
 import { CoveragePage } from './pages/coverage.tsx';
 import { GraphPage } from './pages/graph.tsx';
-import { LivePage } from './pages/live.tsx';
+import { OverviewPage } from './pages/overview.tsx';
 import { TracePage } from './pages/trace.tsx';
 
 const DIRECTOR_ROLES = ['security-officer', 'org-admin'];
 
 const TITLES: [RegExp, string][] = [
-  [/^\/traces\//, 'Trace'],
+  [/^\/agents\/./, 'Agent'],
+  [/^\/agents/, 'Agents'],
+  [/^\/activity/, 'Activity'],
   [/^\/graph/, 'Graph'],
   [/^\/coverage/, 'Coverage'],
-  [/^\/agents\//, 'Agent'],
 ];
 
 function useDocumentTitle() {
   const { pathname } = useLocation();
   useEffect(() => {
     if (pathname.startsWith('/traces/')) return; // the trace page names its own id
-    const page = TITLES.find(([pattern]) => pattern.test(pathname))?.[1] ?? 'Live';
+    const page = TITLES.find(([pattern]) => pattern.test(pathname))?.[1] ?? 'Overview';
     document.title = `${page} - Director - Betsee`;
   }, [pathname]);
 }
@@ -35,21 +37,19 @@ function Director() {
   useDocumentTitle();
   const { pathname } = useLocation();
   return (
-    <Shell feed={<LiveFeed />} dock={<ScenarioDock />}>
+    <Shell dock={<DemoDock />}>
       <ErrorBoundary key={pathname}>
-      <Routes>
-        <Route path="/" element={<LivePage />} />
-        <Route path="/agents/:agentId" element={<LivePage />} />
-        <Route path="/traces/:traceId" element={<TracePage />} />
-        <Route path="/graph" element={<GraphPage />} />
-        <Route path="/coverage" element={<CoveragePage />} />
-        <Route path="*" element={<LivePage />} />
-      </Routes>
+        <Routes>
+          <Route path="/" element={<OverviewPage />} />
+          <Route path="/agents" element={<AgentsPage />} />
+          <Route path="/agents/:agentId" element={<AgentPage />} />
+          <Route path="/activity" element={<ActivityPage />} />
+          <Route path="/traces/:traceId" element={<TracePage />} />
+          <Route path="/graph" element={<GraphPage />} />
+          <Route path="/coverage" element={<CoveragePage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </ErrorBoundary>
-      <Routes>
-        <Route path="/agents/:agentId" element={<AgentDrawer />} />
-        <Route path="*" element={null} />
-      </Routes>
     </Shell>
   );
 }
@@ -60,7 +60,7 @@ export function App() {
   if (me.isPending) return <FullPageMessage title="Opening the Director" body="Checking who you are with the Gateway." />;
   if (me.isError) {
     return (
-      <main className="dir-canvas flex min-h-screen items-center justify-center p-6">
+      <main className="flex min-h-screen items-center justify-center bg-canvas p-6">
         <div className="w-full max-w-lg">
           <ErrorCard title="Could not reach the Gateway" error={me.error} onRetry={() => void me.refetch()} />
         </div>

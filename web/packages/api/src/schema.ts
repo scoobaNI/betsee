@@ -313,6 +313,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/actions/{trace_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The calling agent's own action, re-read while a human approval is pending (agent token only) */
+        get: operations["get__api_v1_actions_trace_id"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/inputs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Content filter (CTL-IN-001): check text a human types to their session's agent before any model sees it. A refused message returns 200 with decision deny; every check is a trace. */
+        post: operations["post__api_v1_chat_inputs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent-host: the caller's chats with the employee assistant */
+        get: operations["get__api_v1_chat_sessions"];
+        put?: never;
+        /** agent-host: start a chat; creates a Betsee AgentSession for employee-assistant in use case employee-assistance with the caller's token */
+        post: operations["post__api_v1_chat_sessions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** agent-host: send a message. The Gateway content filter runs first; a refused or unchecked message never reaches the model (200 blocked). An accepted message starts the agent (202). */
+        post: operations["post__api_v1_chat_messages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/stream/{chat_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent-host: Server-Sent Events of one chat (bearer, fetch-based; Last-Event-ID resumes). Event types are listed in contracts/events.md. */
+        get: operations["get__api_v1_chat_stream_chat_id"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/traces/{trace_id}": {
         parameters: {
             query?: never;
@@ -424,7 +510,7 @@ export interface components {
         /** @enum {string} */
         Tier: "public" | "internal" | "confidential" | "restricted";
         /** @enum {string} */
-        ApprovalState: "none" | "pending" | "approved" | "rejected";
+        ApprovalState: "none" | "pending" | "approved" | "rejected" | "voided";
         Budget: {
             limit: number;
             used: number;
@@ -461,6 +547,43 @@ export interface components {
             /** @description Mock analyzer finding, always displayed together with model_label. */
             finding?: string;
         };
+        ChatInput: {
+            session_id: string;
+            text: string;
+        };
+        InputFinding: {
+            /** @enum {string} */
+            class: "payment_card" | "iban" | "pesel" | "secret" | "resource_above_tier";
+            label: string;
+            /** @description Masked value; the matched text is never returned or stored. */
+            masked: string;
+        };
+        ChatInputResult: components["schemas"]["ActionSummary"] & {
+            findings: components["schemas"]["InputFinding"][];
+        };
+        ChatSession: {
+            chat_id: string;
+            session: components["schemas"]["AgentSession"];
+            busy: boolean;
+            /** Format: date-time */
+            created_at: string;
+            events: number;
+            agent_id: string;
+            use_case: components["schemas"]["UseCaseRef"];
+        };
+        ChatMessage: {
+            chat_id: string;
+            text: string;
+        };
+        ChatMessageResult: {
+            /** @enum {string} */
+            status: "accepted" | "blocked";
+            message_id: string;
+            trace_id?: string | null;
+            reasons?: string[];
+            control_ids?: string[];
+            findings?: components["schemas"]["InputFinding"][];
+        };
         ActionSummary: {
             trace_id: string;
             /** Format: date-time */
@@ -483,6 +606,11 @@ export interface components {
             approval_state: components["schemas"]["ApprovalState"];
             latency_ms: number;
             executed: boolean;
+            /**
+             * @description Who executes after allow: a Gateway connector; the agent runtime under delegated execution (CTL-RT-001), so executed means handed to the runtime after allow; or, for an input check, the message forwarded to the agent.
+             * @enum {string}
+             */
+            execution?: "connector" | "delegated" | "forwarded";
             output: {
                 [key: string]: unknown;
             } | null;
@@ -536,6 +664,11 @@ export interface components {
             approval_state: components["schemas"]["ApprovalState"];
             latency_ms: number;
             executed: boolean;
+            /**
+             * @description Who executes after allow: a Gateway connector; the agent runtime under delegated execution (CTL-RT-001), so executed means handed to the runtime after allow; or, for an input check, the message forwarded to the agent.
+             * @enum {string}
+             */
+            execution?: "connector" | "delegated" | "forwarded";
             output: {
                 [key: string]: unknown;
             } | null;
@@ -583,7 +716,9 @@ export interface components {
             name: string;
             permitted: string[];
             tier_ceiling: components["schemas"]["Tier"];
+            /** @description Unconditional capability obligations only. Empty does not remove conditional threshold or untrusted-input Cedar obligations. */
             approval_required: string[];
+            /** @description Unconditional capability obligations only. Empty does not remove conditional threshold or untrusted-input Cedar obligations. */
             step_up_required: string[];
             approval_threshold_cents: number;
             budget: components["schemas"]["Budget"];
@@ -611,18 +746,37 @@ export interface components {
             trace_id: string;
             state: components["schemas"]["ApprovalState"];
             action: components["schemas"]["ActionSummary"];
+            /** @description Original reasons requiring human review, retained after approval or rejection. action.reasons describes the current execution decision. Historical approvals recover requested_reasons from their first append-only pending audit record when available. */
+            requested_reasons?: components["schemas"]["DecisionReason"][];
             parameters: {
                 [key: string]: unknown;
             };
             provenance: {
+                fields?: {
+                    [key: string]: "agent" | "gateway";
+                };
+            } & {
                 [key: string]: unknown;
             };
             action_hash: string;
             requires_step_up: boolean;
+            /** @description ACR from the verified human token that resolved this approval. Historical records expose it only when a resolved approval or step-up span proves the same approver identity; requires_step_up alone is not proof. */
+            approver_acr?: string;
             /** Format: date-time */
             created_at: string;
             decided_at: string | null;
             approver: components["schemas"]["Human"] | null;
+            gateway_facts?: {
+                resource?: components["schemas"]["Resource"];
+                amount?: {
+                    cents: number;
+                    /** @enum {string} */
+                    currency: "EUR";
+                };
+                amount_cents?: number;
+                /** @enum {string} */
+                currency?: "EUR";
+            };
         };
         ApprovalResult: {
             /** @enum {string} */
@@ -746,7 +900,7 @@ export interface components {
         SecurityEvent: {
             id: string;
             /** @enum {string} */
-            type: "breaker_tripped" | "agent_quarantined" | "descriptor_drift" | "step_up_failed" | "approval_rejected" | "token_rejected" | "trace_id_reused";
+            type: "breaker_tripped" | "agent_quarantined" | "descriptor_drift" | "step_up_failed" | "approval_rejected" | "token_rejected" | "trace_id_reused" | "agent_released" | "control_attachment_changed";
             /** @enum {string} */
             severity: "info" | "low" | "medium" | "high" | "critical";
             trace_id: string;
@@ -783,7 +937,8 @@ export interface components {
             };
         };
         DecisionReason: {
-            policy_id: string;
+            /** @description Null for Gateway mechanisms; control_id always identifies the enforced control. */
+            policy_id: string | null;
             control_id: string;
             text: string;
         };
@@ -2387,6 +2542,302 @@ export interface operations {
             };
             /** @description Dependency unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__api_v1_actions_trace_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionSummary"];
+                };
+            };
+            /** @description Missing or invalid authentication */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not an agent token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not an action of this agent */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__api_v1_chat_inputs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatInputResult"];
+                };
+            };
+            /** @description Empty or oversized text */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid authentication */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not a browser human token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Session not found or not the caller's */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__api_v1_chat_sessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["ChatSession"][];
+                    };
+                };
+            };
+            /** @description Missing or rejected token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__api_v1_chat_sessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatSession"];
+                };
+            };
+            /** @description Missing or rejected token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Delegation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway unreachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__api_v1_chat_messages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatMessage"];
+            };
+        };
+        responses: {
+            /** @description Blocked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatMessageResult"];
+                };
+            };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatMessageResult"];
+                };
+            };
+            /** @description Missing or rejected token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Chat not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description The assistant is still working */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__api_v1_chat_stream_chat_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description text/event-stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Missing or rejected token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Chat not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

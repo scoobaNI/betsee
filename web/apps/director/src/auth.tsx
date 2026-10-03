@@ -1,7 +1,7 @@
 import { WebStorageStateStore, type User } from 'oidc-client-ts';
 import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import { AuthProvider, useAuth } from 'react-oidc-context';
-import { FullPageMessage } from './components/states.tsx';
+import { FullPageMessage } from './components/ui.tsx';
 
 const authority = import.meta.env.VITE_OIDC_AUTHORITY ?? 'http://auth.betsee.localhost/realms/betsee';
 

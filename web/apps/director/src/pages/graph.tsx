@@ -1,22 +1,21 @@
-import { toolKey, useAgentMessages, useAgents, useConnectors, useToolDrift, useTraces, type Agent, type Decision, type ApprovalState } from '@betsee/api';
-import { Icon } from '@betsee/ui';
+import { useAgentMessages, useAgents, useConnectors, useToolDrift, useTraces, type Agent, type ApprovalState, type Decision } from '@betsee/api';
 import { useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { EmptyState, ErrorCard, Skeleton } from '../components/states.tsx';
+import { Icon, type IconName } from '../components/icon.tsx';
+import { Avatar, Card, EmptyState, ErrorCard, PageHeader, Skeleton } from '../components/ui.tsx';
 import { callerOf, type Caller, type CallerKind } from '../domain/caller.ts';
 import { outcomeTone } from '../domain/decision.ts';
 import { edgeStyle, stoppedByBreaker, type EdgeLatest } from '../domain/graph-style.ts';
 import { groupByTeam, teamName } from '../domain/feed.ts';
-import { initials } from '../domain/format.ts';
 
-const W = 208;
-const H = 56;
-const GAP = 10;
+const W = 216;
+const H = 60;
+const GAP = 12;
 const TEAM_GAP = 24;
-const COLUMN_X = [0, 320, 636];
-// Agent-to-agent labels sit in the gutter between the humans and agents columns (contract GraphCanvas).
+const COLUMN_X = [0, 340, 680];
+// Agent-to-agent labels sit in the gutter between the humans and agents columns.
 const GUTTER_X = (COLUMN_X[0]! + W + COLUMN_X[1]!) / 2;
-const SUB_WIDTH = W - 24 - 32 - 12; // node padding, mark, gap
+const SUB_WIDTH = W - 28 - 32 - 12; // node padding, mark, gap
 const SUB_LINE = 14;
 const TOP = 28;
 // The live stack has no background traffic; an hour keeps the acts on the graph through a rehearsal.
@@ -225,22 +224,30 @@ function useGraph() {
   }, [agents.data, agents.isPending, agents.error, traces.data, traces.isPending, traces.error, messages.data, connectors.data, drift]);
 }
 
+
 function NodeCard({ node, onClick }: { node: GraphNode; onClick?: () => void }) {
   const quarantined = node.state === 'quarantined';
-  const border = node.kind === 'caller' ? 'border-dashed border-line-strong' : node.blocked ? 'border-deny-fg' : quarantined ? 'border-quarantined-border dir-quarantined' : node.state === 'suspended' ? 'border-suspended-border dir-suspended' : 'border-line-default';
+  const frame =
+    node.kind === 'caller'
+      ? 'border-dashed border-line-strong bg-surface'
+      : node.blocked
+        ? 'border-bad/40 bg-bad-soft'
+        : quarantined
+          ? 'border-quar/40 bg-quar-soft'
+          : node.state === 'suspended'
+            ? 'border-line-strong bg-sunken'
+            : 'border-line bg-surface';
+  const icon: IconName = node.blocked ? 'shield-x' : node.kind === 'agent' ? 'bot' : node.kind === 'tool' ? 'wrench' : node.kind === 'caller' ? (node.callerKind === 'gateway' ? 'shield' : 'shield-x') : 'link';
   const mark =
-    node.kind === 'caller' ? (
-      <span className={`flex h-8 w-8 items-center justify-center rounded-sm bg-surface-3 ${node.callerKind === 'gateway' ? 'text-accent-text' : 'text-fg-secondary'}`}>
-        <Icon name={node.callerKind === 'gateway' ? 'streamline-flex:shield-2' : 'streamline-flex:shield-cross'} size={16} />
-      </span>
-    ) : node.kind === 'human' ? (
-      <span className="flex h-8 w-8 items-center justify-center rounded-pill bg-surface-3 text-xs font-semibold text-fg-secondary">{initials(node.label)}</span>
+    node.kind === 'human' ? (
+      <Avatar name={node.label} size={32} />
     ) : (
-      <span className={`flex h-8 w-8 items-center justify-center rounded-sm bg-surface-3 ${node.blocked ? 'text-deny-fg' : quarantined ? 'text-quarantined-fg' : node.kind === 'agent' ? 'text-accent-text' : 'text-fg-secondary'}`}>
-        <Icon
-          name={node.blocked ? 'streamline-flex:shield-cross' : node.kind === 'agent' ? 'streamline-flex:ai-chip-robot' : node.kind === 'tool' ? 'streamline-flex:wrench-hand' : 'streamline-flex:link-chain'}
-          size={16}
-        />
+      <span
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+          node.blocked ? 'bg-surface text-bad-ink' : quarantined ? 'bg-surface text-quar-ink' : node.kind === 'agent' ? 'bg-accent-soft text-accent-ink' : 'bg-sunken text-ink-2'
+        }`}
+      >
+        <Icon name={icon} size={16} />
       </span>
     );
   const Tag = onClick ? 'button' : 'div';
@@ -249,26 +256,35 @@ function NodeCard({ node, onClick }: { node: GraphNode; onClick?: () => void }) 
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       style={{ left: node.x, top: node.y, width: W, height: node.h }}
-      className={`absolute flex items-center gap-3 rounded-md border bg-surface-1 px-3 text-left shadow-e1 ${border} ${onClick ? 'hover:shadow-e2' : ''}`}
+      className={`absolute flex items-center gap-3 rounded-xl border px-3.5 text-left shadow-card ${frame} ${onClick ? 'lift' : ''}`}
     >
       {mark}
       <span className="min-w-0">
-        <span title={node.label} className={`block truncate text-sm ${node.kind === 'human' ? '' : 'font-mono font-medium'}`}>{node.label}</span>
-        <span title={node.stateMessage ? undefined : node.sub} className={`block text-2xs ${node.kind === 'caller' ? 'font-mono' : ''} ${node.stateMessage ? 'whitespace-normal' : 'truncate'} ${node.blocked ? 'text-deny-fg' : quarantined ? 'text-quarantined-fg' : node.kind === 'tool' ? 'font-mono text-fg-tertiary' : 'text-fg-secondary'}`}>{node.sub}</span>
+        <span title={node.label} className="block truncate text-[13px] font-medium text-ink">
+          {node.label}
+        </span>
+        <span
+          title={node.stateMessage ? undefined : node.sub}
+          className={`block text-[11px] ${node.kind === 'caller' || node.kind === 'tool' ? 'font-mono' : ''} ${node.stateMessage ? 'whitespace-normal' : 'truncate'} ${
+            node.blocked ? 'text-bad-ink' : quarantined ? 'text-quar-ink' : 'text-ink-3'
+          }`}
+        >
+          {node.sub}
+        </span>
       </span>
-      <span aria-hidden="true" className="absolute -left-0.75 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-pill border border-line-strong bg-surface-3" />
-      <span aria-hidden="true" className="absolute -right-0.75 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-pill border border-line-strong bg-surface-3" />
     </Tag>
   );
 }
 
 const LEGEND = [
-  { label: 'Allowed', stroke: 'var(--bs-color-accent-default)', opacity: 0.55 },
-  { label: 'Denied', stroke: 'var(--bs-color-decision-deny-fg)' },
-  { label: 'Awaiting approval', stroke: 'var(--bs-color-decision-approval-fg)', dash: '4 4' },
-  { label: 'AI-tightened', stroke: 'var(--bs-color-modifier-ai-tightened-fg)' },
-  { label: 'Quarantined sender', stroke: 'var(--bs-color-lifecycle-quarantined-fg)', dash: '4 4' },
+  { label: 'Allowed', stroke: 'var(--color-accent)', opacity: 0.55 },
+  { label: 'Denied', stroke: 'var(--color-bad)' },
+  { label: 'Awaiting approval', stroke: 'var(--color-wait)', dash: '4 4' },
+  { label: 'Tightened by AI', stroke: 'var(--color-ai)' },
+  { label: 'Quarantined sender', stroke: 'var(--color-quar)', dash: '4 4' },
 ];
+
+const COLUMNS = ['People', 'Agents', 'Tools and connectors'];
 
 export function GraphPage() {
   const graph = useGraph();
@@ -277,48 +293,74 @@ export function GraphPage() {
   const seenAtMount = useRef<Set<string> | null>(null);
   if (!seenAtMount.current && !graph.loading) seenAtMount.current = new Set(graph.edges.map((e) => e.latest?.trace_id ?? ''));
 
-  if (graph.loading) return <Skeleton className="h-[640px]" />;
-  if (graph.error) return <ErrorCard title="Could not load the graph" error={graph.error} />;
+  const header = (
+    <PageHeader
+      crumbs={[{ label: 'Overview', to: '/' }, { label: 'Graph' }]}
+      title="Graph"
+      description="Who launched which agent, what each agent touched, and which agents talked to each other, over the last hour. Click an agent to open it, a line to open its latest trace."
+    />
+  );
+
+  if (graph.loading) {
+    return (
+      <div>
+        {header}
+        <Skeleton className="h-[600px]" />
+      </div>
+    );
+  }
+  if (graph.error) {
+    return (
+      <div>
+        {header}
+        <ErrorCard title="Could not load the graph" error={graph.error} />
+      </div>
+    );
+  }
   if (graph.edges.every((e) => !e.latest)) {
     return (
-      <div className="rounded-xl border border-line-subtle bg-surface-1">
-        <EmptyState icon="streamline-flex:hierarchy-2" title="No agent has acted in the last hour" body="Launch Act 1 from the scenario dock, or start an agent." />
+      <div>
+        {header}
+        <Card>
+          <EmptyState icon="map" title="No agent has acted in the last hour" body="Launch Act 1 from the demo controls, or start an agent." />
+        </Card>
       </div>
     );
   }
 
   const width = COLUMN_X[2]! + W + 8;
+  const firstCaller = [...graph.nodes.values()].find((n) => n.kind === 'caller');
+  const teamLabels = [...graph.nodes.values()]
+    .filter((n) => n.kind === 'agent')
+    .reduce<{ team: string; y: number }[]>((acc, n) => (acc.some((t) => t.team === n.team) ? acc : [...acc, { team: n.team!, y: n.y - 20 }]), []);
   return (
-    <div className="space-y-4">
-      <header className="flex flex-wrap items-end gap-4">
-        <div>
-          <h1 className="font-display text-3xl font-semibold tracking-[var(--bs-font-tracking-display)]">Agent graph</h1>
-          <p className="mt-1 text-sm text-fg-secondary">Who launched which agent, what each agent touched, and which agents talked, over the last hour.</p>
-        </div>
-        <ul className="ml-auto flex flex-wrap gap-4 text-xs text-fg-secondary">
+    <div>
+      {header}
+      <Card className="scrollbar-quiet overflow-x-auto px-6 pt-6 pb-8 md:px-10">
+        <ul className="mb-8 flex flex-wrap gap-x-6 gap-y-2 text-[12px] text-ink-2">
           {LEGEND.map((item) => (
-            <li key={item.label} className="flex items-center gap-1.5">
+            <li key={item.label} className="flex items-center gap-2">
               <svg width="22" height="6" aria-hidden="true">
-                <line x1="1" y1="3" x2="21" y2="3" stroke={item.stroke} strokeOpacity={item.opacity ?? 1} strokeWidth="2" strokeDasharray={item.dash} />
+                <line x1="1" y1="3" x2="21" y2="3" stroke={item.stroke} strokeOpacity={item.opacity ?? 1} strokeWidth="2" strokeLinecap="round" strokeDasharray={item.dash} />
               </svg>
               {item.label}
             </li>
           ))}
         </ul>
-      </header>
-      <div className="overflow-x-auto rounded-xl border border-line-subtle p-4">
         <div className="relative mx-auto" style={{ width, height: graph.height }}>
-          {(() => {
-            const first = [...graph.nodes.values()].find((n) => n.kind === 'caller');
-            return first ? (
-              <p style={{ left: COLUMN_X[0], top: first.y - 20 }} className="absolute text-2xs font-semibold uppercase tracking-[var(--bs-font-tracking-caps)] text-fg-tertiary">
-                Other callers
-              </p>
-            ) : null;
-          })()}
-          {['Humans', 'Agents', 'Tools and connectors'].map((title, i) => (
-            <p key={title} style={{ left: COLUMN_X[i], top: 0, width: W }} className="absolute text-2xs font-semibold uppercase tracking-[var(--bs-font-tracking-caps)] text-fg-tertiary">
+          {COLUMNS.map((title, i) => (
+            <p key={title} style={{ left: COLUMN_X[i], top: 0, width: W }} className="absolute text-[12px] font-medium text-ink-3">
               {title}
+            </p>
+          ))}
+          {firstCaller && (
+            <p style={{ left: COLUMN_X[0], top: firstCaller.y - 20 }} className="absolute text-[11px] font-medium text-ink-3">
+              Other callers
+            </p>
+          )}
+          {teamLabels.map(({ team, y }) => (
+            <p key={team} style={{ left: COLUMN_X[1], top: y }} className="absolute text-[11px] font-medium text-ink-3">
+              {teamName(team)}
             </p>
           ))}
           <svg className="absolute inset-0 overflow-visible" width={width} height={graph.height} aria-hidden="true">
@@ -331,15 +373,15 @@ export function GraphPage() {
               const fresh = edge.kind !== 'session' && edge.latest && seenAtMount.current && !seenAtMount.current.has(edge.latest.trace_id);
               return (
                 <g key={edge.id}>
-                  <path d={d} fill="none" stroke={style.stroke} strokeOpacity={style.opacity} strokeWidth={1.5} strokeDasharray={style.dash} />
+                  <path d={d} fill="none" stroke={style.stroke} strokeOpacity={style.opacity} strokeWidth={1.5} strokeLinecap="round" strokeDasharray={style.dash} />
                   {fresh && (
                     <path
                       key={edge.latest!.trace_id}
                       d={d}
                       fill="none"
-                      className="dir-edge-flow"
-                      stroke={edge.latest!.decision === 'deny' ? 'var(--bs-color-decision-deny-fg)' : 'var(--bs-color-accent-edge)'}
-                      strokeWidth={2.5}
+                      className="edge-flow"
+                      stroke={edge.latest!.decision === 'deny' ? 'var(--color-bad)' : 'var(--color-accent)'}
+                      strokeWidth={3}
                       strokeLinecap="round"
                     />
                   )}
@@ -359,14 +401,6 @@ export function GraphPage() {
               );
             })}
           </svg>
-          {[...graph.nodes.values()]
-            .filter((n) => n.kind === 'agent' && graph.nodes.get(`agent:${n.label}`) === n)
-            .reduce<{ team: string; y: number }[]>((acc, n) => (acc.some((t) => t.team === n.team) ? acc : [...acc, { team: n.team!, y: n.y - 20 }]), [])
-            .map(({ team, y }) => (
-              <p key={team} style={{ left: COLUMN_X[1], top: y }} className="absolute bg-app px-0.5 text-2xs text-fg-tertiary">
-                {teamName(team)}
-              </p>
-            ))}
           {graph.edges.map((edge) => {
             const latest = edge.latest;
             const denied = latest && outcomeTone(latest) === 'deny';
@@ -380,15 +414,15 @@ export function GraphPage() {
               <span
                 key={`label-${edge.id}`}
                 style={{ left: mx, top: my }}
-                className={`dir-overlay pointer-events-none absolute flex max-w-24 -translate-x-1/2 -translate-y-1/2 flex-col items-center rounded-md border border-line-subtle px-1.5 py-0.5 text-center text-2xs font-semibold leading-tight ${
-                  denied ? 'text-deny-fg' : 'text-fg-secondary'
+                className={`pointer-events-none absolute flex max-w-28 -translate-x-1/2 -translate-y-1/2 flex-col items-center rounded-lg border bg-surface px-2 py-1 text-center text-[11px] leading-tight font-medium shadow-card ${
+                  denied ? 'border-bad/30 text-bad-ink' : 'border-line text-ink-2'
                 }`}
               >
                 <span className="flex items-center gap-1">
-                  {breaker && <Icon name="streamline-flex:button-power-1" size={12} />}
+                  {breaker && <Icon name="power" size={11} />}
                   {breaker ? 'breaker open' : denied ? 'denied' : ''}
                 </span>
-                {edge.count > 1 && <span className="font-mono tabular-nums text-fg-secondary">x{edge.count}</span>}
+                {edge.count > 1 && <span className="font-mono text-ink-3 tabular-nums">x{edge.count}</span>}
               </span>
             );
           })}
@@ -396,7 +430,7 @@ export function GraphPage() {
             <NodeCard key={node.id} node={node} onClick={node.kind === 'agent' ? () => navigate(`/agents/${encodeURIComponent(node.label)}`) : undefined} />
           ))}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

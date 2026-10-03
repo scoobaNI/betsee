@@ -240,15 +240,15 @@ describe('graph edge style', () => {
     const pending = edgeStyle({ kind: 'action', breaker: false, latest: latest({ decision: 'require_approval', approval_state: 'pending', ai_tightened: true }) }, 'active');
     const resolved = edgeStyle({ kind: 'action', breaker: false, latest: latest({ decision: 'require_approval', approval_state: 'approved', ai_tightened: true }) }, 'active');
     assert.equal(pending.dash, '4 4');
-    assert.match(pending.stroke, /ai-tightened/);
+    assert.match(pending.stroke, /--color-ai\b/);
     assert.equal(resolved.dash, undefined);
   });
 
   it('draws a breaker message edge red and dashed, and session edges neutral', () => {
     const breaker = edgeStyle({ kind: 'message', breaker: true, latest: latest({ decision: 'deny', control_ids: ['CTL-ID-002'] }) }, 'quarantined');
-    assert.match(breaker.stroke, /deny/);
+    assert.match(breaker.stroke, /--color-bad\b/);
     assert.equal(breaker.dash, '4 4');
-    assert.match(edgeStyle({ kind: 'session', breaker: false, latest: latest({ decision: 'deny' }) }, 'active').stroke, /border-strong/);
+    assert.match(edgeStyle({ kind: 'session', breaker: false, latest: latest({ decision: 'deny' }) }, 'active').stroke, /--color-line-strong\b/);
   });
 });
 

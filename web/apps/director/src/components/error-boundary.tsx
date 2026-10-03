@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { ErrorCard } from './states.tsx';
+import { ErrorCard } from './ui.tsx';
 
 /** Keeps one failing component from blanking the Director on stage; Retry remounts the tree. */
 export class ErrorBoundary extends Component<{ children: ReactNode; title?: string }, { error: unknown; key: number }> {
@@ -16,7 +16,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode; title?: stri
   render() {
     if (this.state.error) {
       return (
-        <div className="p-6">
+        <div className="py-6">
           <ErrorCard
             title={this.props.title ?? 'This view failed to render'}
             error={this.state.error}

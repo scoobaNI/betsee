@@ -66,6 +66,7 @@ services:
       AGENT_CLIENT_SECRET_RESEARCH_PEER: ${AGENT_CLIENT_SECRET_RESEARCH_PEER}
       AGENT_CLIENT_SECRET_OPS_RUNNER: ${AGENT_CLIENT_SECRET_OPS_RUNNER}
       AGENT_CLIENT_SECRET_REPORT_BOT: ${AGENT_CLIENT_SECRET_REPORT_BOT}
+      AGENT_CLIENT_SECRET_EMPLOYEE_ASSISTANT: ${AGENT_CLIENT_SECRET_EMPLOYEE_ASSISTANT:-employee-assistant-demo-secret}
       KC_HOSTNAME: http://auth.betsee.localhost
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_PROXY_HEADERS: xforwarded
@@ -200,6 +201,9 @@ services:
       dockerfile: infra/caddy/Dockerfile
     ports:
       - "80:80"
+    # agent-host runs on the host (it drives the claude CLI and its login), not in Compose.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data

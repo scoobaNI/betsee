@@ -7,6 +7,11 @@ import { useApprovals, useEcosystemMe } from "@betsee/api/resources/ecosystem";
 
 const navigation = [
   { href: "/", label: "Home", icon: "streamline-flex:home-2", end: true },
+  {
+    href: "/chat",
+    label: "Chat",
+    icon: "streamline-flex:chat-bubble-typing-oval",
+  },
   { href: "/approvals", label: "Approvals", icon: "streamline-flex:inbox" },
   {
     href: "/policy-studio",
@@ -30,6 +35,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const [search, setSearch] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const location = useLocation();
+  // The chat owns its full height: no page padding and no footer.
+  const bleed = location.pathname.startsWith("/chat");
   useEffect(() => {
     setSearch("");
   }, [location.pathname]);
@@ -173,14 +180,19 @@ export function Shell({ children }: { children: ReactNode }) {
             <IdentityStatus />
           </div>
         </header>
-        <main id="main-content" className="eco-content">
+        <main
+          id="main-content"
+          className={bleed ? "eco-content eco-content--bleed" : "eco-content"}
+        >
           {children}
+          {!bleed && (
           <footer className="mt-12 flex flex-wrap justify-between gap-3 border-t border-line-subtle pt-5 text-xs text-fg-tertiary">
             <span>Betsee · Better see what your agents do.</span>
             <a href="https://streamlinehq.com" target="_blank" rel="noreferrer">
               Icons by Streamline (streamlinehq.com), CC BY 4.0
             </a>
           </footer>
+          )}
         </main>
       </div>
     </div>

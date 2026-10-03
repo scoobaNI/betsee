@@ -385,7 +385,17 @@ impl Gateway {
             "llm.complete" => "Model",
             _ => "Resource",
         };
-        let resource = find_entity(&entities, resource_kind, &request.resource.id).cloned();
+        let mut cedar_resource_id = request.resource.id.clone();
+        let mut resource = find_entity(&entities, resource_kind, &request.resource.id).cloned();
+        let mut new_file = false;
+        if resource.is_none()
+            && request.capability == "files.write"
+            && let Some(folder) = runtime_write_folder(&entities, &request.resource.id)
+        {
+            cedar_resource_id = text(&folder["uid"], "id").to_owned();
+            resource = Some(folder);
+            new_file = true;
+        }
         let mut initial = Outcome::default();
         if request.capability == "agent.message" && !request.mediated {
             initial.deny = true;
@@ -407,8 +417,13 @@ impl Gateway {
         if let Some(resource) = &resource
             && resource_kind == "Resource"
         {
-            trace["resource"] = json!({"type":resource["attrs"]["kind"],"id":request.resource.id,"tier":tier(resource["attrs"]["tier"].as_i64().unwrap_or(3))});
-            if request.resource.r#type != text(&resource["attrs"], "kind") {
+            let kind = if new_file {
+                "file"
+            } else {
+                text(&resource["attrs"], "kind")
+            };
+            trace["resource"] = json!({"type":kind,"id":request.resource.id,"tier":tier(resource["attrs"]["tier"].as_i64().unwrap_or(3))});
+            if request.resource.r#type != kind {
                 initial = Outcome::denied("resource type does not match catalog");
             }
         }
@@ -420,9 +435,6 @@ impl Gateway {
         if let Some(capability) = request.parameters["requested_capability"].as_str() {
             context["requestedCapability"] = entity_ref("Capability", capability);
         }
-        if request.capability == "shell.exec" {
-            context["command"] = command_check(&request.parameters);
-        }
         let tool = resource
             .as_ref()
             .and_then(|resource| resource["parents"].as_array())
@@ -433,6 +445,35 @@ impl Gateway {
             })
             .and_then(|parent| parent["id"].as_str())
             .map(str::to_owned);
+        let delegated = tool
+            .as_deref()
+            .is_some_and(|tool| runtime_tool(&entities, tool));
+        trace["execution"] = json!(if delegated { "delegated" } else { "connector" });
+        let mut scope_tier = None;
+        if delegated {
+            context["runtime"] = json!({"connector":entity_ref("Connector",RUNTIME_CONNECTOR)});
+            trace["tool"] = json!({"name":request.parameters["tool"].as_str().or(tool.as_deref()),"connector":RUNTIME_CONNECTOR});
+            if request.capability == "files.read"
+                && request.parameters["mode"] == "content"
+                && resource
+                    .as_ref()
+                    .is_some_and(|resource| resource["attrs"]["kind"] == "folder")
+            {
+                scope_tier = Some(content_tier(&entities, &cedar_resource_id));
+            }
+        }
+        if request.capability == "shell.exec" {
+            let (command, tier) = if delegated {
+                runtime_command_check(&request.parameters, &entities)
+            } else {
+                (command_check(&request.parameters), None)
+            };
+            context["command"] = command;
+            scope_tier = scope_tier.max(tier);
+        }
+        if let Some(scope) = scope_tier {
+            context["scopeTier"] = json!(scope);
+        }
         if let Some(tool) = &tool
             && reviewed_tools()
                 .iter()
@@ -467,7 +508,7 @@ impl Gateway {
             engine.evaluate(
                 &uid("Agent", &claims.azp),
                 &uid("Action", &request.capability),
-                &uid(resource_kind, &request.resource.id),
+                &uid(resource_kind, &cedar_resource_id),
                 entities,
                 context,
             )
@@ -489,6 +530,7 @@ impl Gateway {
                 use_case: &use_case,
                 resource: resource.as_ref(),
                 request: &request,
+                scope_tier,
             },
         );
         let denied_stage = deterministic
@@ -604,6 +646,7 @@ impl Gateway {
                 use_case: &use_case,
                 resource: resource.as_ref(),
                 request: &request,
+                scope_tier,
             },
         );
         trace["analysis"] = trace["analyzer"].clone();
@@ -708,9 +751,16 @@ impl Gateway {
         self.store.audit(&trace, "execution_intent", None).await?;
         let execute_started_at = now();
         let execute_start = Instant::now();
-        let output = self
-            .execute(&request, tool.as_deref(), &trace_id, &entities)
-            .await;
+        let runtime_tool_name = trace["tool"]["name"].clone();
+        let output = if delegated {
+            // CTL-RT-001: the agent runtime executes after this allow; nothing runs here.
+            Ok(
+                json!({"tier":tier(scope_tier.unwrap_or(0).max(resource.as_ref().and_then(|r|r["attrs"]["tier"].as_i64()).unwrap_or(0))),"status":"delegated","executed_by":"agent runtime","origin":"internal"}),
+            )
+        } else {
+            self.execute(&request, tool.as_deref(), &trace_id, &entities)
+                .await
+        };
         match output {
             Ok(output) => {
                 trace["executed"] = json!(true);
@@ -718,8 +768,16 @@ impl Gateway {
                     &mut trace,
                     "connector",
                     "passed",
-                    "Connector executed the authorized bound action",
-                    json!({"tool":tool}),
+                    if delegated {
+                        "Executed by the agent runtime after allow"
+                    } else {
+                        "Connector executed the authorized bound action"
+                    },
+                    if delegated {
+                        json!({"tool":runtime_tool_name,"connector":RUNTIME_CONNECTOR,"execution":"delegated"})
+                    } else {
+                        json!({"tool":tool})
+                    },
                     execute_start.elapsed().as_secs_f64() * 1000.0,
                 );
                 measure_span(
@@ -741,7 +799,9 @@ impl Gateway {
                     .max(catalog_tier);
                 let ceiling = session_entity["attrs"]["tierCeiling"].as_i64().unwrap_or(0);
                 let mut next = session_entity.clone();
-                if request.capability.ends_with(".read") {
+                if request.capability.ends_with(".read")
+                    || (delegated && request.capability == "shell.exec")
+                {
                     next["attrs"]["taint"] = json!(
                         next["attrs"]["taint"]
                             .as_i64()
@@ -1041,6 +1101,7 @@ struct ReasonContext<'a> {
     use_case: &'a Value,
     resource: Option<&'a Value>,
     request: &'a ActionRequest,
+    scope_tier: Option<i64>,
 }
 
 fn approval_facts(request: &ActionRequest, trace: &Value) -> (Value, Value) {
@@ -1083,7 +1144,7 @@ fn money(cents: i64, currency: &str) -> String {
     )
 }
 
-fn render_template(
+pub(crate) fn render_template(
     template: &str,
     facts: &std::collections::BTreeMap<&str, String>,
     fallback: &str,
@@ -1141,6 +1202,9 @@ fn render_reasons(
     if let Some(tool) = trace["tool"]["name"].as_str() {
         facts.insert("tool", tool.to_owned());
     }
+    if let Some(scope) = context.scope_tier {
+        facts.insert("scope.tier", tier(scope).into());
+    }
     if context.request.capability == "agent.message" {
         facts.insert("receiver", context.request.resource.id.clone());
     }
@@ -1192,6 +1256,7 @@ fn control_stage(control: &str) -> &'static str {
         "CTL-A2A-002" => "information_tier",
         _ if control.starts_with("CTL-ID") || control.starts_with("CTL-DEL") => "identity",
         _ if control.starts_with("CTL-CAP")
+            || control.starts_with("CTL-RT")
             || control.starts_with("CTL-POL")
             || control.starts_with("CTL-A2A") =>
         {
@@ -1250,6 +1315,141 @@ pub fn command_check(parameters: &Value) -> Value {
     json!({"template":if valid {args[0]} else {"none"},"valid":valid})
 }
 
+pub const RUNTIME_CONNECTOR: &str = "agent-runtime";
+const WORKSPACE: &str = "workspace";
+
+/// A tool of the agent-runtime connector: the Gateway decides, the runtime executes.
+fn runtime_tool(entities: &Value, tool: &str) -> bool {
+    find_entity(entities, "Tool", tool)
+        .and_then(|tool| tool["parents"].as_array())
+        .is_some_and(|parents| {
+            parents.iter().any(|parent| {
+                parent["type"] == "Betsee::Connector" && parent["id"] == RUNTIME_CONNECTOR
+            })
+        })
+}
+
+fn runtime_resource<'a>(entities: &'a Value, id: &str) -> Option<&'a Value> {
+    find_entity(entities, "Resource", id).filter(|resource| {
+        resource["parents"].as_array().is_some_and(|parents| {
+            parents.iter().any(|parent| {
+                parent["type"] == "Betsee::Tool"
+                    && parent["id"]
+                        .as_str()
+                        .is_some_and(|tool| runtime_tool(entities, tool))
+            })
+        })
+    })
+}
+
+/// A new file is labelled by the nearest catalogued workspace folder above it.
+fn runtime_write_folder(entities: &Value, id: &str) -> Option<Value> {
+    if !id.starts_with("workspace/") || id.split('/').any(|part| matches!(part, "" | "." | "..")) {
+        return None;
+    }
+    let mut current = id;
+    while let Some((parent, _)) = current.rsplit_once('/') {
+        if let Some(folder) = runtime_resource(entities, parent)
+            .filter(|resource| resource["attrs"]["kind"] == "folder")
+        {
+            return Some(folder.clone());
+        }
+        current = parent;
+    }
+    None
+}
+
+/// The highest tier of anything catalogued under a workspace folder, the folder included.
+fn content_tier(entities: &Value, folder: &str) -> i64 {
+    let prefix = format!("{folder}/");
+    entities
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|entity| entity["uid"]["type"] == "Betsee::Resource")
+        .filter(|entity| {
+            let id = text(&entity["uid"], "id");
+            id == folder || id.starts_with(&prefix)
+        })
+        .filter_map(|entity| entity["attrs"]["tier"].as_i64())
+        .max()
+        .unwrap_or(3)
+}
+
+/// Read-only command templates for the agent runtime's shell. Arguments are plain words: no
+/// quoting, globbing, expansion, redirection or chaining can parse. Every path must be a
+/// catalogued workspace resource; the highest tier among them is the command's scope.
+pub fn runtime_command_check(parameters: &Value, entities: &Value) -> (Value, Option<i64>) {
+    let invalid = (json!({"template":"none","valid":false}), None);
+    let command = parameters["command"].as_str().unwrap_or("");
+    let words: Vec<_> = command.split_whitespace().collect();
+    let plain = |word: &str| {
+        !word.is_empty()
+            && word
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-' | b'/'))
+    };
+    if words.is_empty() || !words.iter().all(|word| plain(word)) {
+        return invalid;
+    }
+    let path = |word: &str, kinds: &[&str]| -> Option<i64> {
+        let relative = word.trim_start_matches("./").trim_end_matches('/');
+        if word.starts_with('/') || word.starts_with('-') {
+            return None;
+        }
+        let id = if relative.is_empty() || relative == "." {
+            WORKSPACE.to_owned()
+        } else {
+            format!("{WORKSPACE}/{relative}")
+        };
+        if id.split('/').any(|part| matches!(part, "" | "." | "..")) {
+            return None;
+        }
+        runtime_resource(entities, &id)
+            .filter(|resource| kinds.contains(&text(&resource["attrs"], "kind")))
+            .and_then(|resource| resource["attrs"]["tier"].as_i64())
+    };
+    let count = |word: &str| {
+        word.parse::<u32>()
+            .is_ok_and(|lines| (1..=500).contains(&lines))
+    };
+    let file = ["file"];
+    let any = ["file", "folder"];
+    let (template, scope) = match words.as_slice() {
+        ["pwd"] => ("pwd", Some(0)),
+        ["ls"] => ("ls", path(".", &any)),
+        ["ls", flag] if matches!(*flag, "-l" | "-a" | "-la" | "-al" | "-1") => {
+            ("ls", path(".", &any))
+        }
+        ["ls", target] => ("ls", path(target, &any)),
+        ["ls", flag, target] if matches!(*flag, "-l" | "-a" | "-la" | "-al" | "-1") => {
+            ("ls", path(target, &any))
+        }
+        ["cat", target] => ("cat", path(target, &file)),
+        [verb @ ("head" | "tail"), target] => (*verb, path(target, &file)),
+        [verb @ ("head" | "tail"), "-n", lines, target] if count(lines) => {
+            (*verb, path(target, &file))
+        }
+        ["wc", target] => ("wc", path(target, &file)),
+        ["wc", flag, target] if matches!(*flag, "-l" | "-w" | "-c") => ("wc", path(target, &file)),
+        ["grep", rest @ ..] => {
+            let flags = rest
+                .iter()
+                .take_while(|word| matches!(**word, "-n" | "-i" | "-c"))
+                .count();
+            match &rest[flags..] {
+                [pattern, target] if !pattern.starts_with('-') => ("grep", path(target, &file)),
+                _ => return invalid,
+            }
+        }
+        _ => return invalid,
+    };
+    match scope {
+        Some(scope) => (json!({"template":template,"valid":true}), Some(scope)),
+        None => invalid,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1282,6 +1482,7 @@ mod tests {
                 use_case: &use_case,
                 resource: None,
                 request: &request,
+                scope_tier: None,
             },
         );
         let control = catalog["controls"]
@@ -1393,6 +1594,74 @@ mod tests {
             .map(|span| span["stage"].as_str().unwrap())
             .collect();
         assert_eq!(stages, ["information_tier", "decision", "audit"]);
+    }
+    #[test]
+    fn runtime_commands_are_read_only_templates_over_catalogued_paths() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let fixture: Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join("policies/tests/acme-cases.json")).unwrap(),
+        )
+        .unwrap();
+        let entities = fixture["entities"].clone();
+        let check = |command: &str| runtime_command_check(&json!({"command":command}), &entities);
+        for (command, scope) in [
+            ("pwd", 0),
+            ("ls", 1),
+            ("ls -la handbook", 1),
+            ("cat handbook/onboarding.md", 1),
+            ("head -n 20 ./notes/team-sync.md", 1),
+            ("grep -n -i budget handbook/expense-policy.md", 1),
+            ("wc -l README.md", 0),
+            ("cat hr/salaries-2026.csv", 3),
+        ] {
+            let (result, tier) = check(command);
+            assert_eq!(result["valid"], true, "{command}");
+            assert_eq!(tier, Some(scope), "{command}");
+        }
+        for command in [
+            "rm -rf .",
+            "rm -rf /",
+            "cat /etc/passwd",
+            "cat ../secrets.txt",
+            "cat handbook/../hr/salaries-2026.csv",
+            "cat handbook/onboarding.md; id",
+            "cat handbook/onboarding.md | sh",
+            "cat $(id)",
+            "cat 'handbook/onboarding.md'",
+            "cat handbook/*",
+            "cat handbook",
+            "cat unknown.md",
+            "grep -r budget .",
+            "head -n 5000 README.md",
+            "ls ~",
+            "echo hi > notes/x.md",
+            "",
+        ] {
+            assert_eq!(check(command).0["valid"], false, "{command}");
+        }
+    }
+    #[test]
+    fn new_files_take_the_nearest_catalogued_folder_and_never_escape_it() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let fixture: Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join("policies/tests/acme-cases.json")).unwrap(),
+        )
+        .unwrap();
+        let entities = &fixture["entities"];
+        let folder = |id: &str| runtime_write_folder(entities, id).map(|f| f["uid"]["id"].clone());
+        assert_eq!(
+            folder("workspace/notes/summary.md"),
+            Some(json!("workspace/notes"))
+        );
+        assert_eq!(
+            folder("workspace/notes/drafts/a.md"),
+            Some(json!("workspace/notes"))
+        );
+        assert_eq!(folder("workspace/new.md"), Some(json!("workspace")));
+        assert_eq!(folder("workspace/notes/../hr/x.md"), None);
+        assert_eq!(folder("files/hr/x.md"), None);
+        assert_eq!(content_tier(entities, "workspace"), 3);
+        assert_eq!(content_tier(entities, "workspace/handbook"), 1);
     }
     #[test]
     fn command_templates_reject_shell_interpretation() {

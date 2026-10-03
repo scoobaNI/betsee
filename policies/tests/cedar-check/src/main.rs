@@ -90,7 +90,7 @@ fn main() {
         }
     }
     // D12: the sentence the presenter reads. Placeholders are Gateway facts only.
-    const REASON_FACTS: [&str; 10] = ["resource.tier", "session.tierCeiling", "session.taint", "recipient.tier",
+    const REASON_FACTS: [&str; 11] = ["resource.tier", "session.tierCeiling", "session.taint", "recipient.tier", "scope.tier",
         "capability", "useCase", "amount", "threshold", "tool", "receiver"];
     let annotated = pset.policies().map(|p| (p.id().to_string(), p.annotation("reason").map(str::to_owned)))
         .chain(pset.templates().map(|t| (t.id().to_string(), t.annotation("reason").map(str::to_owned))));

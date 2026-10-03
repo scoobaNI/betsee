@@ -75,7 +75,7 @@ controls:
     attach: [organization]
     mode: baseline
     outcome: deny
-    policies: [forbid-session-not-active]
+    policies: [forbid-session-not-active, forbid-input-session-not-active]
 
   - id: CTL-ID-004
     name: Human actor still active
@@ -87,7 +87,11 @@ controls:
     parameters: [Human.active]
     outcome: deny
     policies:
-      [forbid-session-human-not-active, forbid-session-create-human-not-active]
+      [
+        forbid-session-human-not-active,
+        forbid-session-create-human-not-active,
+        forbid-input-human-not-active,
+      ]
 
   - id: CTL-DEL-001
     name: Delegation within the human's entitlements
@@ -173,7 +177,8 @@ controls:
     mode: data
     parameters: [Resource.tier, AgentSession.tierCeiling]
     outcome: deny
-    policies: [forbid-resource-above-session-tier]
+    policies:
+      [forbid-resource-above-session-tier, forbid-scope-above-session-tier]
 
   - id: CTL-TIER-002
     name: No write-down
@@ -226,6 +231,27 @@ controls:
     outcome: require_approval
     policies: [approval-high-impact-after-untrusted-input]
 
+  - id: CTL-IN-001
+    name: Input content filter
+    primitive: PRM-TIER
+    explanation: What a person types to an agent is checked before any model sees it. Payment card numbers, IBANs, PESEL numbers, API keys, private keys and names of resources above the session ceiling are refused, and the message stays with the person.
+    asi: [ASI01, ASI06]
+    attach: [organization, use_case]
+    mode: baseline
+    outcome: deny
+    enforced_by: gateway
+    policies:
+      [
+        permit-input-from-session-human,
+        forbid-input-not-session-human,
+        forbid-input-payment-card,
+        forbid-input-iban,
+        forbid-input-pesel,
+        forbid-input-secret,
+        forbid-input-resource-above-tier,
+      ]
+    mechanism: POST /api/v1/chat/inputs runs deterministic detectors that validate each match (Luhn check, IBAN mod-97, PESEL checksum and birth date, known key formats and PEM private-key blocks, catalogued resource names) and passes only the detected classes to Cedar. The mock analyzer may only add a deny. Every check is an audit row and a trace that stores masked findings, never the matched value.
+
   - id: CTL-TOOL-001
     name: Pinned MCP tool descriptors
     primitive: PRM-TOOL
@@ -248,7 +274,23 @@ controls:
     parameters: [command template registry]
     outcome: deny
     policies: [forbid-command-not-validated]
-    mechanism: A deterministic argv parser and template matcher in the Gateway, not a regex over the raw string; the result enters Cedar as context.command.
+    mechanism: A deterministic argv parser and template matcher in the Gateway, not a regex over the raw string; the result enters Cedar as context.command. Agent-runtime commands match a separate read-only set (pwd, ls, cat, head, tail, wc, grep) whose path arguments must be catalogued workspace files; the highest tier they name enters Cedar as context.scopeTier.
+
+  - id: CTL-RT-001
+    name: Delegated execution
+    primitive: PRM-TOOL
+    explanation: An agent runtime that executes its own tools (Claude Code) asks the Gateway before every tool call and executes only after allow. Each call maps to a capability; network egress and unmapped tools are denied, and an unreachable Gateway means deny.
+    asi: [ASI02, ASI05, ASI10]
+    attach: [organization, agent]
+    mode: baseline
+    outcome: deny
+    policies:
+      [
+        forbid-delegated-execution-mismatch,
+        forbid-agent-runtime-egress,
+        forbid-runtime-unmapped-tool,
+      ]
+    mechanism: The agent-runtime connector decides and audits but does not execute; the trace records execution by the agent runtime after allow. A PreToolUse hook maps each tool call to a capability and resource, calls POST /api/v1/actions with the agent's token, waits a bounded time for an approval, and denies when the Gateway cannot be reached.
 
   - id: CTL-A2A-001
     name: Mediated agent channel
@@ -384,7 +426,8 @@ controls:
     attach: [organization, use_case]
     mode: baseline
     outcome: require_approval
-    policies: [analyzer-suspicious, analyzer-malicious]
+    policies:
+      [analyzer-suspicious, analyzer-malicious, analyzer-input-malicious]
     mechanism: The analyzer runs only after the deterministic decision is not deny; the final decision is the stricter of the two, and no permit policy may read context.analysis.
 
   - id: CTL-AUD-001

@@ -51,6 +51,14 @@ decision, analyzer, ai_tightened, controls, policies, reasons, approval_state, l
 and output. Analyzer `model_label` is always `mock model (demo)` in this demo; skipped and unavailable
 verdicts remain explicit. A deterministic deny cannot be loosened by analysis or human approval.
 
+`execution` (optional, additive) says who executes after allow: `connector` (a Gateway connector),
+`delegated` (the agent runtime executes after allow, CTL-RT-001; the Gateway decided and audited
+but ran nothing, and `executed: true` means handed to the runtime) or `forwarded` (an input check,
+CTL-IN-001: the human's message went on to the agent). Input checks are ordinary `action.decided`
+events with capability `input.submit`, resource type `chat_input` and audit phase `input_check`;
+they store masked findings only, never the matched text. Agent-runtime capabilities are
+`files.read`, `files.write`, `shell.exec`, `web.egress` and `runtime.unmapped`.
+
 Trace detail uses these stages, in order: `authenticate`, `resolve_context`, `identity`,
 `capability`, `cedar_authz`, `information_tier`, `command_validation`, `budget`,
 `ai_analysis`, `decision`, `approval`, `step_up`, `connector`, `output_controls`, `audit`.
@@ -95,3 +103,25 @@ and every other trace consumer stop reporting a human as awaited on a session th
 Every security event correlation resolves to a trace. Events outside an agent action use a
 `record_type: security_observation` trace; tool transitions use `tool_observation`. Summary action
 counters exclude both observation kinds. Summary reads are scoped to the human actor for employees.
+
+## Employee chat stream (agent-host)
+
+`GET /api/v1/chat/stream/{chat_id}` is served by agent-host on the host, through Caddy on
+`betsee.localhost`, to the chat's owner only (bearer, fetch-based SSE, `Last-Event-ID` resumes; ids
+are per chat and start at 1; `: ping` every 15 seconds). Each `data` is one JSON object whose
+`type` equals the SSE event name and which carries `id` and `at`.
+
+| Event              | Payload fields                                                                                                                                                                                                                                            | Meaning                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `session`          | `session` (AgentSession)                                                                                                                                                                                                                                  | The Betsee session the chat runs in                                           |
+| `user_message`     | `message_id`, `text`, `trace_id`, `control_ids`                                                                                                                                                                                                           | The message passed the content filter and went to the agent                   |
+| `input_blocked`    | `message_id`, `reasons`, `control_ids`, `trace_id` (null when the filter was unreachable), `findings` (masked)                                                                                                                                            | The message stayed with the human; the model never saw it                     |
+| `run_started`      | `model`, `tools`                                                                                                                                                                                                                                          | Claude Code started a turn                                                    |
+| `assistant_text`   | `text`                                                                                                                                                                                                                                                    | Text from the assistant                                                       |
+| `tool_call`        | `tool_use_id`, `tool`, `input` (long strings shortened)                                                                                                                                                                                                   | The agent asked to use a tool                                                 |
+| `decision`         | `tool_use_id`, `tool`, `capability`, `resource`, `decision`, `approval_state`, `reasons`, `control_ids`, `policy_ids`, `trace_id`, `execution`; `waiting_seconds` while an approval is pending; `unreachable: true` when the Gateway could not be reached | The Gateway's decision on that tool call, as the hook received it             |
+| `approval_timeout` | `tool_use_id`, `tool`, `trace_id`                                                                                                                                                                                                                         | The bounded wait ended; the call was denied and can be retried after approval |
+| `tool_result`      | `tool_use_id`, `is_error`, `content` (at most 4000 characters)                                                                                                                                                                                            | What the tool returned, or the hook's denial                                  |
+| `turn_end`         | `subtype`, `is_error`, `duration_ms`, `num_turns`, `total_cost_usd`                                                                                                                                                                                       | Claude Code finished the turn                                                 |
+| `error`            | `message`                                                                                                                                                                                                                                                 | The run failed                                                                |
+| `idle`             | none                                                                                                                                                                                                                                                      | The assistant can take the next message                                       |

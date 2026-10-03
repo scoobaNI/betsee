@@ -1,11 +1,13 @@
 // Every MCP tool call names the tool it goes through and the descriptor hash the Gateway observes
 // now; a descriptor that differs from the pinned one blocks the call (rug pull, tool poisoning).
+// A read the agent runtime executes itself goes through no MCP tool; 25-runtime.cedar fences that
+// exception to resources the runtime actually reaches.
 
 @id("forbid-mcp-call-without-tool")
 @reason("the call does not name a pinned MCP tool")
 @control("CTL-TOOL-001")
 forbid (principal, action in Betsee::Action::"mcp", resource)
-unless { context has toolCall };
+unless { context has toolCall || context has runtime };
 
 @id("forbid-tool-descriptor-drift")
 @reason("the descriptor of {tool} no longer matches its reviewed pin")

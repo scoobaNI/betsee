@@ -15,6 +15,9 @@ const Identity = lazy(() =>
 const Connect = lazy(() =>
   import("./pages/connect").then((module) => ({ default: module.Connect })),
 );
+const Chat = lazy(() =>
+  import("./pages/chat").then((module) => ({ default: module.Chat })),
+);
 const Approvals = lazy(() =>
   import("./pages/approvals").then((module) => ({ default: module.Approvals })),
 );
@@ -58,6 +61,7 @@ export function App() {
           />
           <Route path="/connect/:section/:id?" element={<Connect />} />
           <Route path="/approvals" element={<Approvals />} />
+          <Route path="/chat" element={<Chat />} />
           <Route
             path="*"
             element={

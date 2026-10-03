@@ -1,8 +1,6 @@
 # Director: information architecture and screen states
 
-Owner: frontend-director. Host: `http://director.betsee.localhost`. Verifier: product-designer.
-Visual rules come from the Design Contract (`docs/design/design-contract.md`, `components.md`); this
-file fixes structure, content and states, and records the board decisions that shaped them.
+Host: `http://director.betsee.localhost`.
 
 The Director is the live operational surface of Betsee: a security officer watches the agent
 population act, opens any action as a trace, and sees which controls decided it. It does not edit
@@ -22,96 +20,110 @@ Audience: realm roles `security-officer` and `org-admin` (D8). Anyone else gets 
 - Tests: `npm test -w @betsee/director` (domain logic) and `npm test -w @betsee/api` (SSE reader,
   mock world end to end).
 
+## Principles
+
+- From the general to the specific. Every screen opens on its answer (one sentence, one number,
+  one verdict); detail sits one click deeper, never on the first screen.
+- Colour means an outcome and nothing else: green allowed, red denied, amber waiting for a human,
+  violet step-up, pink tightened by AI analysis, orange quarantined. Everything else is greyscale.
+- White workspace, one centred column, generous spacing; motion only to show what changed (counts
+  glide, rows slide in, sections open in place).
+- The visual system is the Director's own (`src/director.css`, `src/components/icon.tsx`,
+  `src/components/ui.tsx`); it does not depend on `@betsee/ui`.
+
+## Levels of detail
+
+| Level | Route                                         | Answers                                                      |
+| ----- | --------------------------------------------- | ------------------------------------------------------------ |
+| 0     | `/` Overview                                  | Is anything wrong right now?                                 |
+| 1     | `/agents`, `/activity`, `/graph`, `/coverage` | Which agents, which actions, who touched what, which risks   |
+| 2     | `/agents/:agentId`                            | What this agent may do, who launched it, everything it did   |
+| 3     | `/traces/:traceId`                            | Why exactly this action was decided this way, stage by stage |
+
+`/traces/:traceId` and `/agents/:agentId` are linked from the ecosystem (Home, Identity, Approvals,
+chat); keep both paths stable. Sign-in returns to the page that started it.
+
 ## Shell
 
-- Nav rail: Live, Graph, Coverage; the Ecosystem link at the bottom.
-- Top bar: organization, "Mock data" badge in mock builds, stream status pill, "Awaiting human"
-  counter linking to `betsee.localhost/approvals`, signed-in human, sign out.
-- Live feed: a floating panel on the right on every route.
-- Scenario dock: floating over the content, Act 1 to Act 7 and Reset scenario.
+- Sticky header: wordmark, the five places (Overview, Agents, Activity, Graph, Coverage), "Mock
+  data" in mock builds, an "awaiting a human" pill linking to `betsee.localhost/approvals` (only when
+  the count is above zero), the stream state (Connecting, Live, Quiet, Reconnecting, Offline), and
+  the account menu (ecosystem link, sign out).
+- Demo dock: floating at the bottom, folded to one "Demo" pill by default (remembered per browser);
+  open, it lists Act 1 to Act 7 and "Reset scenario".
 
-## Routes
+## Overview (`/`)
 
-| Route              | Screen                                     | Acts       |
-| ------------------ | ------------------------------------------ | ---------- |
-| `/`                | Live: stat strip, agent population by team | 1, 3, 6    |
-| `/traces/:traceId` | Trace explorer                             | 1, 2, 3, 5 |
-| `/agents/:agentId` | Agent drawer over Live                     | 2, 6       |
-| `/graph`           | Agent graph                                | 4, 6       |
-| `/coverage`        | ASI coverage                               | 7          |
+1. One sentence: "All agents are working within policy." or "N things need your attention."
+2. Four numbers, each a link one level down: agents active (quarantined and suspended counts),
+   actions in the last 15 minutes (per-minute histogram, AI-tightened count), denied in the last 15
+   minutes, awaiting a human. The Gateway's summary is authoritative for the counts it carries
+   (FAIL-1).
+3. Needs attention, only when something does: quarantined or suspended agents with the Gateway's
+   reason, actions waiting for a person, tools blocked by descriptor drift. Four shown, the rest
+   behind "Show more".
+4. Teams: one card per team with its agents' states and the last 15 minutes as an outcome bar.
+5. Latest activity: six rows, then a link to Activity.
 
-Cut order if time runs short (p-52): graph animation, then the agent drawer, then the scenario dock
-(the terminal runner is its fallback). Live, trace explorer and coverage stay.
+## Agents (`/agents`, `?team=`)
 
-## Live (`/`)
+Grouped by team, filterable by team. A row shows the agent, its state (with the reason and time when
+it is quarantined or suspended), the session's human and use case, the last 12 decisions as bars,
+and the budget in EUR.
 
-- Stat strip: Agents active (feature tile, with quarantined and suspended counts), Actions in the
-  last 15 min, Denied, Awaiting human, AI-tightened.
-- Agent tiles, team groups side by side in a wrapping row so the whole population fits without
-  scrolling at 1440x900 and 1920x1080 (contract 6). A tile shows the agent id (never truncated),
-  team and provider/model, the session's human and use case, effective capabilities (up to 4, then
-  "+n"), the budget meter in EUR, and the last 12 decisions as ticks. A quarantined or suspended
-  agent shows its lifecycle badge at the start of the state line, then the time and the reason
-  exactly as the Gateway sends it, with CTL ids as tokens (D10a).
-- Live feed: newest first; agent, decision chip, time, capability, resource, tier. Deny rows carry
-  the left bar; bursts of the same agent, capability and outcome within 2 s fold into one "xN" row;
-  rows waiting for a human never fold and update in place when `action.updated` arrives. While the
-  pointer is over the feed or it is scrolled, new rows queue behind an "n new" pill.
+## Agent (`/agents/:agentId`)
 
-## Trace explorer (`/traces/:traceId`)
+Header with state; a release banner with "Release agent" (`POST /api/v1/agents/{id}/release`) when
+quarantined or suspended; three numbers (actions, denied, budget); current session; effective
+capabilities with approval and step-up qualifiers, and on demand the delegated / permitted /
+effective table; recent actions; messages with other agents.
 
-1. Decision sentence: who, through which agent, for which use case, asked for which capability on
-   which resource; the outcome and the deciding policy.
-2. Seven cells: who initiated, which agent, why (use case), what capability (and tool), what
-   resource (tier), which policy and controls, what decision (with "<verdict> because <CTL id> <control name>: <reason>" and
-   whether the connector executed).
-3. Pipeline rail, 15 stages in four groups (ingress; deterministic controls; analysis and decision;
-   execution and audit). A deny ends the rail and later stages read "not reached"; approval and
-   step-up read "not required" when the action never needed them; step-up counts as expected when
-   the trace says `step_up_required` or carries a `step_up` obligation (never from span
-   attributes), and a rejected approval never expects it. The deciding stage is preselected; arrow keys
-   move along the rail.
-4. Timing waterfall.
-5. Composition panel (deterministic, AI analysis with the Gateway's `model_label`, final) beside the
-   span detail (reason, controls with their explanation, policies with Cedar on demand, attributes).
-6. Mediated agent message, when the trace is one. Execution context as the Gateway resolved it.
+## Activity (`/activity`, `?show=denied|awaiting|ai|observed`, `?agent=`)
 
-## Agent drawer (`/agents/:agentId`)
+Newest first. Bursts of the same agent, capability and outcome within 2 s fold into one "xN" row;
+rows waiting for a human never fold and update in place when `action.updated` arrives. While the
+pointer rests on the list, new rows queue behind an "n new" pill. Gateway observations
+(`security.observe`) read "Observed", with their severity from medium up.
 
-Identity, current session, capability intersection (delegated, permitted for the use case,
-effective, with approval and step-up qualifiers from the use case), recent actions, agent messages.
-A quarantined or suspended agent shows "Release agent" (`POST /api/v1/agents/{id}/release`).
+## Trace (`/traces/:traceId`)
+
+1. Verdict, then one sentence: who, through which agent, for which use case, asked for which
+   capability on which resource; the outcome and the deciding policy.
+2. Why: "<verdict> because <CTL id> <control name>: <reason>", whether and by whom it was executed
+   (connector, agent runtime after allow, or forwarded), and whether the reason came from AI
+   analysis.
+3. Six facts: who initiated, agent, use case and session, capability and tool, resource and tier,
+   policies and controls.
+4. How the Gateway decided: four phases (ingress; deterministic controls; analysis and decision;
+   execution and audit) over the 15 stages. The deciding phase and stage open on arrival; arrow keys
+   walk the stages. A deny ends the rail and later stages read "not reached"; approval and step-up
+   read "not required" when the action never needed them.
+5. Deeper detail, closed by default: the mediated agent message (open when present), decision
+   composition (deterministic, AI analysis, final), timing waterfall, execution context.
 
 ## Graph (`/graph`)
 
-Fixed columns: humans, agents by team, tools and connectors. Session edges are neutral. Tool edges
-take the colour of their latest decision; a quarantined agent's edges are dashed orange.
-Agent-to-agent edges loop left of the agents column, are the only labelled edges ("denied",
-"breaker open", "xN"), and read "breaker open" once a message on them was stopped by CTL-RUN-003 or
-the quarantine it caused (CTL-ID-002). A tool reported by `tool.descriptor_changed` turns red.
-Events that arrive while the page is open pulse once along their edge.
+Fixed columns: people (other callers below them, never drawn as people), agents by team, tools and
+connectors. Session edges are neutral; tool edges take the colour of their latest decision; a
+quarantined agent's edges are dashed orange. Agent-to-agent edges loop left of the agents column and
+are the only labelled edges ("denied", "breaker open", "xN"). A tool reported by
+`tool.descriptor_changed` turns red. Events that arrive while the page is open pulse once along their
+edge.
 
 ## Coverage (`/coverage`)
 
-Ten rows, ASI01 to ASI10: risk name, mitigating primitives (dominant first, up to 3), controls (up
-to 6), the evidence split by decision with counts, and the acts that exercise it. A row expands to
-the recent traces those controls decided.
-
-## Scenario dock
-
-Lists the runner's scenarios (`GET /api/v1/demo/scenarios`), starts a run, polls
-`GET /api/v1/demo/runs/{run_id}`; a finished act shows a check, or a marker with the mismatching
-steps in its tooltip. Act 7 opens Coverage. Reset calls `POST /api/v1/demo/reset`. Steps are matched
-to traces by trace id only (p-47). Hidden when the runner does not answer.
+A ring with the number of risks evidenced this run, then ten rows, ASI01 to ASI10: risk, main
+primitive, evidence as an outcome bar with counts, the acts that exercise it. A row opens in place to
+its primitives, controls, what Betsee does not claim, and the traces those controls decided.
 
 ## States
 
-| State                                              | UI                                                                                                                                    |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Signing in                                         | Keycloak redirect, then back to the page that started it                                                                              |
-| Forbidden                                          | Full page naming the roles needed, link to the ecosystem                                                                              |
-| Connecting / Live / Stale / Reconnecting / Offline | Stream pill; Stale after 20 s without a byte, reconnect from Last-Event-ID at 40 s, Offline banner with Retry after 5 failed attempts |
-| Loading                                            | Skeletons in the final layout                                                                                                         |
-| Empty                                              | "No agents registered. Run scripts/bootstrap." / "No agent has acted yet. Launch Act 1."                                              |
-| Error                                              | Card with HTTP status and the Gateway trace id, Retry; a failing view is caught by an error boundary and never blanks the Director    |
-| Trace not found                                    | Empty state with a link back to Live                                                                                                  |
+| State                                              | UI                                                                                |
+| -------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Signing in                                         | Keycloak redirect, then back to the page that started it                          |
+| Forbidden                                          | Full page naming the roles needed, link to the ecosystem                          |
+| Connecting / Live / Quiet / Reconnecting / Offline | Header indicator; Offline adds a banner with "Try again" and the data's age       |
+| Loading                                            | Skeletons in the final layout, shown only after 150 ms                            |
+| Empty                                              | A sentence saying what is missing and how to produce it                           |
+| Error                                              | Card with HTTP status and the Gateway trace id, Retry; an error boundary per page |
+| Trace or agent not found                           | Empty state with a link back one level                                            |

@@ -1,12 +1,12 @@
-import { useCoverage, useScenarios, useTraces, type ActionSummary, type Coverage } from '@betsee/api';
-import { DecisionChip, IdToken } from '@betsee/ui';
+import { useCoverage, useScenarios, type Coverage } from '@betsee/api';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
-import { ECOSYSTEM_URL } from '../components/shell.tsx';
-import { ErrorCard, Skeleton } from '../components/states.tsx';
-import { resolutionOf } from '../domain/decision.ts';
-import { formatCount, formatTime } from '../domain/format.ts';
+import { ActivityList } from '../components/activity.tsx';
+import { Icon } from '../components/icon.tsx';
+import { Card, Code, controlHref, EASE, EmptyState, ErrorCard, OutcomeBar, PageHeader, Skeleton, type Tone } from '../components/ui.tsx';
+import { formatCount } from '../domain/format.ts';
 import { notClaimed } from '../domain/not-claimed.ts';
+import { useActions } from '../hooks.ts';
 
 // docs/demo-script.md, "ASI coverage by act"; the runner's scenario list overrides it when present.
 const SCRIPT_ACTS: Record<string, number[]> = {
@@ -22,15 +22,17 @@ const SCRIPT_ACTS: Record<string, number[]> = {
   ASI10: [6],
 };
 
-const SEGMENTS = [
-  { key: 'allow', label: 'Allowed', className: 'bg-viz-allow' },
-  { key: 'deny', label: 'Denied', className: 'bg-viz-deny' },
-  { key: 'require_approval', label: 'Approval', className: 'bg-viz-approval' },
-  { key: 'require_step_up', label: 'Step-up', className: 'bg-viz-stepup' },
-] as const;
+const SEGMENTS: { key: string; label: string; tone: Tone }[] = [
+  { key: 'allow', label: 'allowed', tone: 'ok' },
+  { key: 'require_approval', label: 'sent for approval', tone: 'wait' },
+  { key: 'require_step_up', label: 'sent for step-up', tone: 'verify' },
+  { key: 'deny', label: 'denied', tone: 'bad' },
+];
 
-const MAX_PRIMITIVES = 3;
-const MAX_CONTROLS = 6;
+const count = (row: Coverage, key: string) => {
+  const value = row.decision_counts[key];
+  return typeof value === 'number' ? value : 0;
+};
 
 /** Primitives ordered by how many of the row's controls they own: the dominant mitigation first. */
 function rankedPrimitives(row: Coverage) {
@@ -39,84 +41,155 @@ function rankedPrimitives(row: Coverage) {
   return [...row.primitives].sort((a, b) => (weight.get(b.id) ?? 0) - (weight.get(a.id) ?? 0) || a.name.localeCompare(b.name));
 }
 
-const count = (row: Coverage, key: string) => {
-  const value = row.decision_counts[key];
-  return typeof value === 'number' ? value : 0;
-};
+function Ring({ value, total }: { value: number; total: number }) {
+  const r = 26;
+  const c = 2 * Math.PI * r;
+  const ratio = total ? value / total : 0;
+  return (
+    <span className="flex items-center gap-4">
+      <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true" className="-rotate-90">
+        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--color-sunken)" strokeWidth="6" />
+        <motion.circle
+          cx="32"
+          cy="32"
+          r={r}
+          fill="none"
+          stroke="var(--color-ok)"
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          initial={{ strokeDashoffset: c }}
+          animate={{ strokeDashoffset: c * (1 - ratio) }}
+          transition={{ duration: 0.9, ease: EASE }}
+        />
+      </svg>
+      <span>
+        <span className="block text-[28px] leading-none font-semibold tracking-[-0.02em] text-ink tabular-nums">
+          {value}
+          <span className="text-ink-3"> / {total}</span>
+        </span>
+        <span className="mt-1 block text-[13px] text-ink-3">risks evidenced this run</span>
+      </span>
+    </span>
+  );
+}
 
-function EvidenceBar({ row }: { row: Coverage }) {
+function RiskDetail({ row }: { row: Coverage }) {
+  const { actions } = useActions();
+  const ids = useMemo(() => new Set(row.controls.map((c) => c.id)), [row.controls]);
+  const evidence = useMemo(() => actions.filter((t) => t.control_ids.some((id) => ids.has(id))), [actions, ids]);
+  const limits = notClaimed(row.asi_id);
+  return (
+    <div className="space-y-8">
+      <div className="grid gap-8 md:grid-cols-2">
+        <div>
+          <p className="text-[12px] font-medium text-ink-3">Mitigated by</p>
+          <ul className="mt-3 space-y-2">
+            {rankedPrimitives(row).map((p, i) => (
+              <li key={p.id} className="flex items-center gap-2.5 text-[14px] text-ink">
+                <span className={`h-1.5 w-1.5 rounded-full ${i === 0 ? 'bg-accent' : 'bg-ink-4'}`} />
+                {p.name}
+                {i === 0 && <span className="text-[12px] text-ink-3">main</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <p className="text-[12px] font-medium text-ink-3">Enforced by {row.controls.length} controls</p>
+          <ul className="mt-3 space-y-2">
+            {row.controls.map((c) => (
+              <li key={c.id} className="flex min-w-0 items-center gap-2.5">
+                <Code href={controlHref(c.id)} title={c.description}>
+                  {c.id}
+                </Code>
+                <span className="truncate text-[14px] text-ink-2">{c.name}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+      {limits.length > 0 && (
+        <div className="rounded-xl border border-dashed border-line-strong p-5">
+          <p className="flex items-center gap-2 text-[13px] font-medium text-ink-2">
+            <Icon name="info" size={14} />
+            Not claimed in v0
+          </p>
+          <ul className="mt-3 space-y-2 text-[14px] leading-relaxed text-ink-2">
+            {limits.map((item) => (
+              <li key={item.mitigation}>
+                <span className="text-ink">OWASP suggests {item.mitigation}.</span> {item.betsee}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div>
+        <p className="mb-2 text-[12px] font-medium text-ink-3">Evidence in the feed</p>
+        <div className="-mx-4">
+          <ActivityList actions={evidence} limit={6} empty={<p className="px-4 text-[14px] text-ink-3">No trace in the feed was decided by these controls yet.</p>} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RiskRow({ row, acts, open, onToggle }: { row: Coverage; acts: number[]; open: boolean; onToggle: () => void }) {
+  const reduce = useReducedMotion();
   const total = SEGMENTS.reduce((sum, s) => sum + count(row, s.key), 0);
   const tightened = count(row, 'ai_tightened');
-  if (total === 0) {
-    return (
-      <div className="space-y-1">
-        <div className="dir-hatch-empty h-2 rounded-xs" />
-        <p className="text-xs text-fg-tertiary">No evidence yet this run</p>
-      </div>
-    );
-  }
   const summary = SEGMENTS.filter((s) => count(row, s.key) > 0)
-    .map((s) => `${formatCount(count(row, s.key))} ${s.label.toLowerCase()}`)
+    .map((s) => `${formatCount(count(row, s.key))} ${s.label}`)
     .join(', ');
   return (
-    <div className="space-y-1">
-      <div className="flex h-2 gap-0.5 overflow-hidden rounded-xs" role="img" aria-label={summary}>
-        {SEGMENTS.map((s) =>
-          count(row, s.key) > 0 ? <span key={s.key} title={`${s.label}: ${count(row, s.key)}`} className={s.className} style={{ flexGrow: count(row, s.key) }} /> : null,
+    <li>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={onToggle}
+        className="group row-hover grid w-full grid-cols-[minmax(0,1fr)_24px] items-center gap-6 rounded-xl px-5 py-5 text-left md:grid-cols-[64px_minmax(0,1.4fr)_minmax(0,1fr)_96px_24px]"
+      >
+        <span className="hidden font-mono text-[12px] text-ink-3 md:block">{row.asi_id}</span>
+        <span className="min-w-0">
+          <span className="block text-[15px] font-medium text-ink">
+            <span className="mr-2 font-mono text-[12px] text-ink-3 md:hidden">{row.asi_id}</span>
+            {row.name}
+          </span>
+          <span className="mt-0.5 block truncate text-[13px] text-ink-3">{rankedPrimitives(row)[0]?.name ?? 'No primitive mapped'}</span>
+        </span>
+        <span className="hidden md:block">
+          <OutcomeBar parts={SEGMENTS.map((s) => ({ tone: s.tone, value: count(row, s.key), label: s.label }))} />
+          <span className="mt-2 block truncate text-[12px] text-ink-3 tabular-nums">
+            {total ? summary : 'No evidence yet this run'}
+            {tightened > 0 && <span className="text-ai-ink">, {formatCount(tightened)} tightened by AI</span>}
+          </span>
+        </span>
+        <span className="hidden text-right text-[12px] text-ink-3 md:block">{acts.map((a) => `Act ${a}`).join(', ')}</span>
+        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: reduce ? 0 : 0.25, ease: EASE }} className="text-ink-3">
+          <Icon name="chevron-down" size={18} />
+        </motion.span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
+            animate={reduce ? { opacity: 1 } : { height: 'auto', opacity: 1 }}
+            exit={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
+            transition={{ duration: 0.32, ease: EASE }}
+            className="overflow-hidden"
+          >
+            <div className="px-5 pt-2 pb-8 md:pl-[108px]">
+              <RiskDetail row={row} />
+            </div>
+          </motion.div>
         )}
-      </div>
-      <p className="text-xs tabular-nums text-fg-secondary">
-        {summary}
-        {tightened > 0 && <span className="text-tightened-fg">, {formatCount(tightened)} AI-tightened</span>}
-      </p>
-    </div>
-  );
-}
-
-function Evidence({ row, traces }: { row: Coverage; traces: ActionSummary[] }) {
-  const ids = new Set(row.controls.map((c) => c.id));
-  const matching = traces.filter((t) => t.control_ids.some((id) => ids.has(id))).slice(0, 6);
-  if (!matching.length) return <p className="px-4 pb-4 text-sm text-fg-tertiary">No trace in the feed was decided by these controls yet.</p>;
-  return (
-    <ul className="space-y-1 px-2 pb-3">
-      {matching.map((t) => (
-        <li key={t.trace_id}>
-          <Link to={`/traces/${encodeURIComponent(t.trace_id)}`} className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-surface-2">
-            <span className="font-mono text-2xs text-fg-tertiary">{formatTime(t.occurred_at)}</span>
-            <span className="font-mono">{t.agent.id}</span>
-            <span className="font-mono text-fg-secondary">{t.capability}</span>
-            <span className="text-xs text-fg-tertiary">{t.control_ids.filter((id) => ids.has(id)).join(', ')}</span>
-            <span className="ml-auto">
-              <DecisionChip decision={t.decision} resolution={resolutionOf(t)} aiTightened={t.ai_tightened} modelLabel={t.analyzer.model_label} size="sm" variant="compact" />
-            </span>
-          </Link>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function NotClaimedBlock({ asiId }: { asiId: string }) {
-  const items = notClaimed(asiId);
-  if (!items.length) return null;
-  return (
-    <div className="mx-4 mb-3 rounded-md border border-dashed border-line-default p-3">
-      <p className="text-xs font-semibold text-fg-secondary">Not claimed in v0</p>
-      <ul className="mt-1.5 space-y-1.5 text-sm text-fg-secondary">
-        {items.map((item) => (
-          <li key={item.mitigation}>
-            <span className="text-fg-primary">OWASP: {item.mitigation}.</span> {item.betsee}
-          </li>
-        ))}
-      </ul>
-    </div>
+      </AnimatePresence>
+    </li>
   );
 }
 
 export function CoveragePage() {
   const coverage = useCoverage();
   const scenarios = useScenarios();
-  const traces = useTraces();
   const [open, setOpen] = useState<string | null>(null);
 
   const acts = useMemo(() => {
@@ -130,100 +203,35 @@ export function CoveragePage() {
   const evidenced = rows.filter((r) => r.evidence_count > 0).length;
 
   return (
-    <div className="space-y-5">
-      <header className="flex items-end gap-4">
-        <div>
-          <h1 className="font-display text-3xl font-semibold tracking-[var(--bs-font-tracking-display)]">ASI coverage</h1>
-          <p className="mt-1 text-sm text-fg-secondary">
-            OWASP Agentic Top 10: which primitive mitigates each risk, the controls that enforce it, and the evidence from this run.
-          </p>
-        </div>
-        {rows.length > 0 && (
-          <p className="ml-auto shrink-0 whitespace-nowrap text-sm tabular-nums text-fg-secondary">
-            <span className="font-display text-2xl font-semibold text-fg-primary">{evidenced}</span> of {rows.length} risks evidenced this run
-          </p>
-        )}
-      </header>
-
+    <div>
+      <PageHeader
+        crumbs={[{ label: 'Overview', to: '/' }, { label: 'Coverage' }]}
+        title="Coverage"
+        description="The OWASP Top 10 for agentic applications: which Betsee primitive mitigates each risk, and the evidence this run produced. Open a risk for its controls and traces."
+        actions={rows.length > 0 ? <Ring value={evidenced} total={rows.length} /> : undefined}
+      />
       {coverage.isPending && (
-        <div className="space-y-2">
-          {Array.from({ length: 10 }, (_, i) => (
+        <div className="space-y-3">
+          {Array.from({ length: 6 }, (_, i) => (
             <Skeleton key={i} className="h-20" />
           ))}
         </div>
       )}
       {coverage.isError && <ErrorCard title="Could not load coverage" error={coverage.error} onRetry={() => void coverage.refetch()} />}
-
-      <ol className="space-y-2">
-        {rows.map((row) => {
-          const expanded = open === row.asi_id;
-          return (
-            <li key={row.asi_id} className="rounded-lg border border-line-subtle bg-surface-1 shadow-e1">
-              <div
-                role="button"
-                tabIndex={0}
-                aria-expanded={expanded}
-                // The whole row toggles; only a real link inside it (a CTL id) keeps its own click.
-                onClick={(e) => {
-                  if (!(e.target as HTMLElement).closest('a')) setOpen(expanded ? null : row.asi_id);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setOpen(expanded ? null : row.asi_id);
-                  }
-                }}
-                className="grid w-full cursor-pointer grid-cols-[minmax(220px,1.1fr)_minmax(260px,1.4fr)_minmax(220px,1fr)_72px] items-center gap-5 rounded-lg p-4 text-left hover:bg-surface-2"
-              >
-                <span className="min-w-0">
-                  <span className="font-mono text-xs text-fg-secondary">{row.asi_id}</span>
-                  <span className="block text-md font-semibold">{row.name}</span>
-                  <span className="mt-1.5 flex flex-wrap gap-1">
-                    {rankedPrimitives(row)
-                      .slice(0, MAX_PRIMITIVES)
-                      .map((p) => (
-                        <span key={p.id} className="rounded-xs bg-surface-3 px-1.5 py-0.5 text-xs text-fg-secondary">
-                          {p.name}
-                        </span>
-                      ))}
-                    {row.primitives.length > MAX_PRIMITIVES && (
-                      <span
-                        title={rankedPrimitives(row)
-                          .slice(MAX_PRIMITIVES)
-                          .map((p) => p.name)
-                          .join(', ')}
-                        className="px-1 py-0.5 text-xs text-fg-tertiary"
-                      >
-                        +{row.primitives.length - MAX_PRIMITIVES}
-                      </span>
-                    )}
-                  </span>
-                </span>
-                <span className="flex flex-wrap gap-1.5">
-                  {row.controls.slice(0, MAX_CONTROLS).map((c) => (
-                    <span key={c.id} title={`${c.name}: ${c.description}`}>
-                      <IdToken id={c.id} href={`${ECOSYSTEM_URL}/policy-studio/controls/${encodeURIComponent(c.id)}`} copy={false} />
-                    </span>
-                  ))}
-                  {row.controls.length > MAX_CONTROLS && (
-                    <span title={row.controls.slice(MAX_CONTROLS).map((c) => c.id).join(', ')} className="px-1 py-0.5 font-mono text-xs text-fg-tertiary">
-                      +{row.controls.length - MAX_CONTROLS}
-                    </span>
-                  )}
-                </span>
-                <EvidenceBar row={row} />
-                <span className="text-right text-xs text-fg-secondary">{(acts[row.asi_id] ?? []).map((a) => `Act ${a}`).join(', ')}</span>
-              </div>
-              {expanded && (
-                <>
-                  <NotClaimedBlock asiId={row.asi_id} />
-                  <Evidence row={row} traces={traces.data ?? []} />
-                </>
-              )}
-            </li>
-          );
-        })}
-      </ol>
+      {coverage.data && !rows.length && (
+        <Card>
+          <EmptyState icon="shield" title="No coverage data" body="The Gateway returned no risk mapping." />
+        </Card>
+      )}
+      {rows.length > 0 && (
+        <Card className="p-2">
+          <ol className="divide-y divide-line/70">
+            {rows.map((row) => (
+              <RiskRow key={row.asi_id} row={row} acts={acts[row.asi_id] ?? []} open={open === row.asi_id} onToggle={() => setOpen(open === row.asi_id ? null : row.asi_id)} />
+            ))}
+          </ol>
+        </Card>
+      )}
     </div>
   );
 }

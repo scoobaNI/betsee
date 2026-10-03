@@ -24,13 +24,13 @@ export interface EdgeStyle {
 }
 
 const STROKE = {
-  allow: 'var(--bs-color-accent-default)',
-  deny: 'var(--bs-color-decision-deny-fg)',
-  approval: 'var(--bs-color-decision-approval-fg)',
-  stepup: 'var(--bs-color-decision-stepup-fg)',
-  tightened: 'var(--bs-color-modifier-ai-tightened-fg)',
-  quarantined: 'var(--bs-color-lifecycle-quarantined-fg)',
-  neutral: 'var(--bs-color-border-strong)',
+  allow: 'var(--color-accent)',
+  deny: 'var(--color-bad)',
+  approval: 'var(--color-wait)',
+  stepup: 'var(--color-verify)',
+  tightened: 'var(--color-ai)',
+  quarantined: 'var(--color-quar)',
+  neutral: 'var(--color-line-strong)',
 } as const;
 
 const PENDING_DASH = '4 4';
@@ -39,7 +39,7 @@ const PENDING_DASH = '4 4';
 export const stoppedByBreaker = (latest: EdgeLatest | undefined) =>
   Boolean(latest && latest.decision === 'deny' && (latest.control_ids.includes('CTL-RUN-003') || latest.control_ids.includes('CTL-ID-002')));
 
-/** GraphCanvas edge rules (components.md): colour by latest decision, dashed while a human is pending. */
+/** Edge rules: colour by latest decision, dashed while a human is pending. */
 export function edgeStyle(edge: EdgeFacts, sourceState: Agent['state'] | undefined): EdgeStyle {
   // Sessions say who launched whom; they carry no decision of their own.
   if (edge.kind === 'session') return { stroke: STROKE.neutral, dash: undefined, opacity: 0.7 };

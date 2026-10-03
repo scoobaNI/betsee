@@ -122,7 +122,8 @@ def main():
             ("priya", "Priya Raman", ["org-admin", "demo-initiator"], "administration", os.environ["DEMO_PASSWORD_PRIYA"]),
         ]
         for username, name, roles, team, password in cast:
-            caps = ["crm.read", "files.read", "payments.transfer", "email.send", "llm.complete", "agent.message"] if username == "maya" else all_caps
+            caps = ["crm.read", "files.read", "payments.transfer", "email.send", "llm.complete", "agent.message",
+                    "files.write", "shell.exec"] if username == "maya" else all_caps
             print(json.dumps(provision(keycloak, username, name, roles, team, password, clearance=3, entitlements=caps)))
     else:
         print(json.dumps(provision(keycloak, args.username, args.display_name, args.role,

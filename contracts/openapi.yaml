@@ -2242,6 +2242,418 @@
                 },
             },
         },
+      "/api/v1/actions/{trace_id}":
+        {
+          "get":
+            {
+              "operationId": "get__api_v1_actions_trace_id",
+              "summary": "The calling agent's own action, re-read while a human approval is pending (agent token only)",
+              "parameters":
+                [
+                  {
+                    "name": "trace_id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "type": "string" },
+                  },
+                ],
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Success",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "$ref": "#/components/schemas/ActionSummary",
+                                },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Missing or invalid authentication",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Not an agent token",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Not an action of this agent",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/api/v1/chat/inputs":
+        {
+          "post":
+            {
+              "operationId": "post__api_v1_chat_inputs",
+              "summary": "Content filter (CTL-IN-001): check text a human types to their session's agent before any model sees it. A refused message returns 200 with decision deny; every check is a trace.",
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            { "$ref": "#/components/schemas/ChatInput" },
+                        },
+                    },
+                },
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Success",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "$ref": "#/components/schemas/ChatInputResult",
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Empty or oversized text",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Missing or invalid authentication",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Not a browser human token",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Session not found or not the caller's",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "Dependency unavailable",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/api/v1/chat/sessions":
+        {
+          "get":
+            {
+              "operationId": "get__api_v1_chat_sessions",
+              "summary": "agent-host: the caller's chats with the employee assistant",
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Success",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    {
+                                      "items":
+                                        {
+                                          "type": "array",
+                                          "items":
+                                            {
+                                              "$ref": "#/components/schemas/ChatSession",
+                                            },
+                                        },
+                                    },
+                                  "required": ["items"],
+                                },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Missing or rejected token",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+          "post":
+            {
+              "operationId": "post__api_v1_chat_sessions",
+              "summary": "agent-host: start a chat; creates a Betsee AgentSession for employee-assistant in use case employee-assistance with the caller's token",
+              "responses":
+                {
+                  "201":
+                    {
+                      "description": "Created",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/ChatSession" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Missing or rejected token",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Delegation denied",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "Gateway unreachable",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/api/v1/chat/messages":
+        {
+          "post":
+            {
+              "operationId": "post__api_v1_chat_messages",
+              "summary": "agent-host: send a message. The Gateway content filter runs first; a refused or unchecked message never reaches the model (200 blocked). An accepted message starts the agent (202).",
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            { "$ref": "#/components/schemas/ChatMessage" },
+                        },
+                    },
+                },
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Blocked",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "$ref": "#/components/schemas/ChatMessageResult",
+                                },
+                            },
+                        },
+                    },
+                  "202":
+                    {
+                      "description": "Accepted",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "$ref": "#/components/schemas/ChatMessageResult",
+                                },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Missing or rejected token",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Chat not found",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "409":
+                    {
+                      "description": "The assistant is still working",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/api/v1/chat/stream/{chat_id}":
+        {
+          "get":
+            {
+              "operationId": "get__api_v1_chat_stream_chat_id",
+              "summary": "agent-host: Server-Sent Events of one chat (bearer, fetch-based; Last-Event-ID resumes). Event types are listed in contracts/events.md.",
+              "parameters":
+                [
+                  {
+                    "name": "chat_id",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "type": "string" },
+                  },
+                ],
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "text/event-stream",
+                      "content":
+                        {
+                          "text/event-stream":
+                            { "schema": { "type": "string" } },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Missing or rejected token",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "404":
+                    {
+                      "description": "Chat not found",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       "/api/v1/traces/{trace_id}":
         {
           "get":
@@ -2997,6 +3409,120 @@
                 },
               "required": ["verdict", "rationale", "model_label"],
             },
+          "ChatInput":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "session_id": { "type": "string" },
+                  "text":
+                    { "type": "string", "minLength": 1, "maxLength": 8000 },
+                },
+              "required": ["session_id", "text"],
+              "additionalProperties": false,
+            },
+          "InputFinding":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "class":
+                    {
+                      "type": "string",
+                      "enum":
+                        [
+                          "payment_card",
+                          "iban",
+                          "pesel",
+                          "secret",
+                          "resource_above_tier",
+                        ],
+                    },
+                  "label": { "type": "string" },
+                  "masked":
+                    {
+                      "type": "string",
+                      "description": "Masked value; the matched text is never returned or stored.",
+                    },
+                },
+              "required": ["class", "label", "masked"],
+            },
+          "ChatInputResult":
+            {
+              "allOf":
+                [
+                  { "$ref": "#/components/schemas/ActionSummary" },
+                  {
+                    "type": "object",
+                    "properties":
+                      {
+                        "findings":
+                          {
+                            "type": "array",
+                            "items":
+                              { "$ref": "#/components/schemas/InputFinding" },
+                          },
+                      },
+                    "required": ["findings"],
+                  },
+                ],
+            },
+          "ChatSession":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "chat_id": { "type": "string" },
+                  "session": { "$ref": "#/components/schemas/AgentSession" },
+                  "busy": { "type": "boolean" },
+                  "created_at": { "type": "string", "format": "date-time" },
+                  "events": { "type": "integer" },
+                  "agent_id": { "type": "string" },
+                  "use_case": { "$ref": "#/components/schemas/UseCaseRef" },
+                },
+              "required":
+                [
+                  "chat_id",
+                  "session",
+                  "busy",
+                  "created_at",
+                  "events",
+                  "agent_id",
+                  "use_case",
+                ],
+            },
+          "ChatMessage":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "chat_id": { "type": "string" },
+                  "text": { "type": "string" },
+                },
+              "required": ["chat_id", "text"],
+              "additionalProperties": false,
+            },
+          "ChatMessageResult":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "status":
+                    { "type": "string", "enum": ["accepted", "blocked"] },
+                  "message_id": { "type": "string" },
+                  "trace_id":
+                    { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                  "reasons": { "type": "array", "items": { "type": "string" } },
+                  "control_ids":
+                    { "type": "array", "items": { "type": "string" } },
+                  "findings":
+                    {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/InputFinding" },
+                    },
+                },
+              "required": ["status", "message_id"],
+            },
           "ActionSummary":
             {
               "type": "object",
@@ -3050,6 +3576,12 @@
                     { "$ref": "#/components/schemas/ApprovalState" },
                   "latency_ms": { "type": "number" },
                   "executed": { "type": "boolean" },
+                  "execution":
+                    {
+                      "type": "string",
+                      "enum": ["connector", "delegated", "forwarded"],
+                      "description": "Who executes after allow: a Gateway connector; the agent runtime under delegated execution (CTL-RT-001), so executed means handed to the runtime after allow; or, for an input check, the message forwarded to the agent.",
+                    },
                   "output":
                     {
                       "anyOf":
@@ -3231,6 +3763,12 @@
                     { "$ref": "#/components/schemas/ApprovalState" },
                   "latency_ms": { "type": "number" },
                   "executed": { "type": "boolean" },
+                  "execution":
+                    {
+                      "type": "string",
+                      "enum": ["connector", "delegated", "forwarded"],
+                      "description": "Who executes after allow: a Gateway connector; the agent runtime under delegated execution (CTL-RT-001), so executed means handed to the runtime after allow; or, for an input check, the message forwarded to the agent.",
+                    },
                   "output":
                     {
                       "anyOf":

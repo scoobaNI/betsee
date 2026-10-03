@@ -1,151 +1,214 @@
-import { eventHub, useApprovals, useMe, useStreamStatus, useSummary, useTraces } from '@betsee/api';
-import { Icon, MockBadge, StreamStatus } from '@betsee/ui';
-import { useMemo, useState, type ReactNode } from 'react';
-import { NavLink } from 'react-router';
+import { eventHub, useMe, useStreamStatus, useTraces, type StreamStatus } from '@betsee/api';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { NavLink, useLocation } from 'react-router';
 import { useSignOut } from '../auth.tsx';
+import { formatTime } from '../domain/format.ts';
+import { useKpis } from '../hooks.ts';
 import { useMockMode } from '../mock-mode.tsx';
-import { HumanAvatar } from './marks.tsx';
-import { OfflineBanner } from './states.tsx';
+import { Icon, type IconName } from './icon.tsx';
+import { Avatar, EASE, ECOSYSTEM_URL, Wordmark } from './ui.tsx';
 
-export const ECOSYSTEM_URL = 'http://betsee.localhost';
-
-const NAV = [
-  { to: '/', label: 'Live', icon: 'streamline-flex:wave-signal-circle', end: true },
-  { to: '/graph', label: 'Graph', icon: 'streamline-flex:hierarchy-2', end: false },
-  { to: '/coverage', label: 'Coverage', icon: 'streamline-flex:shield-1', end: false },
+const NAV: { to: string; label: string; icon: IconName; match: RegExp }[] = [
+  { to: '/', label: 'Overview', icon: 'overview', match: /^\/$/ },
+  { to: '/agents', label: 'Agents', icon: 'bot', match: /^\/agents/ },
+  { to: '/activity', label: 'Activity', icon: 'activity', match: /^\/(activity|traces)/ },
+  { to: '/graph', label: 'Graph', icon: 'map', match: /^\/graph/ },
+  { to: '/coverage', label: 'Coverage', icon: 'shield', match: /^\/coverage/ },
 ];
 
-function NavRail() {
+function Nav() {
+  const { pathname } = useLocation();
+  const reduce = useReducedMotion();
   return (
-    <nav aria-label="Director" className="flex w-(--bs-layout-dir-nav-rail) shrink-0 flex-col items-center gap-2 border-r border-line-subtle bg-surface-1 py-3">
-      <span className="mb-3 flex h-8 w-8 items-center justify-center rounded-sm bg-surface-3 text-accent-text" title="Director">
-        <Icon name="streamline:eye-optic" size={16} />
-      </span>
-      {NAV.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={item.end}
-          title={item.label}
-          aria-label={item.label}
-          className={({ isActive }) =>
-            `relative flex h-10 w-10 items-center justify-center rounded-md text-fg-secondary hover:bg-surface-2 hover:text-fg-primary ${
-              isActive ? 'bg-surface-2 text-fg-primary before:absolute before:-left-3 before:top-2 before:h-6 before:w-0.5 before:rounded-pill before:bg-accent' : ''
-            }`
-          }
-        >
-          <Icon name={item.icon} size={20} />
-        </NavLink>
-      ))}
-      <a
-        href={ECOSYSTEM_URL}
-        title="Betsee ecosystem"
-        aria-label="Betsee ecosystem"
-        className="mt-auto flex h-10 w-10 items-center justify-center rounded-md text-fg-secondary hover:bg-surface-2 hover:text-fg-primary"
-      >
-        <Icon name="streamline-flex:home-2" size={20} />
-      </a>
+    <nav aria-label="Director" className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
+      {NAV.map((item) => {
+        const active = item.match.test(pathname);
+        return (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            aria-current={active ? 'page' : undefined}
+            aria-label={item.label}
+            className={`relative inline-flex h-9 shrink-0 items-center gap-2 rounded-xl px-3 text-[14px] font-medium transition-colors ${
+              active ? 'text-ink' : 'text-ink-3 hover:text-ink'
+            }`}
+          >
+            {active && (
+              <motion.span
+                layoutId="nav-active"
+                className="absolute inset-0 rounded-xl bg-sunken"
+                transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 42 }}
+              />
+            )}
+            <Icon name={item.icon} size={16} className="relative" />
+            <span className="relative hidden sm:inline">{item.label}</span>
+          </NavLink>
+        );
+      })}
     </nav>
   );
 }
 
-function AwaitingHuman() {
-  // FAIL-1 (p-764): the Gateway's summary is the one source, the same as the ecosystem Home; trace
-  // states can be stale. The approvals list only covers the moment before the summary loads.
-  const summary = useSummary();
-  const approvals = useApprovals();
-  const count = useMemo(
-    () => summary.data?.awaiting_human ?? (approvals.data ?? []).filter((a) => a.state === 'pending').length,
-    [summary.data, approvals.data],
-  );
+const STREAM: Record<StreamStatus, { label: string; dot: string; live?: boolean }> = {
+  connecting: { label: 'Connecting', dot: 'bg-ink-4' },
+  live: { label: 'Live', dot: 'bg-ok', live: true },
+  stale: { label: 'Quiet', dot: 'bg-wait' },
+  reconnecting: { label: 'Reconnecting', dot: 'bg-wait' },
+  offline: { label: 'Offline', dot: 'bg-bad' },
+};
+
+function StreamIndicator() {
+  const status = useStreamStatus();
+  const s = STREAM[status];
+  const title =
+    status === 'stale' ? 'No event from the Gateway for 20 s; reconnecting soon.' : status === 'live' ? 'Receiving events from the Gateway as they happen.' : undefined;
   return (
-    <a
-      href={`${ECOSYSTEM_URL}/approvals`}
-      className={`inline-flex h-7 items-center gap-2 rounded-pill border px-2.5 text-xs font-semibold ${
-        count > 0 ? 'border-approval-border bg-approval-bg text-approval-fg' : 'border-line-default text-fg-secondary hover:border-line-strong'
-      }`}
-    >
-      <Icon name="streamline-flex:inbox" size={14} />
-      Awaiting human
-      <span className="tabular-nums">{count}</span>
-    </a>
+    <span title={title} className="inline-flex items-center gap-2 text-[13px] font-medium text-ink-2">
+      <span className={`h-2 w-2 rounded-full ${s.dot} ${s.live ? 'live-dot' : ''}`} />
+      <span className="hidden md:inline">{s.label}</span>
+    </span>
   );
 }
 
-function TopBar({ onToggleFeed }: { onToggleFeed: () => void }) {
+function AwaitingPill() {
+  const { kpis } = useKpis();
+  const count = kpis.awaitingHuman;
+  return (
+    <AnimatePresence>
+      {count > 0 && (
+        <motion.a
+          href={`${ECOSYSTEM_URL}/approvals`}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          transition={{ duration: 0.25, ease: EASE }}
+          title="Open the approvals inbox in the Betsee ecosystem"
+          className="inline-flex h-8 items-center gap-1.5 rounded-full bg-wait-soft px-3 text-[13px] font-medium text-wait-ink transition-colors hover:bg-[#fdecd0]"
+        >
+          <span className="waiting-ring h-1.5 w-1.5 rounded-full bg-wait" />
+          {count}
+          <span className="hidden sm:inline">awaiting a human</span>
+        </motion.a>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function UserMenu() {
   const me = useMe();
+  const signOut = useSignOut();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent ? event.key === 'Escape' : !ref.current?.contains(event.target as Node)) setOpen(false);
+    };
+    window.addEventListener('mousedown', close);
+    window.addEventListener('keydown', close);
+    return () => {
+      window.removeEventListener('mousedown', close);
+      window.removeEventListener('keydown', close);
+    };
+  }, [open]);
+  if (!me.data) return null;
+  const organization = (me.data.organization as { name?: string } | undefined)?.name;
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-label="Account"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center rounded-full transition-shadow hover:ring-4 hover:ring-sunken"
+      >
+        <Avatar name={me.data.human.display_name} size={32} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.18, ease: EASE }}
+            className="absolute top-11 right-0 z-50 w-64 origin-top-right rounded-2xl border border-line bg-surface p-2 shadow-pop"
+          >
+            <div className="px-3 pt-2 pb-3">
+              <p className="text-[14px] font-semibold text-ink">{me.data.human.display_name}</p>
+              <p className="mt-0.5 text-[12px] text-ink-3">{[organization, me.data.roles.filter((r) => r === 'security-officer' || r === 'org-admin').join(', ')].filter(Boolean).join(' - ')}</p>
+            </div>
+            <a href={ECOSYSTEM_URL} className="flex h-9 items-center gap-2.5 rounded-lg px-3 text-[14px] text-ink-2 transition-colors hover:bg-sunken hover:text-ink">
+              <Icon name="home" size={15} />
+              Betsee ecosystem
+            </a>
+            {signOut && (
+              <button type="button" onClick={signOut} className="flex h-9 w-full items-center gap-2.5 rounded-lg px-3 text-[14px] text-ink-2 transition-colors hover:bg-sunken hover:text-ink">
+                <Icon name="log-out" size={15} />
+                Sign out
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function OfflineBanner() {
+  const traces = useTraces();
+  const since = traces.dataUpdatedAt ? formatTime(new Date(traces.dataUpdatedAt).toISOString()) : undefined;
+  return (
+    <div role="alert" className="border-b border-line bg-bad-soft">
+      <div className="mx-auto flex max-w-[1160px] items-center gap-3 px-6 py-2.5 text-[14px] text-bad-ink md:px-10">
+        <Icon name="alert" size={16} />
+        <span className="flex-1">Gateway unreachable. {since ? `Showing data as of ${since}.` : 'Live updates are paused.'}</span>
+        <button type="button" onClick={eventHub.retry} className="font-medium underline-offset-4 hover:underline">
+          Try again
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** One calm column: a slim header with the five places, the page, and the demo dock floating below. */
+export function Shell({ dock, children }: { dock: ReactNode; children: ReactNode }) {
   const status = useStreamStatus();
   const mock = useMockMode();
-  const signOut = useSignOut();
-  const organization = (me.data?.organization as { name?: string } | undefined)?.name ?? 'Acme Logistics';
+  const { pathname } = useLocation();
+  const reduce = useReducedMotion();
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [pathname]);
   return (
-    <header className="flex h-(--bs-layout-dir-topbar) shrink-0 items-center gap-3 border-b border-line-subtle px-5">
-      <div className="flex min-w-0 items-baseline gap-3">
-        <span className="font-display text-lg font-semibold">Director</span>
-        <span className="truncate text-sm text-fg-secondary">{organization}</span>
-      </div>
-      <div className="ml-auto flex items-center gap-3">
-        {mock && <MockBadge label="Mock data" />}
-        <StreamStatus status={status} />
-        <AwaitingHuman />
-        <button
-          type="button"
-          onClick={onToggleFeed}
-          className="inline-flex h-7 items-center gap-2 rounded-pill border border-line-default px-2.5 text-xs font-semibold md:hidden"
-        >
-          <Icon name="streamline-flex:wave-signal-circle" size={14} />
-          Feed
-        </button>
-        {me.data && (
-          <span className="flex items-center gap-2 text-sm">
-            <HumanAvatar name={me.data.human.display_name} size="sm" />
-            <span className="hidden lg:inline">{me.data.human.display_name}</span>
-          </span>
-        )}
-        {signOut && (
-          <button type="button" onClick={signOut} title="Sign out" aria-label="Sign out" className="text-fg-secondary hover:text-fg-primary">
-            <Icon name="streamline:logout-1" size={16} />
-          </button>
-        )}
-      </div>
-    </header>
-  );
-}
-
-/**
- * Full-bleed operations room (contract 8.2): nav rail, top bar, content on the dot grid, the live
- * feed as a floating panel on the right, and the scenario dock floating over the content.
- */
-export function Shell({ feed, dock, children }: { feed: ReactNode; dock: ReactNode; children: ReactNode }) {
-  const [feedOpen, setFeedOpen] = useState(false);
-  const status = useStreamStatus();
-  const traces = useTraces();
-  return (
-    <div className="flex h-screen overflow-hidden bg-app text-fg-primary">
-      <NavRail />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar onToggleFeed={() => setFeedOpen((open) => !open)} />
-        {status === 'offline' && (
-          <OfflineBanner since={traces.dataUpdatedAt ? new Date(traces.dataUpdatedAt).toISOString() : undefined} onRetry={eventHub.retry} />
-        )}
-        <div className="relative flex min-h-0 flex-1">
-          <div className="relative min-w-0 flex-1">
-            <main className="dir-canvas absolute inset-0 overflow-y-auto">
-              <div className="px-6 pb-[calc(var(--bs-layout-dir-dock)+64px)] pt-5">{children}</div>
-            </main>
-            <div className="pointer-events-none absolute inset-x-0 bottom-4 z-(--bs-z-dock) flex justify-center">
-              <div className="pointer-events-auto">{dock}</div>
-            </div>
+    <div className="min-h-screen bg-canvas text-ink">
+      <header className="sticky top-0 z-40 border-b border-line bg-surface/85 backdrop-blur-xl backdrop-saturate-150">
+        <div className="mx-auto flex h-16 max-w-[1160px] items-center gap-3 px-4 sm:gap-6 sm:px-6 md:px-10">
+          <NavLink to="/" aria-label="Director overview" className="shrink-0">
+            <Wordmark compact />
+          </NavLink>
+          <span aria-hidden="true" className="hidden h-6 w-px bg-line md:block" />
+          <Nav />
+          <div className="ml-auto flex shrink-0 items-center gap-3 sm:gap-4">
+            {mock && <span className="hidden rounded-full bg-sunken px-2.5 py-1 text-[12px] font-medium text-ink-3 lg:inline">Mock data</span>}
+            <AwaitingPill />
+            <StreamIndicator />
+            <UserMenu />
           </div>
-          <aside
-            aria-label="Live feed"
-            className={`absolute inset-y-3 right-3 z-(--bs-z-rail) w-(--bs-layout-dir-feed) max-w-[calc(100%-24px)] md:static md:my-3 md:mr-3 md:block md:w-80 lg:w-(--bs-layout-dir-feed) ${
-              feedOpen ? 'block' : 'hidden'
-            }`}
-          >
-            {feed}
-          </aside>
         </div>
+      </header>
+      {status === 'offline' && <OfflineBanner />}
+      <motion.main
+        key={pathname.split('/').slice(0, 3).join('/')}
+        initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: EASE }}
+        className="mx-auto max-w-[1160px] px-4 pt-8 pb-36 sm:px-6 sm:pt-10 md:px-10 md:pt-14"
+      >
+        {children}
+      </motion.main>
+      <div className="pointer-events-none fixed inset-x-0 bottom-6 z-30 flex justify-center overflow-hidden px-4">
+        <div className="pointer-events-auto">{dock}</div>
       </div>
     </div>
   );

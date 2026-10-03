@@ -42,5 +42,8 @@ unless {
   (action == Betsee::Action::"payments.transfer" && context.capability == Betsee::Capability::"payments.transfer") ||
   (action == Betsee::Action::"shell.exec" && context.capability == Betsee::Capability::"shell.exec") ||
   (action == Betsee::Action::"agent.message" && context.capability == Betsee::Capability::"agent.message") ||
-  (action == Betsee::Action::"llm.complete" && context.capability == Betsee::Capability::"llm.complete")
+  (action == Betsee::Action::"llm.complete" && context.capability == Betsee::Capability::"llm.complete") ||
+  (action == Betsee::Action::"files.write" && context.capability == Betsee::Capability::"files.write") ||
+  (action == Betsee::Action::"web.egress" && context.capability == Betsee::Capability::"web.egress") ||
+  (action == Betsee::Action::"runtime.unmapped" && context.capability == Betsee::Capability::"runtime.unmapped")
 };

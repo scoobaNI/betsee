@@ -1,5 +1,4 @@
 import { configureApi } from '@betsee/api';
-import '@betsee/ui/styles.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { User } from 'oidc-client-ts';
 import { StrictMode, type ReactNode } from 'react';

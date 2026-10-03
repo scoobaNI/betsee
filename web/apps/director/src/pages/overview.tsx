@@ -1,0 +1,427 @@
+import { useAgents, useMe, type ActionSummary } from '@betsee/api';
+import { motion } from 'motion/react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Link } from 'react-router';
+import { ActivityList } from '../components/activity.tsx';
+import { Icon, type IconName } from '../components/icon.tsx';
+import { ReasonText } from '../components/reason.tsx';
+import {
+  AgentGlyph,
+  AnimatedNumber,
+  Card,
+  EASE,
+  ECOSYSTEM_URL,
+  EmptyState,
+  ErrorCard,
+  OutcomeBar,
+  OutcomePill,
+  outcomeOf,
+  Section,
+  Skeleton,
+  TextLink,
+  type Tone,
+} from '../components/ui.tsx';
+import { isObservation } from '../domain/decision.ts';
+import { groupByTeam, teamName } from '../domain/feed.ts';
+import { formatCount, formatTime } from '../domain/format.ts';
+import { useActions, useAttention, useKpis, useNow, type AttentionItem } from '../hooks.ts';
+
+const WINDOW_MS = 15 * 60_000;
+
+function Hero() {
+  const me = useMe();
+  const agents = useAgents();
+  const { kpis, loading } = useKpis();
+  const attention = useAttention();
+  const organization = (me.data?.organization as { name?: string } | undefined)?.name ?? 'Your organization';
+  const teams = useMemo(() => new Set((agents.data ?? []).map((a) => a.team)).size, [agents.data]);
+  const n = attention.length;
+  return (
+    <header className="mb-12">
+      <p className="text-[13px] font-medium text-ink-3">{organization}</p>
+      {loading ? (
+        <Skeleton className="mt-3 h-10 w-[28rem] max-w-full rounded-xl" />
+      ) : (
+        <motion.h1
+          key={n === 0 ? 'calm' : 'attention'}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: EASE }}
+          className="mt-2 text-[28px] leading-[1.15] font-semibold tracking-[-0.025em] text-ink sm:text-[34px]"
+        >
+          {n === 0 ? (
+            'All agents are working within policy.'
+          ) : (
+            <>
+              <span className="text-wait-ink">{n}</span> {n === 1 ? 'thing needs' : 'things need'} your attention.
+            </>
+          )}
+        </motion.h1>
+      )}
+      <p className="mt-3 max-w-2xl text-[16px] leading-relaxed text-ink-2">
+        {formatCount(kpis.agentsActive)} agents active across {teams} {teams === 1 ? 'team' : 'teams'}. Every action they take passes through the
+        Gateway, which decides it, records it and explains it.
+      </p>
+    </header>
+  );
+}
+
+/** Actions per minute over the last 15 minutes; denied ones stacked in red at the base. */
+function MiniHistogram({ actions }: { actions: readonly ActionSummary[] }) {
+  const now = useNow(15_000);
+  const buckets = useMemo(() => {
+    const out = Array.from({ length: 15 }, () => ({ total: 0, denied: 0 }));
+    for (const a of actions) {
+      const age = now - Date.parse(a.occurred_at);
+      if (age < 0 || age >= WINDOW_MS) continue;
+      const b = out[14 - Math.floor(age / 60_000)]!;
+      b.total++;
+      if (a.decision === 'deny') b.denied++;
+    }
+    return out;
+  }, [actions, now]);
+  const max = Math.max(1, ...buckets.map((b) => b.total));
+  return (
+    <span aria-hidden="true" className="hidden h-8 items-end gap-[3px] sm:flex">
+      {buckets.map((b, i) => (
+        <motion.span
+          key={i}
+          className="flex w-[5px] flex-col-reverse overflow-hidden rounded-[2px]"
+          initial={false}
+          animate={{ height: b.total ? `${Math.max(12, (b.total / max) * 100)}%` : '2px' }}
+          transition={{ duration: 0.5, ease: EASE }}
+        >
+          <span className="w-full shrink-0 bg-bad" style={{ height: b.total ? `${(b.denied / b.total) * 100}%` : 0 }} />
+          <span className={`w-full flex-1 ${b.total ? 'bg-ink-4' : 'bg-line'}`} />
+        </motion.span>
+      ))}
+    </span>
+  );
+}
+
+function Stat({ to, href, label, value, sub, tone, extra }: { to?: string; href?: string; label: string; value: number; sub: ReactNode; tone?: Tone; extra?: ReactNode }) {
+  const body = (
+    <>
+      <span className="flex items-center gap-2 text-[13px] font-medium text-ink-2">
+        {tone && <span className={`h-1.5 w-1.5 rounded-full ${tone === 'bad' ? 'bg-bad' : tone === 'wait' ? 'bg-wait' : tone === 'quar' ? 'bg-quar' : 'bg-ok'}`} />}
+        {label}
+        <Icon name={href ? 'external' : 'arrow-right'} size={13} className="ml-auto text-ink-4 opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100" />
+      </span>
+      <span className="mt-4 flex items-end justify-between gap-3">
+        <span className="text-[34px] leading-none font-semibold tracking-[-0.03em] text-ink sm:text-[40px]">
+          <AnimatedNumber value={value} />
+        </span>
+        {extra}
+      </span>
+      <span className="mt-3 block text-[13px] text-ink-3">{sub}</span>
+    </>
+  );
+  const cls = 'group lift block rounded-2xl border border-line bg-surface p-5 shadow-card sm:p-6';
+  return href ? (
+    <a href={href} className={cls}>
+      {body}
+    </a>
+  ) : (
+    <Link to={to ?? '/'} className={cls}>
+      {body}
+    </Link>
+  );
+}
+
+function Stats() {
+  const { kpis, loading } = useKpis();
+  const { actions } = useActions();
+  const decided = useMemo(() => actions.filter((a) => !isObservation(a)), [actions]);
+  if (loading) {
+    return (
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} className="h-[148px]" />
+        ))}
+      </div>
+    );
+  }
+  const offline = kpis.agentsQuarantined + kpis.agentsSuspended;
+  return (
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <Stat
+        to="/agents"
+        label="Agents active"
+        value={kpis.agentsActive}
+        tone={offline ? 'quar' : 'ok'}
+        sub={
+          offline
+            ? [kpis.agentsQuarantined && `${kpis.agentsQuarantined} quarantined`, kpis.agentsSuspended && `${kpis.agentsSuspended} suspended`].filter(Boolean).join(', ')
+            : 'None quarantined'
+        }
+      />
+      <Stat
+        to="/activity"
+        label="Actions, last 15 min"
+        value={kpis.actions15m}
+        sub={kpis.tightened15m ? `${formatCount(kpis.tightened15m)} made stricter by AI analysis` : 'Each one a recorded trace'}
+        extra={<MiniHistogram actions={decided} />}
+      />
+      <Stat to="/activity?show=denied" label="Denied, last 15 min" value={kpis.denied15m} tone={kpis.denied15m ? 'bad' : undefined} sub="Stopped before execution" />
+      <Stat
+        href={`${ECOSYSTEM_URL}/approvals`}
+        label="Awaiting a human"
+        value={kpis.awaitingHuman}
+        tone={kpis.awaitingHuman ? 'wait' : undefined}
+        sub={kpis.awaitingHuman ? 'Approval or step-up pending' : 'Nothing waiting'}
+      />
+    </div>
+  );
+}
+
+function AttentionRow({ item }: { item: AttentionItem }) {
+  let to: string;
+  let icon: ReactNode;
+  let title: ReactNode;
+  let detail: ReactNode;
+  let side: ReactNode = null;
+  if (item.kind === 'agent') {
+    const { agent } = item;
+    to = `/agents/${encodeURIComponent(agent.id)}`;
+    icon = <AgentGlyph state={agent.state} size={40} />;
+    title = (
+      <>
+        <span className="font-semibold">{agent.id}</span> was {agent.state === 'quarantined' ? 'quarantined' : 'suspended'}
+      </>
+    );
+    detail = agent.state_reason ? <ReasonText text={agent.state_reason} linked={false} /> : 'Every action it attempts is denied until a security officer releases it.';
+    side = agent.state_changed_at ? <span className="font-mono text-[12px] text-ink-3">{formatTime(agent.state_changed_at)}</span> : null;
+  } else if (item.kind === 'awaiting') {
+    const { action } = item;
+    to = `/traces/${encodeURIComponent(action.trace_id)}`;
+    icon = (
+      <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${action.decision === 'require_step_up' ? 'bg-verify-soft text-verify-ink' : 'bg-wait-soft text-wait-ink'}`}>
+        <Icon name={action.decision === 'require_step_up' ? 'lock' : 'hourglass'} size={18} />
+      </span>
+    );
+    title = (
+      <>
+        <span className="font-semibold">{action.agent.id}</span> wants to run <span className="font-semibold">{action.capability}</span>
+      </>
+    );
+    detail = `On ${action.resource.id}${action.human ? `, for ${action.human.display_name}` : ''}. Waiting since ${formatTime(action.occurred_at)}.`;
+    side = <OutcomePill outcome={outcomeOf(action)} size="sm" />;
+  } else {
+    to = '/graph';
+    icon = (
+      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-bad-soft text-bad-ink">
+        <Icon name="shield-x" size={18} />
+      </span>
+    );
+    title = (
+      <>
+        Tool <span className="font-semibold">{item.tool}</span> changed its description
+      </>
+    );
+    detail = `The Gateway blocked it on ${item.connector} until an admin re-pins it.`;
+  }
+  return (
+    <Link to={to} className="group row-hover flex items-center gap-4 rounded-xl px-4 py-4">
+      {icon}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] text-ink">{title}</span>
+        <span className="mt-0.5 block text-[13px] leading-relaxed text-ink-2">{detail}</span>
+      </span>
+      {side && <span className="hidden shrink-0 sm:block">{side}</span>}
+      <Icon name="chevron-right" size={18} className="text-ink-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+    </Link>
+  );
+}
+
+const ATTENTION_SHOWN = 4;
+
+function Attention() {
+  const items = useAttention();
+  const { loading } = useKpis();
+  const [all, setAll] = useState(false);
+  if (loading) return null;
+  if (!items.length) {
+    return (
+      <Card className="flex items-center gap-4 px-6 py-5">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-ok-soft text-ok-ink">
+          <Icon name="circle-check" size={18} />
+        </span>
+        <span>
+          <span className="block text-[15px] font-medium text-ink">Nothing needs you right now</span>
+          <span className="block text-[13px] text-ink-3">No quarantined agent, no blocked tool, no action waiting for a person.</span>
+        </span>
+      </Card>
+    );
+  }
+  const more = items.length - ATTENTION_SHOWN;
+  return (
+    <Section title="Needs attention" hint={`${items.length} open`}>
+      <Card className="p-2">
+        <ul className="divide-y divide-line/70">
+          {(all ? items : items.slice(0, ATTENTION_SHOWN)).map((item) => (
+            <motion.li key={item.key} layout="position" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: EASE }}>
+              <AttentionRow item={item} />
+            </motion.li>
+          ))}
+        </ul>
+        {more > 0 && (
+          <button
+            type="button"
+            onClick={() => setAll((v) => !v)}
+            className="mt-1 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl text-[13px] font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink"
+          >
+            {all ? 'Show fewer' : `Show ${more} more`}
+            <Icon name={all ? 'chevron-up' : 'chevron-down'} size={14} />
+          </button>
+        )}
+      </Card>
+    </Section>
+  );
+}
+
+function Teams() {
+  const agents = useAgents();
+  const { actions } = useActions();
+  const now = useNow();
+  const teams = useMemo(() => groupByTeam(agents.data ?? []), [agents.data]);
+  const stats = useMemo(() => {
+    const byTeam = new Map<string, { ok: number; bad: number; wait: number; total: number }>();
+    for (const a of actions) {
+      if (isObservation(a) || now - Date.parse(a.occurred_at) > WINDOW_MS) continue;
+      const s = byTeam.get(a.agent.team) ?? { ok: 0, bad: 0, wait: 0, total: 0 };
+      const tone = outcomeOf(a).tone;
+      s.total++;
+      if (tone === 'ok') s.ok++;
+      else if (tone === 'bad') s.bad++;
+      else s.wait++;
+      byTeam.set(a.agent.team, s);
+    }
+    return byTeam;
+  }, [actions, now]);
+
+  if (agents.isPending) {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} className="h-40" />
+        ))}
+      </div>
+    );
+  }
+  if (agents.isError) return <ErrorCard title="Could not load agents" error={agents.error} onRetry={() => void agents.refetch()} />;
+  if (!teams.length) {
+    return (
+      <Card>
+        <EmptyState icon="bot" title="No agents registered" body="Run scripts/bootstrap to register the demo agents." />
+      </Card>
+    );
+  }
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {teams.map(([team, list]) => {
+        const s = stats.get(team) ?? { ok: 0, bad: 0, wait: 0, total: 0 };
+        const offline = list.filter((a) => a.state !== 'active');
+        return (
+          <Link key={team} to={`/agents?team=${encodeURIComponent(team)}`} className="group lift flex flex-col rounded-2xl border border-line bg-surface p-6 shadow-card">
+            <span className="flex items-center gap-2">
+              <span className="text-[16px] font-semibold tracking-[-0.01em] text-ink">{teamName(team)}</span>
+              <Icon name="arrow-right" size={14} className="ml-auto text-ink-4 opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100" />
+            </span>
+            <span className="mt-1 text-[13px] text-ink-3">
+              {list.length} {list.length === 1 ? 'agent' : 'agents'}
+              {offline.length > 0 && <span className="text-quar-ink">, {offline.length} offline</span>}
+            </span>
+            <span className="mt-5 flex -space-x-1.5">
+              {list.slice(0, 6).map((agent) => (
+                <span key={agent.id} title={`${agent.id}: ${agent.state}`} className="rounded-xl ring-2 ring-surface">
+                  <AgentGlyph state={agent.state} size={30} />
+                </span>
+              ))}
+            </span>
+            <span className="mt-auto pt-6">
+              <OutcomeBar
+                parts={[
+                  { tone: 'ok', value: s.ok, label: 'allowed' },
+                  { tone: 'wait', value: s.wait, label: 'waiting' },
+                  { tone: 'bad', value: s.bad, label: 'denied' },
+                ]}
+              />
+              <span className="mt-2.5 block text-[12px] text-ink-3 tabular-nums">
+                {s.total ? (
+                  <>
+                    {formatCount(s.total)} actions{s.bad > 0 && <span className="text-bad-ink">, {formatCount(s.bad)} denied</span>}
+                  </>
+                ) : (
+                  'Quiet in the last 15 min'
+                )}
+              </span>
+            </span>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+const LATEST = 6;
+
+function Latest() {
+  const { actions, query } = useActions();
+  return (
+    <Section title="Latest activity" hint="Live" action={<TextLink to="/activity">All activity</TextLink>}>
+      <Card className="p-2">
+        {query.isPending ? (
+          <div className="space-y-2 p-2">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="h-12 rounded-xl" />
+            ))}
+          </div>
+        ) : query.isError && !query.data ? (
+          <ErrorCard title="Could not load activity" error={query.error} onRetry={() => void query.refetch()} />
+        ) : (
+          <ActivityList actions={actions} limit={LATEST} empty={<EmptyState icon="activity" title="No agent has acted yet" body="Launch Act 1 from the demo controls, or start an agent." />} />
+        )}
+      </Card>
+    </Section>
+  );
+}
+
+function Explore() {
+  const items: { to: string; icon: IconName; title: string; body: string }[] = [
+    { to: '/graph', icon: 'map', title: 'Graph', body: 'Who launched which agent, and what each one touched.' },
+    { to: '/coverage', icon: 'shield', title: 'Coverage', body: 'The OWASP agentic risks and the evidence from this run.' },
+  ];
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {items.map((item) => (
+        <Link key={item.to} to={item.to} className="group lift flex items-center gap-4 rounded-2xl border border-line bg-surface p-5 shadow-card">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sunken text-ink-2">
+            <Icon name={item.icon} size={18} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-semibold text-ink">{item.title}</span>
+            <span className="block text-[13px] text-ink-3">{item.body}</span>
+          </span>
+          <Icon name="arrow-right" size={16} className="text-ink-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+export function OverviewPage() {
+  return (
+    <div>
+      <Hero />
+      <Stats />
+      <div className="mt-14 space-y-14">
+        <Attention />
+        <Section title="Teams" hint="Last 15 minutes" action={<TextLink to="/agents">All agents</TextLink>}>
+          <Teams />
+        </Section>
+        <Latest />
+        <Explore />
+      </div>
+    </div>
+  );
+}

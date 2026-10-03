@@ -39,6 +39,12 @@ namespace Betsee {
     valid: Bool,
   };
 
+  // Delegated execution (CTL-RT-001): the Gateway decides and audits, the agent runtime executes
+  // after allow. Present only when the resolved resource is reached through that runtime.
+  type RuntimeCall = {
+    connector: Connector,
+  };
+
   type ActionContext = {
     session: AgentSession,
     capability: Capability,
@@ -51,6 +57,18 @@ namespace Betsee {
     command?: CommandCheck,
     amountCents?: Long,
     requestedCapability?: Capability,
+    runtime?: RuntimeCall,
+    // Highest tier of content the request reads beyond its named resource: the files a validated
+    // shell command names, or everything under a folder a content search covers.
+    scopeTier?: Tier,
+  };
+
+  // What the Gateway's deterministic detectors found in text a human typed (CTL-IN-001). Classes:
+  // payment_card, iban, pesel, secret, resource_above_tier.
+  type InputContext = {
+    detected: Set<String>,
+    analysis?: Analysis,
+    now: Long,
   };
 
   type SessionRequest = {
@@ -184,6 +202,33 @@ namespace Betsee {
     principal: [Agent],
     resource: [Model],
     context: ActionContext,
+  };
+
+  action "files.write" in ["write"] appliesTo {
+    principal: [Agent],
+    resource: [Resource],
+    context: ActionContext,
+  };
+
+  // Network access from the agent runtime (WebFetch, WebSearch).
+  action "web.egress" in ["egress"] appliesTo {
+    principal: [Agent],
+    resource: [Resource],
+    context: ActionContext,
+  };
+
+  // A runtime tool with no Betsee capability mapping; no use case permits it.
+  action "runtime.unmapped" in ["agent_action"] appliesTo {
+    principal: [Agent],
+    resource: [Resource],
+    context: ActionContext,
+  };
+
+  // A human submits text to the agent of their own session (CTL-IN-001).
+  action "input.submit" appliesTo {
+    principal: [Human],
+    resource: [AgentSession],
+    context: InputContext,
   };
 
   // A logged-in human creates an AgentSession for an agent (decision D1).

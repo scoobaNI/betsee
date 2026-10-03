@@ -197,7 +197,7 @@ export function ControlCard({
 export interface ApprovalCardData {
   id: string;
   trace_id: string;
-  state: "none" | "pending" | "approved" | "rejected";
+  state: "none" | "pending" | "approved" | "rejected" | "voided";
   action: {
     agent: { id: string };
     human?: { display_name: string };

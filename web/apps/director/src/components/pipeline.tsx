@@ -1,127 +1,276 @@
-import { usePolicy, type Control, type Span, type Trace } from '@betsee/api';
-import { DecisionChip, Icon, IdToken, MockBadge } from '@betsee/ui';
-import { useRef, useState, type KeyboardEvent } from 'react';
-import { analyzerVerdictLabel, resolutionOf } from '../domain/decision.ts';
+import { usePolicy, type Control, type Span, type StageId, type Trace } from '@betsee/api';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { analyzerVerdictLabel, decisionLabel, resolutionOf } from '../domain/decision.ts';
 import { formatDateTime } from '../domain/format.ts';
 import {
   RAIL_STATUS_LABEL,
   STAGE_GROUP_LABEL,
   STAGES,
+  decidingStage,
   formatDuration,
   parentStage,
   spanDuration,
   type Rail,
   type RailStage,
   type RailStatus,
+  type StageGroup,
 } from '../domain/pipeline.ts';
-import { ECOSYSTEM_URL } from './shell.tsx';
+import { Icon, type IconName } from './icon.tsx';
+import { AiMark, Code, controlHref, EASE, OutcomePill, outcomeOf, policyHref, RawTable, type Tone } from './ui.tsx';
 
-const NODE: Record<RailStatus, string> = {
-  passed: 'border border-allow-border bg-surface-2 text-fg-secondary',
-  denied: 'border border-deny-fg bg-deny-bg text-deny-fg',
-  tightened: 'border border-tightened-fg bg-surface-2 text-tightened-fg',
-  pending: 'border border-dashed border-approval-fg bg-surface-2 text-approval-fg dir-ring-pending',
-  skipped: 'border border-line-subtle bg-surface-2 text-fg-disabled',
-  not_required: 'border border-line-subtle bg-surface-2 text-fg-disabled',
-  not_reached: 'border border-dashed border-line-subtle bg-surface-2 text-fg-secondary opacity-40',
+const STAGE_ICON: Record<StageId, IconName> = {
+  authenticate: 'key',
+  resolve_context: 'route',
+  identity: 'id',
+  capability: 'tag',
+  cedar_authz: 'scale',
+  information_tier: 'layers',
+  command_validation: 'code',
+  budget: 'gauge',
+  ai_analysis: 'sparkles',
+  decision: 'target',
+  approval: 'inbox',
+  step_up: 'lock',
+  connector: 'link',
+  output_controls: 'filter',
+  audit: 'file',
 };
 
-const BADGE: Partial<Record<RailStatus, { icon: string; className: string }>> = {
-  passed: { icon: 'streamline:check', className: 'text-allow-fg' },
-  denied: { icon: 'streamline-flex:block-2', className: 'text-deny-fg' },
-  tightened: { icon: 'streamline:ai-chip-spark', className: 'text-tightened-fg' },
-  pending: { icon: 'streamline-flex:hourglass', className: 'text-approval-fg' },
+const STATUS: Record<RailStatus, { icon: IconName; ring: string; text: string }> = {
+  passed: { icon: 'check', ring: 'bg-ok-soft text-ok-ink', text: 'text-ok-ink' },
+  denied: { icon: 'ban', ring: 'bg-bad-soft text-bad-ink', text: 'text-bad-ink' },
+  tightened: { icon: 'sparkles', ring: 'bg-ai-soft text-ai-ink', text: 'text-ai-ink' },
+  pending: { icon: 'hourglass', ring: 'bg-wait-soft text-wait-ink waiting-ring', text: 'text-wait-ink' },
+  skipped: { icon: 'chevron-right', ring: 'bg-sunken text-ink-3', text: 'text-ink-3' },
+  not_required: { icon: 'chevron-right', ring: 'bg-sunken text-ink-4', text: 'text-ink-3' },
+  not_reached: { icon: 'x', ring: 'border border-dashed border-line-strong text-ink-4', text: 'text-ink-3' },
 };
 
-const LINE: Record<RailStatus, string> = {
-  passed: 'border-t-2 border-brand-600',
-  tightened: 'border-t-2 border-brand-600',
-  denied: 'border-t-2 border-dashed border-line-default',
-  pending: 'border-t-2 border-dashed border-line-default',
-  skipped: 'border-t-2 border-line-default',
-  not_required: 'border-t-2 border-line-default',
-  not_reached: 'border-t-2 border-dashed border-line-subtle',
-};
+const GROUPS: StageGroup[] = ['ingress', 'controls', 'decision', 'execution'];
 
-export function PipelineRail({ rail, selected, onSelect }: { rail: Rail; selected: string | undefined; onSelect: (id: RailStage['id']) => void }) {
-  const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  const onKey = (event: KeyboardEvent, index: number) => {
-    const next = event.key === 'ArrowRight' ? index + 1 : event.key === 'ArrowLeft' ? index - 1 : -1;
+/** A phase reads as its most telling stage: a deny, then a wait, then a tightening, then a pass. */
+function phaseStatus(stages: RailStage[]): RailStatus {
+  for (const s of ['denied', 'pending', 'tightened', 'passed'] as const) if (stages.some((x) => x.status === s)) return s;
+  if (stages.every((x) => x.status === 'not_reached')) return 'not_reached';
+  return 'not_required';
+}
+
+function StatusDot({ status, size = 28 }: { status: RailStatus; size?: number }) {
+  const s = STATUS[status];
+  return (
+    <span style={{ width: size, height: size }} className={`flex shrink-0 items-center justify-center rounded-full ${s.ring}`}>
+      <Icon name={s.icon} size={Math.round(size * 0.48)} strokeWidth={2} />
+    </span>
+  );
+}
+
+function CedarExcerpt({ id }: { id: string }) {
+  const [open, setOpen] = useState(false);
+  const policy = usePolicy(open ? id : undefined);
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Code href={policyHref(id)}>{id}</Code>
+        <button type="button" onClick={() => setOpen((o) => !o)} className="text-[13px] font-medium text-accent-ink hover:text-accent">
+          {open ? 'Hide Cedar' : 'Show Cedar'}
+        </button>
+      </div>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.pre
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: EASE }}
+            className="scrollbar-quiet mt-3 max-h-64 overflow-auto rounded-xl bg-sunken p-4 font-mono text-[12px] leading-relaxed text-ink-2"
+          >
+            {policy.isPending ? 'Loading policy...' : policy.isError ? 'The Gateway did not return this policy.' : policy.data?.cedar}
+          </motion.pre>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function StageDetail({ stage, controls }: { stage: RailStage; controls: Map<string, Control> }) {
+  const span = stage.span;
+  const duration = span ? spanDuration(span) : null;
+  const modelLabel = typeof span?.attributes?.model_label === 'string' ? span.attributes.model_label : undefined;
+  const timing = span
+    ? duration === null
+      ? parentStage(span) === 'cedar_authz'
+        ? 'Decided inside the Cedar evaluation'
+        : 'No measured duration'
+      : `${formatDuration(duration)}, started ${formatDateTime(span.started_at)}`
+    : undefined;
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sunken text-ink-2">
+          <Icon name={STAGE_ICON[stage.id]} size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[16px] font-semibold text-ink">{stage.label}</p>
+          <p className={`text-[13px] font-medium ${STATUS[stage.status].text}`}>
+            {RAIL_STATUS_LABEL[stage.status]}
+            {timing && <span className="font-normal text-ink-3"> - {timing}</span>}
+          </p>
+        </div>
+        {modelLabel && <span className="rounded-full bg-sunken px-2.5 py-1 text-[12px] text-ink-3">{modelLabel}</span>}
+      </div>
+      {!span && (
+        <p className="text-[14px] leading-relaxed text-ink-2">
+          {stage.status === 'not_required'
+            ? 'This action did not need this stage.'
+            : 'The pipeline never reached this stage: an earlier stage decided the action, or it is still waiting.'}
+        </p>
+      )}
+      {span?.reason && <p className="text-[15px] leading-relaxed text-ink">{span.reason}</p>}
+      {span && span.control_ids.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[12px] font-medium text-ink-3">Controls</p>
+          {span.control_ids.map((id) => {
+            const control = controls.get(id);
+            return (
+              <div key={id} className="rounded-xl border border-line p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Code href={controlHref(id)}>{id}</Code>
+                  <span className="text-[14px] font-medium text-ink">{control?.name ?? 'Control'}</span>
+                </div>
+                {control?.description && <p className="mt-2 text-[13px] leading-relaxed text-ink-2">{control.description}</p>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {span && span.policy_ids.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[12px] font-medium text-ink-3">Policies</p>
+          {span.policy_ids.map((id) => (
+            <CedarExcerpt key={id} id={id} />
+          ))}
+        </div>
+      )}
+      {span && Object.keys(span.attributes ?? {}).length > 0 && <RawTable entries={Object.entries(span.attributes)} />}
+    </div>
+  );
+}
+
+/**
+ * The fifteen stages folded into four phases. The phase and stage that decided the action are
+ * open on arrival; every other stage is one click away. Arrow keys walk the stages.
+ */
+export function DecisionPath({ rail, controls }: { rail: Rail; controls: Map<string, Control> }) {
+  const reduce = useReducedMotion();
+  const initial = useMemo(() => decidingStage(rail) ?? rail.stages.find((s) => s.id === 'decision'), [rail]);
+  const [selected, setSelected] = useState<StageId | undefined>(initial?.id);
+  useEffect(() => setSelected(initial?.id), [initial]);
+  const stage = rail.stages.find((s) => s.id === selected);
+  const group = stage?.group ?? 'decision';
+  const phases = GROUPS.map((g) => ({ group: g, stages: rail.stages.filter((s) => s.group === g) }));
+  const inPhase = phases.find((p) => p.group === group)!.stages;
+  const refs = useRef<Partial<Record<StageId, HTMLButtonElement | null>>>({});
+
+  const onKey = (event: KeyboardEvent) => {
+    const index = rail.stages.findIndex((s) => s.id === selected);
+    const next = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? index + 1 : event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? index - 1 : -1;
     if (next < 0 || next >= rail.stages.length) return;
     event.preventDefault();
-    refs.current[next]?.focus();
-    onSelect(rail.stages[next]!.id);
+    const id = rail.stages[next]!.id;
+    setSelected(id);
+    requestAnimationFrame(() => refs.current[id]?.focus());
   };
-  const groups = rail.stages.reduce<{ group: RailStage['group']; count: number }[]>((acc, stage) => {
-    const last = acc.at(-1);
-    if (last?.group === stage.group) last.count++;
-    else acc.push({ group: stage.group, count: 1 });
-    return acc;
-  }, []);
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-line-subtle bg-surface-1 p-4 shadow-e1">
-      <div className="grid min-w-[840px] grid-cols-15 gap-y-2">
-        {groups.map(({ group, count }) => (
-          <p key={group} style={{ gridColumn: `span ${count}` }} className="truncate border-l border-line-subtle pl-2 text-2xs font-semibold uppercase tracking-[var(--bs-font-tracking-caps)] text-fg-tertiary first:border-l-0 first:pl-0">
-            {STAGE_GROUP_LABEL[group]}
-          </p>
-        ))}
-        {rail.stages.map((stage, index) => {
-          const pending = stage.status === 'pending';
-          const stepUp = stage.id === 'step_up';
-          const badge = pending && stepUp ? { icon: 'streamline-flex:fingerprint-1', className: 'text-stepup-fg' } : BADGE[stage.status];
+    <div>
+      <ol className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        {phases.map((phase, i) => {
+          const status = phaseStatus(phase.stages);
+          const active = phase.group === group;
+          const first = decidingStage({ stages: phase.stages, totalMs: 0 }) ?? phase.stages.find((s) => s.span) ?? phase.stages[0]!;
           return (
-            <div key={stage.id} className="relative flex flex-col items-center">
-              {index < rail.stages.length - 1 && (
-                <span aria-hidden="true" className={`absolute left-1/2 top-4 w-full ${LINE[stage.status]}`} />
-              )}
+            <li key={phase.group} className="relative">
               <button
-                ref={(el) => {
-                  refs.current[index] = el;
-                }}
                 type="button"
-                onClick={() => onSelect(stage.id)}
-                onKeyDown={(e) => onKey(e, index)}
-                aria-pressed={selected === stage.id}
-                aria-label={`${stage.label}: ${RAIL_STATUS_LABEL[stage.status]}`}
-                title={`${stage.label}: ${RAIL_STATUS_LABEL[stage.status]}${stage.span && spanDuration(stage.span) !== null ? `, ${formatDuration(spanDuration(stage.span)!)}` : ''}`}
-                className={`relative z-(--bs-z-base) flex h-8 w-8 items-center justify-center rounded-sm ${NODE[stage.status]} ${
-                  pending && stepUp ? 'dir-ring-stepup border-stepup-fg text-stepup-fg' : ''
-                } ${selected === stage.id ? 'shadow-selected' : ''}`}
+                onClick={() => setSelected(first.id)}
+                aria-pressed={active}
+                className={`relative flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-left transition-colors ${active ? 'text-ink' : 'text-ink-2 hover:bg-hover'}`}
               >
-                <Icon name={stage.icon} size={14} />
-                {badge && (
-                  <span className={`absolute -bottom-1.5 -right-1.5 flex h-3 w-3 items-center justify-center rounded-pill bg-surface-1 ${badge.className}`}>
-                    <Icon name={badge.icon} size={12} />
-                  </span>
+                {active && (
+                  <motion.span
+                    layoutId="phase-active"
+                    className="absolute inset-0 rounded-xl border border-line bg-surface shadow-card"
+                    transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 42 }}
+                  />
                 )}
+                <span className="relative">
+                  <StatusDot status={status} />
+                </span>
+                <span className="relative min-w-0">
+                  <span className="block text-[12px] text-ink-3">Step {i + 1}</span>
+                  <span className="block truncate text-[14px] font-medium">{STAGE_GROUP_LABEL[phase.group]}</span>
+                </span>
               </button>
-              <span className={`mt-2 text-center text-2xs leading-tight ${stage.status === 'not_reached' ? 'text-fg-tertiary' : 'text-fg-secondary'}`}>
-                {stage.label}
-              </span>
-              <span className="text-center text-2xs text-fg-tertiary">{stage.status === 'passed' ? '' : RAIL_STATUS_LABEL[stage.status]}</span>
-            </div>
+            </li>
           );
         })}
+      </ol>
+      <div className="mt-6 grid gap-6 border-t border-line pt-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <ul className="space-y-1" onKeyDown={onKey}>
+          {inPhase.map((s) => {
+            const duration = s.span ? spanDuration(s.span) : null;
+            return (
+              <li key={s.id}>
+                <button
+                  ref={(el) => {
+                    refs.current[s.id] = el;
+                  }}
+                  type="button"
+                  onClick={() => setSelected(s.id)}
+                  aria-pressed={selected === s.id}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${selected === s.id ? 'bg-sunken' : 'hover:bg-hover'}`}
+                >
+                  <StatusDot status={s.status} size={24} />
+                  <span className="min-w-0 flex-1">
+                    <span className={`block truncate text-[14px] ${s.status === 'not_reached' || s.status === 'not_required' ? 'text-ink-3' : 'text-ink'}`}>{s.label}</span>
+                    <span className="block text-[12px] text-ink-3">{RAIL_STATUS_LABEL[s.status]}</span>
+                  </span>
+                  {duration !== null && <span className="font-mono text-[11px] text-ink-3 tabular-nums">{formatDuration(duration)}</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <AnimatePresence mode="wait" initial={false}>
+          {stage && (
+            <motion.div
+              key={stage.id}
+              initial={reduce ? { opacity: 0 } : { opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.22, ease: EASE }}
+            >
+              <StageDetail stage={stage} controls={controls} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
 }
 
 const BAR: Partial<Record<RailStatus, string>> = {
-  passed: 'bg-brand-600',
-  denied: 'bg-deny-fg',
-  tightened: 'bg-tightened-fg',
-  pending: 'dir-hatch-pending',
-  skipped: 'bg-line-default',
+  passed: 'bg-accent',
+  denied: 'bg-bad',
+  tightened: 'bg-ai',
+  pending: 'bg-wait',
+  skipped: 'bg-ink-4',
 };
 
-export function Waterfall({ rail, selected, onSelect }: { rail: Rail; selected: string | undefined; onSelect: (id: RailStage['id']) => void }) {
+/** Where the time went; stages decided inside one Cedar evaluation nest under it without a bar (D11, D20). */
+export function Waterfall({ rail }: { rail: Rail }) {
   const total = Math.max(rail.totalMs, 1);
-  // D11: stages decided inside one Cedar evaluation carry no duration; list them under their parent.
-  // D20: a stage nests under its parent only when the span names one (parent_stage); any other
-  // stage without a duration is a normal row with its status and no bar.
   const withSpan = rail.stages.filter((s) => s.span);
   const nested = withSpan.filter((s) => parentStage(s.span) !== undefined);
   const rows: { stage: RailStage; child: boolean }[] = [];
@@ -132,44 +281,37 @@ export function Waterfall({ rail, selected, onSelect }: { rail: Rail; selected: 
   }
   for (const orphan of nested) if (!rows.some((r) => r.stage === orphan)) rows.push({ stage: orphan, child: true });
   return (
-    <div className="rounded-lg border border-line-subtle bg-surface-1 p-2 shadow-e1">
-      <div className="flex items-center justify-between px-2 pb-2 pt-1 text-2xs text-fg-tertiary">
-        <span className="font-semibold uppercase tracking-[var(--bs-font-tracking-caps)]">Spans</span>
-        <span className="font-mono tabular-nums">{formatDuration(rail.totalMs)} end to end</span>
-      </div>
-      <ul>
+    <div>
+      <p className="mb-3 text-[13px] text-ink-3 tabular-nums">{formatDuration(rail.totalMs)} end to end</p>
+      <ul className="space-y-1">
         {rows.map(({ stage, child }) => {
-          const span = stage.span!;
+          const span = stage.span as Span;
           const duration = spanDuration(span);
           const left = ((stage.offsetMs ?? 0) / total) * 100;
           const width = Math.max(0.6, ((duration ?? 0) / total) * 100);
-          const parentId = parentStage(span);
-          const parent = STAGES.find((s) => s.id === parentId)?.label;
+          const parent = STAGES.find((s) => s.id === parentStage(span))?.label;
           return (
-            <li key={stage.id}>
-              <button
-                type="button"
-                onClick={() => onSelect(stage.id)}
-                className={`relative grid h-9 w-full grid-cols-[180px_1fr_72px] items-center gap-3 rounded-md px-2 text-left hover:bg-surface-2 ${
-                  selected === stage.id ? 'bg-surface-2 before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-pill before:bg-accent' : ''
-                }`}
-              >
-                <span className={`relative flex min-w-0 items-center gap-2 text-sm ${child ? 'pl-5 text-fg-secondary' : ''}`}>
-                  {child && <span aria-hidden="true" className="absolute left-2 top-[-18px] h-[27px] w-2.5 rounded-bl-xs border-b border-l border-line-default" />}
-                  <Icon name={stage.icon} size={14} className="text-fg-secondary" />
-                  <span className="truncate">{stage.label}</span>
+            <li key={stage.id} className="grid h-8 grid-cols-[170px_1fr_64px] items-center gap-4">
+              <span className={`flex min-w-0 items-center gap-2 text-[13px] ${child ? 'pl-5 text-ink-3' : 'text-ink-2'}`}>
+                <Icon name={STAGE_ICON[stage.id]} size={13} className="text-ink-3" />
+                <span className="truncate">{stage.label}</span>
+              </span>
+              {duration === null ? (
+                <span className="text-[12px] text-ink-3">
+                  {child && parent ? `decided in the same ${parent === 'Cedar authz' ? 'Cedar' : parent} evaluation` : RAIL_STATUS_LABEL[stage.status]}
                 </span>
-                {duration === null ? (
-                  <span className="text-xs text-fg-tertiary">
-                    {child && parent ? `decided in the same ${parent === 'Cedar authz' ? 'Cedar' : parent} evaluation` : RAIL_STATUS_LABEL[stage.status]}
-                  </span>
-                ) : (
-                  <span className="relative h-2 rounded-xs bg-surface-inset">
-                    <span className={`absolute inset-y-0 rounded-xs ${BAR[stage.status] ?? 'bg-line-default'}`} style={{ left: `${Math.min(left, 99.4)}%`, width: `max(2px, ${width}%)` }} />
-                  </span>
-                )}
-                <span className="text-right font-mono text-xs tabular-nums text-fg-secondary">{duration === null ? '\u2013' : formatDuration(duration)}</span>
-              </button>
+              ) : (
+                <span className="relative h-1.5 rounded-full bg-sunken">
+                  <motion.span
+                    className={`absolute inset-y-0 rounded-full ${BAR[stage.status] ?? 'bg-ink-4'}`}
+                    style={{ left: `${Math.min(left, 99.4)}%` }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `max(3px, ${width}%)` }}
+                    transition={{ duration: 0.6, ease: EASE }}
+                  />
+                </span>
+              )}
+              <span className="text-right font-mono text-[12px] text-ink-3 tabular-nums">{duration === null ? '–' : formatDuration(duration)}</span>
             </li>
           );
         })}
@@ -178,152 +320,43 @@ export function Waterfall({ rail, selected, onSelect }: { rail: Rail; selected: 
   );
 }
 
-const controlHref = (id: string) => `${ECOSYSTEM_URL}/policy-studio/controls/${encodeURIComponent(id)}`;
-const policyHref = (id: string) => `${ECOSYSTEM_URL}/policy-studio/policies/${encodeURIComponent(id)}`;
-
-function CedarExcerpt({ id }: { id: string }) {
-  const [open, setOpen] = useState(false);
-  const policy = usePolicy(open ? id : undefined);
+function Step({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div>
-      <div className="flex items-center gap-2">
-        <IdToken id={id} href={policyHref(id)} />
-        <button type="button" onClick={() => setOpen((o) => !o)} className="text-xs text-accent-text hover:underline">
-          {open ? 'Hide Cedar' : 'Show Cedar'}
-        </button>
-      </div>
-      {open && (
-        <pre className="mt-2 max-h-56 overflow-auto rounded-sm bg-surface-inset p-3 font-mono text-xs text-fg-secondary">
-          {policy.isPending ? 'Loading policy...' : policy.isError ? 'The Gateway did not return this policy.' : policy.data?.cedar}
-        </pre>
-      )}
+    <div className="min-w-0 flex-1 rounded-xl bg-sunken p-4">
+      <p className="text-[12px] font-medium text-ink-3">{title}</p>
+      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">{children}</div>
     </div>
   );
 }
 
-function Attributes({ attributes }: { attributes: Span['attributes'] }) {
-  const entries = Object.entries(attributes ?? {});
-  if (!entries.length) return null;
-  return (
-    <dl className="grid grid-cols-[minmax(120px,auto)_1fr] gap-x-4 gap-y-1.5 rounded-sm bg-surface-inset p-3 font-mono text-xs">
-      {entries.map(([key, value]) => (
-        <div key={key} className="contents">
-          <dt className="text-fg-tertiary">{key}</dt>
-          <dd className="break-all text-fg-primary">{typeof value === 'string' ? value : JSON.stringify(value)}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-export function SpanDetail({ stage, controls }: { stage: RailStage | undefined; controls: Map<string, Control> }) {
-  if (!stage) {
-    return (
-      <div className="rounded-lg border border-line-subtle bg-surface-1 p-5 text-sm text-fg-secondary shadow-e1">Select a stage to see what it checked.</div>
-    );
-  }
-  const span = stage.span;
-  const modelLabel = typeof span?.attributes?.model_label === 'string' ? span.attributes.model_label : undefined;
-  return (
-    <section aria-label={`${stage.label} detail`} className="space-y-4 rounded-lg border border-line-subtle bg-surface-1 p-5 shadow-e1">
-      <header className="flex items-center gap-3">
-        <span className="flex h-8 w-8 items-center justify-center rounded-sm bg-surface-3 text-fg-secondary">
-          <Icon name={stage.icon} size={16} />
-        </span>
-        <div>
-          <h3 className="text-lg font-semibold">{stage.label}</h3>
-          <p className="text-xs text-fg-secondary">
-            {RAIL_STATUS_LABEL[stage.status]}
-            {span
-              ? spanDuration(span) === null
-                ? parentStage(span) === 'cedar_authz'
-                  ? ` - decided inside the Cedar evaluation - ${formatDateTime(span.started_at)}`
-                  : ` - no measured duration - ${formatDateTime(span.started_at)}`
-                : ` - ${formatDuration(spanDuration(span)!)} - started ${formatDateTime(span.started_at)}`
-              : ''}
-          </p>
-        </div>
-        {modelLabel && <MockBadge modelLabel={modelLabel} className="ml-auto" />}
-      </header>
-      {!span && (
-        <p className="text-sm text-fg-secondary">
-          {stage.status === 'not_required'
-            ? 'This action did not need this stage.'
-            : 'The pipeline never reached this stage: an earlier stage decided the action, or it is still waiting.'}
-        </p>
-      )}
-      {span?.reason && <p className="text-md">{span.reason}</p>}
-      {span && span.control_ids.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-xs font-semibold text-fg-secondary">Controls</h4>
-          {span.control_ids.map((id) => {
-            const control = controls.get(id);
-            return (
-              <div key={id} className="rounded-md border border-line-subtle p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <IdToken id={id} href={controlHref(id)} />
-                  <span className="text-sm font-semibold">{control?.name ?? 'Control'}</span>
-                </div>
-                {control?.description && <p className="mt-1.5 text-sm text-fg-secondary">{control.description}</p>}
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {span && span.policy_ids.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-xs font-semibold text-fg-secondary">Policies</h4>
-          {span.policy_ids.map((id) => (
-            <CedarExcerpt key={id} id={id} />
-          ))}
-        </div>
-      )}
-      {span && <Attributes attributes={span.attributes} />}
-    </section>
-  );
-}
-
-export function CompositionPanel({ trace }: { trace: Trace }) {
+/** Deterministic verdict, then what AI analysis said, then the final decision: AI only ever tightens. */
+export function Composition({ trace }: { trace: Trace }) {
   const ran = trace.analyzer.verdict !== 'skipped';
+  const det = { decision: trace.deterministic_decision, approval_state: 'none' as const, capability: trace.capability, agent: trace.agent };
+  const verdictTone: Tone = trace.ai_tightened ? 'ai' : trace.analyzer.verdict === 'clean' ? 'ok' : 'muted';
   return (
-    <section aria-label="Decision composition" className="space-y-4 rounded-lg border border-line-subtle bg-surface-1 p-5 shadow-e1">
-      <h3 className="text-lg font-semibold">How the decision was composed</h3>
-      <div className="flex flex-wrap items-start gap-x-4 gap-y-3 [&>div]:shrink-0">
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-fg-secondary">Deterministic</p>
-          <DecisionChip decision={trace.deterministic_decision} size="sm" />
-        </div>
-        <Icon name="streamline:interface-arrows-button-right-arrow-right-keyboard" size={14} className="mt-7 text-fg-tertiary" />
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-fg-secondary">AI analysis</p>
-          <span
-            className={`inline-flex h-5 items-center gap-1.5 rounded-pill border px-2 text-xs font-semibold ${
-              trace.ai_tightened ? 'border-tightened-border bg-tightened-bg text-tightened-fg' : 'border-line-default text-fg-secondary'
-            }`}
-          >
-            <Icon name="streamline-flex:ai-scanner-robot" size={12} />
-            {analyzerVerdictLabel[trace.analyzer.verdict]}
-          </span>
-          <MockBadge modelLabel={trace.analyzer.model_label} />
-        </div>
-        <Icon name="streamline:interface-arrows-button-right-arrow-right-keyboard" size={14} className="mt-7 text-fg-tertiary" />
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-fg-secondary">Final</p>
-          <DecisionChip
-            decision={trace.decision}
-            resolution={resolutionOf(trace)}
-            aiTightened={trace.ai_tightened}
-            modelLabel={trace.analyzer.model_label}
-            controlIds={trace.control_ids}
-            size="sm"
-          />
-        </div>
+    <div className="space-y-4">
+      <div className="flex flex-col items-stretch gap-2 md:flex-row md:items-center">
+        <Step title="Deterministic controls">
+          <OutcomePill outcome={outcomeOf(det)} size="sm" />
+        </Step>
+        <Icon name="arrow-right" size={16} className="hidden shrink-0 text-ink-4 md:block" />
+        <Step title="AI analysis">
+          <OutcomePill outcome={{ tone: verdictTone, label: analyzerVerdictLabel[trace.analyzer.verdict], waiting: false }} size="sm" />
+          {trace.analyzer.model_label && <span className="text-[12px] text-ink-3">{trace.analyzer.model_label}</span>}
+        </Step>
+        <Icon name="arrow-right" size={16} className="hidden shrink-0 text-ink-4 md:block" />
+        <Step title="Final">
+          {trace.ai_tightened && <AiMark modelLabel={trace.analyzer.model_label} />}
+          <OutcomePill outcome={outcomeOf(trace)} size="sm" title={resolutionOf(trace) ? `Gateway decision: ${decisionLabel[trace.decision]}` : undefined} />
+        </Step>
       </div>
-      {(ran || trace.ai_tightened) && trace.analyzer.rationale && <p className="text-sm text-fg-secondary">{trace.analyzer.rationale}</p>}
-      {!ran && <p className="text-sm text-fg-secondary">The deterministic controls denied this action, so the analyzer was not consulted.</p>}
-      <p className="border-t border-line-subtle pt-3 text-sm text-fg-secondary">
+      {(ran || trace.ai_tightened) && trace.analyzer.rationale && <p className="text-[14px] leading-relaxed text-ink-2">{trace.analyzer.rationale}</p>}
+      {!ran && <p className="text-[14px] text-ink-2">The deterministic controls denied this action, so the analyzer was not consulted.</p>}
+      <p className="flex items-center gap-2 text-[13px] text-ink-3">
+        <Icon name="info" size={14} />
         AI analysis may make a decision stricter. It can never make a deterministic deny go away.
       </p>
-    </section>
+    </div>
   );
 }

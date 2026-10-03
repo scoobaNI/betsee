@@ -65,6 +65,8 @@ pub fn router(gateway: Arc<Gateway>) -> Router {
         .route("/api/v1/sessions/{id}", get(session))
         .route("/api/v1/sessions/{id}/end", post(end_session))
         .route("/api/v1/actions", post(action))
+        .route("/api/v1/actions/{id}", get(action_status))
+        .route("/api/v1/chat/inputs", post(chat_input))
         .route("/api/v1/traces", get(traces))
         .route("/api/v1/traces/{id}", get(trace))
         .route("/api/v1/approvals", get(approvals))
@@ -166,11 +168,13 @@ async fn authenticate(
             .into_response();
         }
     };
-    let agent_route = request.method() == Method::POST
+    let agent_route = (request.method() == Method::POST
         && matches!(
             request.uri().path(),
             "/api/v1/actions" | "/api/v1/agent-messages"
-        );
+        ))
+        || (request.method() == Method::GET
+            && request.uri().path().starts_with("/api/v1/actions/"));
     let allow_runner = request.method() == Method::GET
         || (request.method() == Method::POST && request.uri().path() == "/api/v1/sessions");
     if agent_route {
@@ -284,6 +288,7 @@ fn use_case_name(id: &str) -> &str {
         "weekly-reporting" => "Weekly reporting",
         "regression-a2a-sender" => "A2A sender (test-only)",
         "regression-a2a-receiver" => "A2A receiver (test-only)",
+        "employee-assistance" => "Employee assistance",
         _ => id,
     }
 }
@@ -521,6 +526,59 @@ async fn action(
     }
     Ok(Json(response))
 }
+/// An agent polls the decision on its own action, e.g. while a human approval is pending.
+async fn action_status(
+    State(gateway): State<Arc<Gateway>>,
+    Extension(claims): Extension<Claims>,
+    Extension(id): Extension<Correlation>,
+    Path(trace_id): Path<String>,
+) -> ApiResult {
+    let trace = gateway
+        .store
+        .get("trace", &trace_id)
+        .await
+        .map_err(|e| ApiError::unavailable(e, &id.0))?
+        .filter(|trace| trace["agent"]["id"] == claims.azp && trace["record_type"].is_null())
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Action not found", &id.0))?;
+    Ok(Json(summary(&trace)))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ChatInput {
+    session_id: String,
+    text: String,
+}
+
+/// CTL-IN-001: text a human types to their session's agent, checked before any model sees it.
+async fn chat_input(
+    State(gateway): State<Arc<Gateway>>,
+    Extension(claims): Extension<Claims>,
+    Extension(human): Extension<Human>,
+    Extension(id): Extension<Correlation>,
+    Json(body): Json<ChatInput>,
+) -> ApiResult {
+    if body.text.trim().is_empty() || body.text.chars().count() > 8000 {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Message must be 1 to 8000 characters",
+            &id.0,
+        ));
+    }
+    let session = gateway
+        .store
+        .get("session", &body.session_id)
+        .await
+        .map_err(|e| ApiError::unavailable(e, &id.0))?
+        .filter(|session| can_read(&claims, session))
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Session not found", &id.0))?;
+    gateway
+        .check_input(&claims, &human.0, &session, &body.text, &id.0)
+        .await
+        .map(|trace| Json(summary(&trace)))
+        .map_err(|e| ApiError::unavailable(e, &id.0))
+}
+
 async fn traces(
     State(gateway): State<Arc<Gateway>>,
     Extension(claims): Extension<Claims>,

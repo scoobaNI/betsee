@@ -1,13 +1,8 @@
-import { IdToken } from '@betsee/ui';
 import { Fragment } from 'react';
-import { ECOSYSTEM_URL } from './shell.tsx';
+import { Code, controlHref } from './ui.tsx';
 
 const CONTROL_ID = /(CTL-[A-Z]+-\d+)/g;
 
-/**
- * Gateway text shown exactly as sent, with every control id rendered as an IdToken. Inside an
- * element that is already a link (an agent tile), pass linked={false} to avoid nesting anchors.
- */
 /** Lets a long identifier wrap only after '/' or ':' (never mid-word). */
 export function Breakable({ text }: { text: string }) {
   return (
@@ -22,18 +17,18 @@ export function Breakable({ text }: { text: string }) {
   );
 }
 
+/**
+ * Gateway text shown exactly as sent, with every control id set apart. Inside an element that is
+ * already a link (an agent row), pass linked={false} to avoid nesting anchors.
+ */
 export function ReasonText({ text, linked = true }: { text: string; linked?: boolean }) {
   return (
     <>
       {text.split(CONTROL_ID).map((part, i) =>
         i % 2 === 1 ? (
-          <IdToken
-            key={i}
-            id={part}
-            copy={false}
-            href={linked ? `${ECOSYSTEM_URL}/policy-studio/controls/${encodeURIComponent(part)}` : undefined}
-            className="align-baseline"
-          />
+          <Code key={i} href={linked ? controlHref(part) : undefined} className="px-1 py-0 align-baseline text-[0.9em] leading-normal">
+            {part}
+          </Code>
         ) : (
           <Fragment key={i}>{part}</Fragment>
         ),

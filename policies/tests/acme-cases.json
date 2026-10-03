@@ -353,6 +353,18 @@
               "type": "Betsee::Capability",
               "id": "agent.message"
             }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.write"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "shell.exec"
+            }
           }
         ]
       },
@@ -1488,6 +1500,481 @@
             "__entity": {
               "type": "Betsee::Capability",
               "id": "email.send"
+            }
+          }
+        ],
+        "tierCeiling": 1,
+        "taint": 0,
+        "untrustedInput": false,
+        "status": "active",
+        "expiresAt": 4102444800,
+        "budgetCents": 5000,
+        "spentCents": 0
+      },
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Team",
+        "id": "workplace"
+      },
+      "attrs": {},
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Capability",
+        "id": "files.write"
+      },
+      "attrs": {},
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Capability",
+        "id": "web.egress"
+      },
+      "attrs": {},
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Capability",
+        "id": "runtime.unmapped"
+      },
+      "attrs": {},
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Connector",
+        "id": "agent-runtime"
+      },
+      "attrs": {
+        "kind": "agent-runtime"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Tool",
+        "id": "runtime-files"
+      },
+      "attrs": {
+        "pinnedDescriptorHash": "delegated:agent-runtime"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Connector",
+          "id": "agent-runtime"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Tool",
+        "id": "runtime-shell"
+      },
+      "attrs": {
+        "pinnedDescriptorHash": "delegated:agent-runtime"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Connector",
+          "id": "agent-runtime"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Tool",
+        "id": "runtime-web"
+      },
+      "attrs": {
+        "pinnedDescriptorHash": "delegated:agent-runtime"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Connector",
+          "id": "agent-runtime"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Tool",
+        "id": "runtime-other"
+      },
+      "attrs": {
+        "pinnedDescriptorHash": "delegated:agent-runtime"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Connector",
+          "id": "agent-runtime"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Agent",
+        "id": "employee-assistant"
+      },
+      "attrs": {
+        "state": "active",
+        "clearance": 1
+      },
+      "parents": [
+        {
+          "type": "Betsee::Team",
+          "id": "workplace"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::UseCase",
+        "id": "employee-assistance"
+      },
+      "attrs": {
+        "agents": [
+          {
+            "__entity": {
+              "type": "Betsee::Agent",
+              "id": "employee-assistant"
+            }
+          }
+        ],
+        "permitted": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.write"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "shell.exec"
+            }
+          }
+        ],
+        "tierCeiling": 1,
+        "approvalRequired": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.write"
+            }
+          }
+        ],
+        "stepUpRequired": [],
+        "approvalThresholdCents": 1000000,
+        "maxActionsPerMinute": 30,
+        "peers": []
+      },
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "workspace"
+      },
+      "attrs": {
+        "kind": "folder",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "runtime-files"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "workspace/README.md"
+      },
+      "attrs": {
+        "kind": "file",
+        "tier": 0,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "runtime-files"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "workspace/handbook"
+      },
+      "attrs": {
+        "kind": "folder",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "runtime-files"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "workspace/handbook/onboarding.md"
+      },
+      "attrs": {
+        "kind": "file",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "runtime-files"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "workspace/handbook/expense-policy.md"
+      },
+      "attrs": {
+        "kind": "file",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "runtime-files"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "workspace/notes"
+      },
+      "attrs": {
+        "kind": "folder",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "runtime-files"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "workspace/notes/team-sync.md"
+      },
+      "attrs": {
+        "kind": "file",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "runtime-files"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "workspace/finance"
+      },
+      "attrs": {
+        "kind": "folder",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "runtime-files"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "workspace/finance/q4-budget.csv"
+      },
+      "attrs": {
+        "kind": "file",
+        "tier": 2,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "runtime-files"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "workspace/hr"
+      },
+      "attrs": {
+        "kind": "folder",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "runtime-files"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "workspace/hr/salaries-2026.csv"
+      },
+      "attrs": {
+        "kind": "file",
+        "tier": 3,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "runtime-files"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "runtime/shell"
+      },
+      "attrs": {
+        "kind": "shell",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "runtime-shell"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "runtime/web"
+      },
+      "attrs": {
+        "kind": "network",
+        "tier": 0,
+        "external": true
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "runtime-web"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "runtime/unmapped"
+      },
+      "attrs": {
+        "kind": "runtime_tool",
+        "tier": 0,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "runtime-other"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::AgentSession",
+        "id": "s-assistant"
+      },
+      "attrs": {
+        "human": {
+          "__entity": {
+            "type": "Betsee::Human",
+            "id": "maya"
+          }
+        },
+        "agent": {
+          "__entity": {
+            "type": "Betsee::Agent",
+            "id": "employee-assistant"
+          }
+        },
+        "useCase": {
+          "__entity": {
+            "type": "Betsee::UseCase",
+            "id": "employee-assistance"
+          }
+        },
+        "delegated": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.write"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "shell.exec"
             }
           }
         ],
@@ -3197,7 +3684,7 @@
       "expect": "allow"
     },
     {
-      "name": "del Maya delegates shell.exec she does not hold",
+      "name": "del Maya delegates tickets.write she does not hold",
       "step": "del.2",
       "principal": "Betsee::Human::\"maya\"",
       "action": "Betsee::Action::\"session.create\"",
@@ -3219,7 +3706,7 @@
           {
             "__entity": {
               "type": "Betsee::Capability",
-              "id": "shell.exec"
+              "id": "tickets.write"
             }
           }
         ],
@@ -3811,6 +4298,779 @@
         }
       },
       "expect": "allow"
+    },
+    {
+      "name": "rt employee-assistant reads an internal handbook file",
+      "step": "rt.read.1",
+      "principal": "Betsee::Agent::\"employee-assistant\"",
+      "action": "Betsee::Action::\"files.read\"",
+      "resource": "Betsee::Resource::\"workspace/handbook/onboarding.md\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "files.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "runtime": {
+          "connector": {
+            "__entity": {
+              "type": "Betsee::Connector",
+              "id": "agent-runtime"
+            }
+          }
+        }
+      },
+      "expect": "allow",
+      "expect_reason": "permit-effective-capability"
+    },
+    {
+      "name": "rt employee-assistant reads the restricted salaries file",
+      "step": "rt.read.2",
+      "principal": "Betsee::Agent::\"employee-assistant\"",
+      "action": "Betsee::Action::\"files.read\"",
+      "resource": "Betsee::Resource::\"workspace/hr/salaries-2026.csv\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "files.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "runtime": {
+          "connector": {
+            "__entity": {
+              "type": "Betsee::Connector",
+              "id": "agent-runtime"
+            }
+          }
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-resource-above-session-tier"
+    },
+    {
+      "name": "rt employee-assistant reads the confidential budget",
+      "step": "rt.read.3",
+      "principal": "Betsee::Agent::\"employee-assistant\"",
+      "action": "Betsee::Action::\"files.read\"",
+      "resource": "Betsee::Resource::\"workspace/finance/q4-budget.csv\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "files.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "runtime": {
+          "connector": {
+            "__entity": {
+              "type": "Betsee::Connector",
+              "id": "agent-runtime"
+            }
+          }
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-resource-above-session-tier"
+    },
+    {
+      "name": "rt employee-assistant searches a folder holding restricted files",
+      "step": "rt.read.4",
+      "principal": "Betsee::Agent::\"employee-assistant\"",
+      "action": "Betsee::Action::\"files.read\"",
+      "resource": "Betsee::Resource::\"workspace/hr\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "files.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "runtime": {
+          "connector": {
+            "__entity": {
+              "type": "Betsee::Connector",
+              "id": "agent-runtime"
+            }
+          }
+        },
+        "scopeTier": 3
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-scope-above-session-tier"
+    },
+    {
+      "name": "rt runtime read without delegated context hits the MCP fence",
+      "step": "rt.read.5",
+      "principal": "Betsee::Agent::\"employee-assistant\"",
+      "action": "Betsee::Action::\"files.read\"",
+      "resource": "Betsee::Resource::\"workspace/handbook/onboarding.md\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "files.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-delegated-execution-mismatch"
+    },
+    {
+      "name": "rt delegated context claimed for an MCP resource",
+      "step": "rt.read.6",
+      "principal": "Betsee::Agent::\"employee-assistant\"",
+      "action": "Betsee::Action::\"files.read\"",
+      "resource": "Betsee::Resource::\"files/market/outlook-2026.pdf\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "files.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "runtime": {
+          "connector": {
+            "__entity": {
+              "type": "Betsee::Connector",
+              "id": "agent-runtime"
+            }
+          }
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-delegated-execution-mismatch"
+    },
+    {
+      "name": "rt employee-assistant runs a validated read-only command",
+      "step": "rt.shell.1",
+      "principal": "Betsee::Agent::\"employee-assistant\"",
+      "action": "Betsee::Action::\"shell.exec\"",
+      "resource": "Betsee::Resource::\"runtime/shell\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "shell.exec"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "runtime": {
+          "connector": {
+            "__entity": {
+              "type": "Betsee::Connector",
+              "id": "agent-runtime"
+            }
+          }
+        },
+        "command": {
+          "template": "cat",
+          "valid": true
+        },
+        "scopeTier": 1
+      },
+      "expect": "allow",
+      "expect_reason": "permit-effective-capability"
+    },
+    {
+      "name": "rt employee-assistant runs rm -rf",
+      "step": "rt.shell.2",
+      "principal": "Betsee::Agent::\"employee-assistant\"",
+      "action": "Betsee::Action::\"shell.exec\"",
+      "resource": "Betsee::Resource::\"runtime/shell\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "shell.exec"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "runtime": {
+          "connector": {
+            "__entity": {
+              "type": "Betsee::Connector",
+              "id": "agent-runtime"
+            }
+          }
+        },
+        "command": {
+          "template": "none",
+          "valid": false
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-command-not-validated"
+    },
+    {
+      "name": "rt employee-assistant cats the restricted salaries file",
+      "step": "rt.shell.3",
+      "principal": "Betsee::Agent::\"employee-assistant\"",
+      "action": "Betsee::Action::\"shell.exec\"",
+      "resource": "Betsee::Resource::\"runtime/shell\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "shell.exec"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "runtime": {
+          "connector": {
+            "__entity": {
+              "type": "Betsee::Connector",
+              "id": "agent-runtime"
+            }
+          }
+        },
+        "command": {
+          "template": "cat",
+          "valid": true
+        },
+        "scopeTier": 3
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-scope-above-session-tier"
+    },
+    {
+      "name": "rt employee-assistant writes a note: approval required",
+      "step": "rt.write.1",
+      "principal": "Betsee::Agent::\"employee-assistant\"",
+      "action": "Betsee::Action::\"files.write\"",
+      "resource": "Betsee::Resource::\"workspace/notes\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "files.write"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "runtime": {
+          "connector": {
+            "__entity": {
+              "type": "Betsee::Connector",
+              "id": "agent-runtime"
+            }
+          }
+        }
+      },
+      "expect": "require_approval",
+      "expect_reason": "approval-required-by-use-case"
+    },
+    {
+      "name": "rt employee-assistant writes a note after approval",
+      "step": "rt.write.2",
+      "principal": "Betsee::Agent::\"employee-assistant\"",
+      "action": "Betsee::Action::\"files.write\"",
+      "resource": "Betsee::Resource::\"workspace/notes\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "files.write"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": true,
+          "stepUp": false
+        },
+        "runtime": {
+          "connector": {
+            "__entity": {
+              "type": "Betsee::Connector",
+              "id": "agent-runtime"
+            }
+          }
+        }
+      },
+      "expect": "allow",
+      "expect_reason": "permit-effective-capability"
+    },
+    {
+      "name": "rt employee-assistant fetches a web page",
+      "step": "rt.egress.1",
+      "principal": "Betsee::Agent::\"employee-assistant\"",
+      "action": "Betsee::Action::\"web.egress\"",
+      "resource": "Betsee::Resource::\"runtime/web\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "web.egress"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "runtime": {
+          "connector": {
+            "__entity": {
+              "type": "Betsee::Connector",
+              "id": "agent-runtime"
+            }
+          }
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-agent-runtime-egress"
+    },
+    {
+      "name": "rt employee-assistant calls an unmapped tool",
+      "step": "rt.other.1",
+      "principal": "Betsee::Agent::\"employee-assistant\"",
+      "action": "Betsee::Action::\"runtime.unmapped\"",
+      "resource": "Betsee::Resource::\"runtime/unmapped\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "runtime.unmapped"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "runtime": {
+          "connector": {
+            "__entity": {
+              "type": "Betsee::Connector",
+              "id": "agent-runtime"
+            }
+          }
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-runtime-unmapped-tool"
+    },
+    {
+      "name": "rt write-down: internal taint into the public README",
+      "step": "rt.write.3",
+      "principal": "Betsee::Agent::\"employee-assistant\"",
+      "action": "Betsee::Action::\"files.write\"",
+      "resource": "Betsee::Resource::\"workspace/README.md\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "files.write"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": true,
+          "stepUp": false
+        },
+        "runtime": {
+          "connector": {
+            "__entity": {
+              "type": "Betsee::Connector",
+              "id": "agent-runtime"
+            }
+          }
+        }
+      },
+      "patch": [
+        {
+          "uid": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          },
+          "attrs": {
+            "human": {
+              "__entity": {
+                "type": "Betsee::Human",
+                "id": "maya"
+              }
+            },
+            "agent": {
+              "__entity": {
+                "type": "Betsee::Agent",
+                "id": "employee-assistant"
+              }
+            },
+            "useCase": {
+              "__entity": {
+                "type": "Betsee::UseCase",
+                "id": "employee-assistance"
+              }
+            },
+            "delegated": [
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "files.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "files.write"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "shell.exec"
+                }
+              }
+            ],
+            "tierCeiling": 1,
+            "taint": 1,
+            "untrustedInput": false,
+            "status": "active",
+            "expiresAt": 4102444800,
+            "budgetCents": 5000,
+            "spentCents": 0
+          },
+          "parents": []
+        }
+      ],
+      "expect": "deny",
+      "expect_reason": "forbid-write-down"
+    },
+    {
+      "name": "in maya submits plain text",
+      "step": "in.1",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"input.submit\"",
+      "resource": "Betsee::AgentSession::\"s-assistant\"",
+      "context": {
+        "detected": [],
+        "now": 1791043200
+      },
+      "expect": "allow",
+      "expect_reason": "permit-input-from-session-human"
+    },
+    {
+      "name": "in maya pastes a payment card number",
+      "step": "in.2",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"input.submit\"",
+      "resource": "Betsee::AgentSession::\"s-assistant\"",
+      "context": {
+        "detected": ["payment_card"],
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-input-payment-card"
+    },
+    {
+      "name": "in maya pastes an IBAN",
+      "step": "in.3",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"input.submit\"",
+      "resource": "Betsee::AgentSession::\"s-assistant\"",
+      "context": {
+        "detected": ["iban"],
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-input-iban"
+    },
+    {
+      "name": "in maya pastes a PESEL",
+      "step": "in.4",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"input.submit\"",
+      "resource": "Betsee::AgentSession::\"s-assistant\"",
+      "context": {
+        "detected": ["pesel"],
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-input-pesel"
+    },
+    {
+      "name": "in maya pastes an API key",
+      "step": "in.5",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"input.submit\"",
+      "resource": "Betsee::AgentSession::\"s-assistant\"",
+      "context": {
+        "detected": ["secret"],
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-input-secret"
+    },
+    {
+      "name": "in maya names a restricted file",
+      "step": "in.6",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"input.submit\"",
+      "resource": "Betsee::AgentSession::\"s-assistant\"",
+      "context": {
+        "detected": ["resource_above_tier"],
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-input-resource-above-tier"
+    },
+    {
+      "name": "in analyzer judges clean text malicious: only tightens",
+      "step": "in.7",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"input.submit\"",
+      "resource": "Betsee::AgentSession::\"s-assistant\"",
+      "context": {
+        "detected": [],
+        "now": 1791043200,
+        "analysis": {
+          "verdict": "malicious",
+          "analyzer": "mock model (demo)"
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "analyzer-input-malicious"
+    },
+    {
+      "name": "in daniel writes into maya's session",
+      "step": "in.8",
+      "principal": "Betsee::Human::\"daniel\"",
+      "action": "Betsee::Action::\"input.submit\"",
+      "resource": "Betsee::AgentSession::\"s-assistant\"",
+      "context": {
+        "detected": [],
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-input-not-session-human"
+    },
+    {
+      "name": "del maya delegates the employee assistant at internal",
+      "step": "rt.del.1",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"session.create\"",
+      "resource": "Betsee::Agent::\"employee-assistant\"",
+      "context": {
+        "useCase": {
+          "__entity": {
+            "type": "Betsee::UseCase",
+            "id": "employee-assistance"
+          }
+        },
+        "delegated": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.write"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "shell.exec"
+            }
+          }
+        ],
+        "tierCeiling": 1
+      },
+      "expect": "allow",
+      "expect_reason": "permit-session-delegation-within-entitlements"
+    },
+    {
+      "name": "del maya cannot delegate web egress to the assistant",
+      "step": "rt.del.2",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"session.create\"",
+      "resource": "Betsee::Agent::\"employee-assistant\"",
+      "context": {
+        "useCase": {
+          "__entity": {
+            "type": "Betsee::UseCase",
+            "id": "employee-assistance"
+          }
+        },
+        "delegated": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "web.egress"
+            }
+          }
+        ],
+        "tierCeiling": 1
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-session-delegation-exceeds-human-entitlements"
     }
   ]
 }

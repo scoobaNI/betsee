@@ -4,5 +4,5 @@ const MockMode = createContext(false);
 
 export const MockModeProvider = MockMode.Provider;
 
-/** True when the app runs on fixtures; the top bar then shows the "Mock data" badge (D2). */
+/** True when the app runs on fixtures; the header then shows a "Mock data" label (D2). */
 export const useMockMode = () => useContext(MockMode);

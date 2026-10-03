@@ -11,14 +11,15 @@
     "test": "node --experimental-strip-types --no-warnings --test 'src/**/*.test.ts'"
   },
   "dependencies": {
-    "@betsee/ui": "*",
     "@betsee/api": "*",
+    "@fontsource-variable/inter": "^5.2.0",
+    "@fontsource-variable/jetbrains-mono": "^5.2.0",
     "@tanstack/react-query": "^5.90.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "react-router": "^7.9.0",
     "motion": "^12.0.0",
     "oidc-client-ts": "^3.3.0",
-    "react-oidc-context": "^3.3.0"
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-oidc-context": "^3.3.0",
+    "react-router": "^7.9.0"
   }
 }

@@ -46,6 +46,7 @@ impl Claims {
                 | "research-peer"
                 | "ops-runner"
                 | "report-bot"
+                | "employee-assistant"
         )
     }
     pub fn browser(&self) -> bool {

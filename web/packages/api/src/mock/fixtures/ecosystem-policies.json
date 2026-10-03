@@ -20,7 +20,7 @@
   {
     "id": "forbid-capability-action-mismatch",
     "name": "forbid capability action mismatch",
-    "cedar": "@id(\"forbid-capability-action-mismatch\")\n@reason(\"the requested action does not match the capability being checked\")\n@control(\"CTL-POL-002\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nunless {\n  (action == Betsee::Action::\"crm.read\" && context.capability == Betsee::Capability::\"crm.read\") ||\n  (action == Betsee::Action::\"tickets.read\" && context.capability == Betsee::Capability::\"tickets.read\") ||\n  (action == Betsee::Action::\"files.read\" && context.capability == Betsee::Capability::\"files.read\") ||\n  (action == Betsee::Action::\"tickets.write\" && context.capability == Betsee::Capability::\"tickets.write\") ||\n  (action == Betsee::Action::\"memory.write\" && context.capability == Betsee::Capability::\"memory.write\") ||\n  (action == Betsee::Action::\"email.send\" && context.capability == Betsee::Capability::\"email.send\") ||\n  (action == Betsee::Action::\"payments.transfer\" && context.capability == Betsee::Capability::\"payments.transfer\") ||\n  (action == Betsee::Action::\"shell.exec\" && context.capability == Betsee::Capability::\"shell.exec\") ||\n  (action == Betsee::Action::\"agent.message\" && context.capability == Betsee::Capability::\"agent.message\") ||\n  (action == Betsee::Action::\"llm.complete\" && context.capability == Betsee::Capability::\"llm.complete\")\n};",
+    "cedar": "@id(\"forbid-capability-action-mismatch\")\n@reason(\"the requested action does not match the capability being checked\")\n@control(\"CTL-POL-002\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nunless {\n  (action == Betsee::Action::\"crm.read\" && context.capability == Betsee::Capability::\"crm.read\") ||\n  (action == Betsee::Action::\"tickets.read\" && context.capability == Betsee::Capability::\"tickets.read\") ||\n  (action == Betsee::Action::\"files.read\" && context.capability == Betsee::Capability::\"files.read\") ||\n  (action == Betsee::Action::\"tickets.write\" && context.capability == Betsee::Capability::\"tickets.write\") ||\n  (action == Betsee::Action::\"memory.write\" && context.capability == Betsee::Capability::\"memory.write\") ||\n  (action == Betsee::Action::\"email.send\" && context.capability == Betsee::Capability::\"email.send\") ||\n  (action == Betsee::Action::\"payments.transfer\" && context.capability == Betsee::Capability::\"payments.transfer\") ||\n  (action == Betsee::Action::\"shell.exec\" && context.capability == Betsee::Capability::\"shell.exec\") ||\n  (action == Betsee::Action::\"agent.message\" && context.capability == Betsee::Capability::\"agent.message\") ||\n  (action == Betsee::Action::\"llm.complete\" && context.capability == Betsee::Capability::\"llm.complete\") ||\n  (action == Betsee::Action::\"files.write\" && context.capability == Betsee::Capability::\"files.write\") ||\n  (action == Betsee::Action::\"web.egress\" && context.capability == Betsee::Capability::\"web.egress\") ||\n  (action == Betsee::Action::\"runtime.unmapped\" && context.capability == Betsee::Capability::\"runtime.unmapped\")\n};",
     "control_ids": ["CTL-POL-002"]
   },
   {
@@ -66,9 +66,33 @@
     "control_ids": ["CTL-TIER-003"]
   },
   {
+    "id": "forbid-delegated-execution-mismatch",
+    "name": "forbid delegated execution mismatch",
+    "cedar": "@id(\"forbid-delegated-execution-mismatch\")\n@reason(\"delegated execution applies only to resources the agent runtime reaches\")\n@control(\"CTL-RT-001\")\nforbid (\n  principal,\n  action in Betsee::Action::\"agent_action\",\n  resource is Betsee::Resource\n)\nwhen { (context has runtime) != (resource in Betsee::Connector::\"agent-runtime\") };",
+    "control_ids": ["CTL-RT-001"]
+  },
+  {
+    "id": "forbid-agent-runtime-egress",
+    "name": "forbid agent runtime egress",
+    "cedar": "@id(\"forbid-agent-runtime-egress\")\n@reason(\"the agent runtime has no network egress, so {capability} is denied\")\n@control(\"CTL-RT-001\")\nforbid (principal, action in Betsee::Action::\"egress\", resource)\nwhen { context has runtime };",
+    "control_ids": ["CTL-RT-001"]
+  },
+  {
+    "id": "forbid-runtime-unmapped-tool",
+    "name": "forbid runtime unmapped tool",
+    "cedar": "@id(\"forbid-runtime-unmapped-tool\")\n@reason(\"this runtime tool maps to no Betsee capability, so it is denied by default\")\n@control(\"CTL-RT-001\")\nforbid (principal, action == Betsee::Action::\"runtime.unmapped\", resource);\n\n// A command or a folder search can read more than its named resource; the Gateway resolves that\n// scope to the highest tier it covers.",
+    "control_ids": ["CTL-RT-001"]
+  },
+  {
+    "id": "forbid-scope-above-session-tier",
+    "name": "forbid scope above session tier",
+    "cedar": "@id(\"forbid-scope-above-session-tier\")\n@reason(\"the request reads {scope.tier} content, the session ceiling is {session.tierCeiling}\")\n@control(\"CTL-TIER-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context has scopeTier && context.scopeTier > context.session.tierCeiling };",
+    "control_ids": ["CTL-TIER-001"]
+  },
+  {
     "id": "forbid-mcp-call-without-tool",
     "name": "forbid mcp call without tool",
-    "cedar": "@id(\"forbid-mcp-call-without-tool\")\n@reason(\"the call does not name a pinned MCP tool\")\n@control(\"CTL-TOOL-001\")\nforbid (principal, action in Betsee::Action::\"mcp\", resource)\nunless { context has toolCall };",
+    "cedar": "@id(\"forbid-mcp-call-without-tool\")\n@reason(\"the call does not name a pinned MCP tool\")\n@control(\"CTL-TOOL-001\")\nforbid (principal, action in Betsee::Action::\"mcp\", resource)\nunless { context has toolCall || context has runtime };",
     "control_ids": ["CTL-TOOL-001"]
   },
   {
@@ -106,6 +130,66 @@
     "name": "forbid a2a capability escalation",
     "cedar": "@id(\"forbid-a2a-capability-escalation\")\n@reason(\"the message asks for a capability the sender does not hold, and a message is not a delegation\")\n@control(\"CTL-A2A-003\")\nforbid (principal, action == Betsee::Action::\"agent.message\", resource)\nunless {\n  context has requestedCapability &&\n  context.session.delegated.contains(context.requestedCapability) &&\n  context.session.useCase.permitted.contains(context.requestedCapability)\n};",
     "control_ids": ["CTL-A2A-003"]
+  },
+  {
+    "id": "permit-input-from-session-human",
+    "name": "permit input from session human",
+    "cedar": "@id(\"permit-input-from-session-human\")\n@reason(\"the message passed the input filter for {useCase}\")\n@control(\"CTL-IN-001\")\npermit (\n  principal is Betsee::Human,\n  action == Betsee::Action::\"input.submit\",\n  resource is Betsee::AgentSession\n)\nwhen { resource.human == principal };",
+    "control_ids": ["CTL-IN-001"]
+  },
+  {
+    "id": "forbid-input-not-session-human",
+    "name": "forbid input not session human",
+    "cedar": "@id(\"forbid-input-not-session-human\")\n@reason(\"only the human who started this session can write to its agent\")\n@control(\"CTL-IN-001\")\nforbid (principal, action == Betsee::Action::\"input.submit\", resource is Betsee::AgentSession)\nunless { resource.human == principal };",
+    "control_ids": ["CTL-IN-001"]
+  },
+  {
+    "id": "forbid-input-session-not-active",
+    "name": "forbid input session not active",
+    "cedar": "@id(\"forbid-input-session-not-active\")\n@reason(\"the session is closed, revoked or expired\")\n@control(\"CTL-ID-003\")\nforbid (principal, action == Betsee::Action::\"input.submit\", resource is Betsee::AgentSession)\nunless { resource.status == \"active\" && context.now < resource.expiresAt };",
+    "control_ids": ["CTL-ID-003"]
+  },
+  {
+    "id": "forbid-input-human-not-active",
+    "name": "forbid input human not active",
+    "cedar": "@id(\"forbid-input-human-not-active\")\n@reason(\"the human is no longer active\")\n@control(\"CTL-ID-004\")\nforbid (principal is Betsee::Human, action == Betsee::Action::\"input.submit\", resource)\nunless { principal.active };",
+    "control_ids": ["CTL-ID-004"]
+  },
+  {
+    "id": "forbid-input-payment-card",
+    "name": "forbid input payment card",
+    "cedar": "@id(\"forbid-input-payment-card\")\n@reason(\"the message contains a payment card number\")\n@control(\"CTL-IN-001\")\nforbid (principal, action == Betsee::Action::\"input.submit\", resource)\nwhen { context.detected.contains(\"payment_card\") };",
+    "control_ids": ["CTL-IN-001"]
+  },
+  {
+    "id": "forbid-input-iban",
+    "name": "forbid input iban",
+    "cedar": "@id(\"forbid-input-iban\")\n@reason(\"the message contains a bank account number (IBAN)\")\n@control(\"CTL-IN-001\")\nforbid (principal, action == Betsee::Action::\"input.submit\", resource)\nwhen { context.detected.contains(\"iban\") };",
+    "control_ids": ["CTL-IN-001"]
+  },
+  {
+    "id": "forbid-input-pesel",
+    "name": "forbid input pesel",
+    "cedar": "@id(\"forbid-input-pesel\")\n@reason(\"the message contains a PESEL national identification number\")\n@control(\"CTL-IN-001\")\nforbid (principal, action == Betsee::Action::\"input.submit\", resource)\nwhen { context.detected.contains(\"pesel\") };",
+    "control_ids": ["CTL-IN-001"]
+  },
+  {
+    "id": "forbid-input-secret",
+    "name": "forbid input secret",
+    "cedar": "@id(\"forbid-input-secret\")\n@reason(\"the message contains an API key or a private key\")\n@control(\"CTL-IN-001\")\nforbid (principal, action == Betsee::Action::\"input.submit\", resource)\nwhen { context.detected.contains(\"secret\") };",
+    "control_ids": ["CTL-IN-001"]
+  },
+  {
+    "id": "forbid-input-resource-above-tier",
+    "name": "forbid input resource above tier",
+    "cedar": "@id(\"forbid-input-resource-above-tier\")\n@reason(\"the message names a resource above the session ceiling of {session.tierCeiling}\")\n@control(\"CTL-IN-001\")\nforbid (principal, action == Betsee::Action::\"input.submit\", resource)\nwhen { context.detected.contains(\"resource_above_tier\") };",
+    "control_ids": ["CTL-IN-001"]
+  },
+  {
+    "id": "analyzer-input-malicious",
+    "name": "analyzer input malicious",
+    "cedar": "@id(\"analyzer-input-malicious\")\n@reason(\"the analyzer (mock model, demo) judged the message malicious\")\n@control(\"CTL-AI-001\")\nforbid (principal, action == Betsee::Action::\"input.submit\", resource)\nwhen { context has analysis && context.analysis.verdict == \"malicious\" };",
+    "control_ids": ["CTL-AI-001"]
   },
   {
     "id": "forbid-budget-exceeded",
