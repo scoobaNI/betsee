@@ -1,8 +1,10 @@
 import { useLiveSync, useMe } from '@betsee/api';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { DemoDock } from './components/demo-dock.tsx';
 import { ErrorBoundary } from './components/error-boundary.tsx';
+import { EASE } from './components/motion.tsx';
 import { Shell } from './components/shell.tsx';
 import { ECOSYSTEM_URL, ErrorCard, FullPageMessage } from './components/ui.tsx';
 import { ActivityPage } from './pages/activity.tsx';
@@ -35,21 +37,34 @@ function useDocumentTitle() {
 function Director() {
   useLiveSync();
   useDocumentTitle();
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const reduce = useReducedMotion();
+  // Query changes (?team=, ?show=) stay on the page; a new place swaps the page out and in.
+  const place = location.pathname.split('/').slice(0, 3).join('/');
   return (
     <Shell dock={<DemoDock />}>
-      <ErrorBoundary key={pathname}>
-        <Routes>
-          <Route path="/" element={<OverviewPage />} />
-          <Route path="/agents" element={<AgentsPage />} />
-          <Route path="/agents/:agentId" element={<AgentPage />} />
-          <Route path="/activity" element={<ActivityPage />} />
-          <Route path="/traces/:traceId" element={<TracePage />} />
-          <Route path="/graph" element={<GraphPage />} />
-          <Route path="/coverage" element={<CoveragePage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </ErrorBoundary>
+      <AnimatePresence mode="wait" initial={false} onExitComplete={() => window.scrollTo({ top: 0 })}>
+        <motion.div
+          key={place}
+          initial={reduce ? { opacity: 0 } : { opacity: 0, y: 14, filter: 'blur(6px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }}
+          exit={reduce ? { opacity: 0, transition: { duration: 0.1 } } : { opacity: 0, y: -8, filter: 'blur(4px)', transition: { duration: 0.16, ease: 'easeIn' } }}
+          transition={{ duration: 0.45, ease: EASE }}
+        >
+          <ErrorBoundary key={location.pathname}>
+            <Routes location={location}>
+              <Route path="/" element={<OverviewPage />} />
+              <Route path="/agents" element={<AgentsPage />} />
+              <Route path="/agents/:agentId" element={<AgentPage />} />
+              <Route path="/activity" element={<ActivityPage />} />
+              <Route path="/traces/:traceId" element={<TracePage />} />
+              <Route path="/graph" element={<GraphPage />} />
+              <Route path="/coverage" element={<CoveragePage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </ErrorBoundary>
+        </motion.div>
+      </AnimatePresence>
     </Shell>
   );
 }

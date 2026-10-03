@@ -4,11 +4,13 @@ import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 're
 import { Link } from 'react-router';
 import { decisionLabel, isObservation, isVoided, outcomeTone, resolutionOf } from '../domain/decision.ts';
 import { formatCount, formatTime, initials } from '../domain/format.ts';
+import { useAgentPulse } from '../live.ts';
 import { Icon, type IconName } from './icon.tsx';
+import { Burst, EASE, TONE_COLOR, trackPointer, usePop, useShake } from './motion.tsx';
+
+export { EASE };
 
 export const ECOSYSTEM_URL = 'http://betsee.localhost';
-
-export const EASE = [0.22, 1, 0.36, 1] as const;
 
 export type Tone = 'ok' | 'bad' | 'wait' | 'verify' | 'ai' | 'quar' | 'muted' | 'accent';
 
@@ -47,13 +49,50 @@ export function outcomeOf(action: Pick<ActionSummary, 'decision' | 'approval_sta
   };
 }
 
+/** Counts how often a value has changed since mount, so a change can trigger a one-shot animation. */
+function useChangeCount(value: unknown): number {
+  const previous = useRef(value);
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (previous.current === value) return;
+    previous.current = value;
+    setCount((c) => c + 1);
+  }, [value]);
+  return count;
+}
+
+/**
+ * One outcome as a pill. When the outcome changes in place (a wait that a human resolved, an agent
+ * that was quarantined) the colour slides over, the word rolls, and a ring announces the change.
+ */
 export function OutcomePill({ outcome, size = 'md', title }: { outcome: Outcome; size?: 'sm' | 'md' | 'lg'; title?: string }) {
   const t = TONE[outcome.tone];
+  const reduce = useReducedMotion();
+  const changes = useChangeCount(outcome.label);
+  const scope = usePop<HTMLSpanElement>(changes, 1.12);
   const box = { sm: 'h-6 px-2 text-[12px] gap-1.5', md: 'h-7 px-2.5 text-[13px] gap-2', lg: 'h-9 px-3.5 text-[15px] gap-2' }[size];
   return (
-    <span title={title} className={`inline-flex shrink-0 items-center rounded-full font-medium whitespace-nowrap ${box} ${t.soft} ${t.ink}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${t.dot} ${outcome.waiting ? 'waiting-ring' : ''}`} />
-      {outcome.label}
+    <span
+      ref={scope}
+      title={title}
+      className={`relative inline-flex shrink-0 items-center rounded-full font-medium whitespace-nowrap transition-colors duration-500 ${box} ${t.soft} ${t.ink}`}
+    >
+      <Burst trigger={changes || undefined} color={TONE_COLOR[outcome.tone]} strength={1.5} />
+      <span className={`h-1.5 w-1.5 rounded-full transition-colors duration-500 ${t.dot} ${outcome.waiting ? 'waiting-ring' : ''}`} />
+      <span className="relative inline-grid">
+        <AnimatePresence initial={false}>
+          <motion.span
+            key={outcome.label}
+            className="col-start-1 row-start-1"
+            initial={reduce ? { opacity: 0 } : { opacity: 0, y: 7 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduce ? { opacity: 0 } : { opacity: 0, y: -7 }}
+            transition={{ duration: 0.3, ease: EASE }}
+          >
+            {outcome.label}
+          </motion.span>
+        </AnimatePresence>
+      </span>
     </span>
   );
 }
@@ -83,20 +122,29 @@ export function ActionVerdict({ action, size = 'md' }: { action: ActionSummary; 
 }
 
 /** The last decisions of one agent as quiet bars, oldest first. */
-export function TickStrip({ actions, className = '' }: { actions: readonly ActionSummary[]; className?: string }) {
+export function TickStrip({ actions, className = '', tall = false }: { actions: readonly ActionSummary[]; className?: string; tall?: boolean }) {
+  const reduce = useReducedMotion();
   if (!actions.length) return <span className={`text-[12px] text-ink-3 ${className}`}>No actions yet</span>;
+  const [low, high] = tall ? ['h-4', 'h-7'] : ['h-2.5', 'h-4'];
   return (
-    <span className={`flex h-4 items-end gap-[3px] ${className}`} aria-label={`Last ${actions.length} decisions`}>
-      {actions.map((action) => {
-        const outcome = outcomeOf(action);
-        return (
-          <span
-            key={action.trace_id}
-            title={`${formatTime(action.occurred_at)} ${action.capability}: ${outcome.label}`}
-            className={`w-[4px] rounded-full ${TONE[outcome.tone].bar} ${outcome.tone === 'ok' ? 'h-2.5 opacity-60' : 'h-4'}`}
-          />
-        );
-      })}
+    <span className={`relative flex items-end gap-[3px] ${tall ? 'h-7' : 'h-4'} ${className}`} aria-label={`Last ${actions.length} decisions`}>
+      <AnimatePresence initial={false} mode="popLayout">
+        {actions.map((action) => {
+          const outcome = outcomeOf(action);
+          return (
+            <motion.span
+              key={action.trace_id}
+              layout={reduce ? false : 'position'}
+              initial={reduce ? { opacity: 0 } : { opacity: 0, scaleY: 0 }}
+              animate={{ opacity: 1, scaleY: 1 }}
+              exit={reduce ? { opacity: 0 } : { opacity: 0, scaleY: 0 }}
+              transition={{ type: 'spring', stiffness: 520, damping: 28 }}
+              title={`${formatTime(action.occurred_at)} ${action.capability}: ${outcome.label}`}
+              className={`origin-bottom rounded-full transition-colors duration-500 ${tall ? 'w-[5px]' : 'w-[4px]'} ${TONE[outcome.tone].bar} ${outcome.tone === 'ok' ? `${low} opacity-60` : high}`}
+            />
+          );
+        })}
+      </AnimatePresence>
     </span>
   );
 }
@@ -137,13 +185,31 @@ export function Avatar({ name, size = 28 }: { name: string; size?: number }) {
   );
 }
 
-const STATE_TONE: Record<LifecycleState, Tone> = { active: 'ok', quarantined: 'quar', suspended: 'muted' };
+export const STATE_TONE: Record<LifecycleState, Tone> = { active: 'ok', quarantined: 'quar', suspended: 'muted' };
 
-export function AgentGlyph({ state = 'active', size = 36 }: { state?: LifecycleState; size?: number }) {
+/**
+ * An agent's mark with its lifecycle dot. Given the agent's id it also pings in the colour of each
+ * new decision as it arrives; a state change shakes it and rings in the new state's colour.
+ */
+export function AgentGlyph({ state = 'active', size = 36, agentId }: { state?: LifecycleState; size?: number; agentId?: string }) {
+  const { pulse } = useAgentPulse(agentId);
+  const stateChanges = useChangeCount(state);
+  const shake = useShake<HTMLSpanElement>(stateChanges, state !== 'active');
+  const pingTone = pulse.action ? outcomeOf(pulse.action).tone : 'accent';
+  const offline = state !== 'active';
   return (
-    <span aria-hidden="true" style={{ width: size, height: size }} className="relative inline-flex shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-ink">
-      <Icon name="bot" size={Math.round(size * 0.5)} />
-      <span className={`absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-surface ${TONE[STATE_TONE[state]].dot}`} />
+    <span
+      ref={shake}
+      aria-hidden="true"
+      style={{ width: size, height: size }}
+      className={`relative inline-flex shrink-0 items-center justify-center rounded-xl transition-colors duration-500 ${
+        offline ? (state === 'quarantined' ? 'bg-quar-soft text-quar-ink' : 'bg-sunken text-ink-3') : 'bg-accent-soft text-accent-ink'
+      }`}
+    >
+      <Burst trigger={pulse.seq} color={TONE_COLOR[pingTone]} radius="12px" strength={1.55} />
+      <Burst trigger={stateChanges || undefined} color={TONE_COLOR[STATE_TONE[state]]} radius="12px" strength={1.9} />
+      <Icon name={state === 'quarantined' ? 'power' : 'bot'} size={Math.round(size * 0.5)} />
+      <span className={`absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-surface transition-colors duration-500 ${TONE[STATE_TONE[state]].dot}`} />
     </span>
   );
 }
@@ -211,8 +277,12 @@ export function CopyId({ value, shown = value.slice(0, 8) }: { value: string; sh
 
 /* Layout */
 
-export function Card({ children, className = '', as: Tag = 'div' }: { children: ReactNode; className?: string; as?: 'div' | 'section' | 'article' }) {
-  return <Tag className={`rounded-2xl border border-line bg-surface shadow-card ${className}`}>{children}</Tag>;
+export function Card({ children, className = '', as: Tag = 'div', spotlight = false }: { children: ReactNode; className?: string; as?: 'div' | 'section' | 'article'; spotlight?: boolean }) {
+  return (
+    <Tag onPointerMove={spotlight ? trackPointer : undefined} className={`rounded-2xl border border-line bg-surface shadow-card ${spotlight ? 'spotlight' : ''} ${className}`}>
+      {children}
+    </Tag>
+  );
 }
 
 export interface Crumb {
@@ -328,7 +398,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex h-9 items-center gap-2 rounded-xl px-3.5 text-[14px] font-medium transition-colors disabled:opacity-50 ${look}`}
+      className={`press inline-flex h-9 items-center gap-2 rounded-xl px-3.5 text-[14px] font-medium transition-colors disabled:opacity-50 ${look}`}
     >
       {icon && <Icon name={icon} size={15} />}
       {children}
@@ -361,7 +431,7 @@ export function Segmented<T extends string>({
             type="button"
             aria-selected={active}
             onClick={() => onChange(option.value)}
-            className={`relative inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium transition-colors ${active ? 'text-ink' : 'text-ink-2 hover:text-ink'}`}
+            className={`press relative inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium transition-colors ${active ? 'text-ink' : 'text-ink-2 hover:text-ink'}`}
           >
             {active && (
               <motion.span
@@ -371,7 +441,11 @@ export function Segmented<T extends string>({
               />
             )}
             <span className="relative">{option.label}</span>
-            {option.count !== undefined && <span className="relative text-[12px] text-ink-3 tabular-nums">{formatCount(option.count)}</span>}
+            {option.count !== undefined && (
+              <span className="relative text-[12px] text-ink-3">
+                <AnimatedNumber value={option.count} />
+              </span>
+            )}
           </button>
         );
       })}
@@ -428,11 +502,12 @@ export function Disclosure({
   );
 }
 
-/** A count that glides to its new value instead of jumping. */
+/** A count that glides to its new value instead of jumping, with a small pop when it moves. */
 export function AnimatedNumber({ value }: { value: number }) {
   const ref = useRef<HTMLSpanElement>(null);
   const previous = useRef(value);
   const reduce = useReducedMotion();
+  const pop = usePop<HTMLSpanElement>(value, 1.06);
   useEffect(() => {
     const from = previous.current;
     previous.current = value;
@@ -452,8 +527,10 @@ export function AnimatedNumber({ value }: { value: number }) {
     return () => controls.stop();
   }, [value, reduce]);
   return (
-    <span ref={ref} className="tabular-nums">
-      {formatCount(value)}
+    <span ref={pop} className="inline-block origin-bottom-left">
+      <span ref={ref} className="tabular-nums">
+        {formatCount(value)}
+      </span>
     </span>
   );
 }
@@ -507,9 +584,14 @@ export function Skeleton({ className = '' }: { className?: string }) {
 export function EmptyState({ icon, title, body, children }: { icon: IconName; title: string; body?: string; children?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center">
-      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sunken text-ink-3">
+      <motion.span
+        initial={{ opacity: 0, scale: 0.8, y: 6 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+        className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sunken text-ink-3"
+      >
         <Icon name={icon} size={22} />
-      </span>
+      </motion.span>
       <p className="text-[15px] font-semibold text-ink">{title}</p>
       {body && <p className="max-w-sm text-[14px] leading-relaxed text-ink-2">{body}</p>}
       {children}

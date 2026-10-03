@@ -217,9 +217,11 @@ Carries the act 2 line "Maya can see HR files. Her agent cannot."
 - **SeverityBadge**: contract section 5.
 - **IdToken**: mono 12, `surface.3`, `radius.xs`, copy on hover (`streamline:copy-paste`), a link
   when the id has a page.
-- **KpiTile**: `rounded-lg`, padding 20 (Director stat strip: 12, number 28), label 13
-  `fg-secondary`, number 36 display tabular, 12px delta line, arrow-in-circle link top-right. One
-  feature tile (`gradient.feature`) per row at most.
+- **KpiTile**: `rounded-lg`, `shadow.e1` (no border), padding 20 (Director stat strip: 12, number
+  28), label 13 `fg-secondary`, number 36 display tabular, 12px delta line, a 32px link circle
+  top-right: filled `fg-on-feature` with a `brand.900` glyph on the feature tile, outlined
+  elsewhere; the glyph is the up-right arrow for a link in this app and `arrow-expand` only for
+  another host. One feature tile (`gradient.feature`, edged by `shadow.feature`) per row at most.
 - **FeedRow** (Director): min height 56, `radius.md`; time (mono 11 `fg-tertiary`), agent id,
   capability, resource + TierBadge, DecisionChip right; deny rows get a 2px `deny.fg` left bar;
   bursts collapse into one row with an "x24" badge; hover `surface.2`; click opens the trace. The
@@ -285,7 +287,8 @@ All ids below exist in `@iconify-json/streamline-flex` 1.2.3 and `@iconify-json/
 Interface primitives, `streamline:`: add `add-1`, close `delete-1`, check `check`, chevron down
 `interface-arrows-button-down-arrow-down-keyboard`, chevron right
 `interface-arrows-button-right-arrow-right-keyboard`, chevron left
-`interface-arrows-button-left-arrow-keyboard-left`, copy `copy-paste`, show
+`interface-arrows-button-left-arrow-keyboard-left`, open in this app
+`interface-arrows-upright-corner-arrow-up-right-upright-corner`, copy `copy-paste`, show
 `interface-edit-view-eye-eyeball-open-view`, hide
 `interface-edit-view-off-disable-eye-eyeball-hide-off-view`, sign out `logout-1`, reset
 `arrow-reload-horizontal-1`, AI-tightened `ai-chip-spark`, Director mark `eye-optic`.

@@ -55,6 +55,15 @@ its human tokens only for session creation, scenario endpoints and authorized re
 the Gateway rejects approvals and admin writes from that client. Production humans
 create sessions through the browser; the password grant is deprecated in OAuth 2.1.
 
+The confidential `employee-assistant` client is the agent behind the employee chat. Its secret is
+`AGENT_CLIENT_SECRET_EMPLOYEE_ASSISTANT`, defaulting in Compose to a demo value; agent-host on the
+host holds it, never the Claude Code process. Keycloak imports the realm only once, so a stack
+created before this client existed gets it from `python3 scripts/keycloak-sync-clients.py
+employee-assistant` (kcadm inside the keycloak container; existing clients are left alone).
+Caddy forwards `/api/v1/chat/*` on `betsee.localhost` to agent-host at
+`host.docker.internal:8095` (`extra_hosts: host-gateway`); `/api/v1/chat/inputs` stays on the
+Gateway.
+
 ## User bootstrap
 
 The one-shot `bootstrap` service waits for Keycloak and Gateway health, then seeds the

@@ -5,9 +5,12 @@ import { NavLink, useLocation } from 'react-router';
 import { useSignOut } from '../auth.tsx';
 import { formatTime } from '../domain/format.ts';
 import { useKpis } from '../hooks.ts';
+import { useOrgPulse } from '../live.ts';
 import { useMockMode } from '../mock-mode.tsx';
 import { Icon, type IconName } from './icon.tsx';
-import { Avatar, EASE, ECOSYSTEM_URL, Wordmark } from './ui.tsx';
+import { Burst, TONE_COLOR, usePop } from './motion.tsx';
+import { LiveToasts } from './toasts.tsx';
+import { Avatar, EASE, ECOSYSTEM_URL, outcomeOf, Wordmark } from './ui.tsx';
 
 const NAV: { to: string; label: string; icon: IconName; match: RegExp }[] = [
   { to: '/', label: 'Overview', icon: 'overview', match: /^\/$/ },
@@ -20,28 +23,30 @@ const NAV: { to: string; label: string; icon: IconName; match: RegExp }[] = [
 function Nav() {
   const { pathname } = useLocation();
   const reduce = useReducedMotion();
+  const [hovered, setHovered] = useState<string | null>(null);
+  const spring = reduce ? { duration: 0 } : ({ type: 'spring', stiffness: 500, damping: 42 } as const);
   return (
-    <nav aria-label="Director" className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
+    <nav aria-label="Director" onPointerLeave={() => setHovered(null)} className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
       {NAV.map((item) => {
         const active = item.match.test(pathname);
         return (
           <NavLink
             key={item.to}
             to={item.to}
+            onPointerEnter={() => setHovered(item.to)}
             aria-current={active ? 'page' : undefined}
             aria-label={item.label}
-            className={`relative inline-flex h-9 shrink-0 items-center gap-2 rounded-xl px-3 text-[14px] font-medium transition-colors ${
+            className={`press relative inline-flex h-9 shrink-0 items-center gap-2 rounded-xl px-3 text-[14px] font-medium transition-colors ${
               active ? 'text-ink' : 'text-ink-3 hover:text-ink'
             }`}
           >
-            {active && (
-              <motion.span
-                layoutId="nav-active"
-                className="absolute inset-0 rounded-xl bg-sunken"
-                transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 42 }}
-              />
+            {hovered === item.to && !active && (
+              <motion.span layoutId="nav-hover" className="absolute inset-0 rounded-xl bg-hover" transition={spring} />
             )}
-            <Icon name={item.icon} size={16} className="relative" />
+            {active && <motion.span layoutId="nav-active" className="absolute inset-0 rounded-xl bg-sunken shadow-[inset_0_0_0_1px_var(--color-line)]" transition={spring} />}
+            <motion.span className="relative" animate={active && !reduce ? { rotate: [0, -8, 0], scale: [1, 1.15, 1] } : {}} transition={{ duration: 0.4 }}>
+              <Icon name={item.icon} size={16} />
+            </motion.span>
             <span className="relative hidden sm:inline">{item.label}</span>
           </NavLink>
         );
@@ -58,14 +63,21 @@ const STREAM: Record<StreamStatus, { label: string; dot: string; live?: boolean 
   offline: { label: 'Offline', dot: 'bg-bad' },
 };
 
+/** The stream state; while live, the dot beats once for every event the Gateway sends. */
 function StreamIndicator() {
   const status = useStreamStatus();
+  const { pulse } = useOrgPulse();
+  const beat = usePop<HTMLSpanElement>(pulse.seq, 1.6);
   const s = STREAM[status];
+  const tone = pulse.action ? outcomeOf(pulse.action).tone : 'ok';
   const title =
     status === 'stale' ? 'No event from the Gateway for 20 s; reconnecting soon.' : status === 'live' ? 'Receiving events from the Gateway as they happen.' : undefined;
   return (
-    <span title={title} className="inline-flex items-center gap-2 text-[13px] font-medium text-ink-2">
-      <span className={`h-2 w-2 rounded-full ${s.dot} ${s.live ? 'live-dot' : ''}`} />
+    <span title={title} className="inline-flex h-8 items-center gap-2 rounded-full px-1 text-[13px] font-medium text-ink-2">
+      <span className="relative flex h-2 w-2">
+        {s.live && <Burst trigger={pulse.seq} color={TONE_COLOR[tone]} strength={3.2} />}
+        <span ref={beat} className={`h-2 w-2 rounded-full transition-colors duration-500 ${s.dot} ${s.live ? 'live-dot' : ''}`} />
+      </span>
       <span className="hidden md:inline">{s.label}</span>
     </span>
   );
@@ -84,10 +96,23 @@ function AwaitingPill() {
           exit={{ opacity: 0, scale: 0.9 }}
           transition={{ duration: 0.25, ease: EASE }}
           title="Open the approvals inbox in the Betsee ecosystem"
-          className="inline-flex h-8 items-center gap-1.5 rounded-full bg-wait-soft px-3 text-[13px] font-medium text-wait-ink transition-colors hover:bg-[#fdecd0]"
+          className="press inline-flex h-8 items-center gap-1.5 rounded-full bg-wait-soft px-3 text-[13px] font-medium text-wait-ink transition-colors hover:bg-[#fdecd0]"
         >
           <span className="waiting-ring h-1.5 w-1.5 rounded-full bg-wait" />
-          {count}
+          <span className="inline-grid">
+            <AnimatePresence initial={false}>
+              <motion.span
+                key={count}
+                className="col-start-1 row-start-1 tabular-nums"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25, ease: EASE }}
+              >
+                {count}
+              </motion.span>
+            </AnimatePresence>
+          </span>
           <span className="hidden sm:inline">awaiting a human</span>
         </motion.a>
       )}
@@ -159,7 +184,14 @@ function OfflineBanner() {
   const traces = useTraces();
   const since = traces.dataUpdatedAt ? formatTime(new Date(traces.dataUpdatedAt).toISOString()) : undefined;
   return (
-    <div role="alert" className="border-b border-line bg-bad-soft">
+    <motion.div
+      role="alert"
+      initial={{ height: 0, opacity: 0 }}
+      animate={{ height: 'auto', opacity: 1 }}
+      exit={{ height: 0, opacity: 0 }}
+      transition={{ duration: 0.3, ease: EASE }}
+      className="overflow-hidden border-b border-line bg-bad-soft"
+    >
       <div className="mx-auto flex max-w-[1160px] items-center gap-3 px-6 py-2.5 text-[14px] text-bad-ink md:px-10">
         <Icon name="alert" size={16} />
         <span className="flex-1">Gateway unreachable. {since ? `Showing data as of ${since}.` : 'Live updates are paused.'}</span>
@@ -167,7 +199,7 @@ function OfflineBanner() {
           Try again
         </button>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -175,13 +207,8 @@ function OfflineBanner() {
 export function Shell({ dock, children }: { dock: ReactNode; children: ReactNode }) {
   const status = useStreamStatus();
   const mock = useMockMode();
-  const { pathname } = useLocation();
-  const reduce = useReducedMotion();
-  useEffect(() => {
-    window.scrollTo({ top: 0 });
-  }, [pathname]);
   return (
-    <div className="min-h-screen bg-canvas text-ink">
+    <div className="min-h-screen overflow-x-clip bg-canvas text-ink">
       <header className="sticky top-0 z-40 border-b border-line bg-surface/85 backdrop-blur-xl backdrop-saturate-150">
         <div className="mx-auto flex h-16 max-w-[1160px] items-center gap-3 px-4 sm:gap-6 sm:px-6 md:px-10">
           <NavLink to="/" aria-label="Director overview" className="shrink-0">
@@ -197,19 +224,12 @@ export function Shell({ dock, children }: { dock: ReactNode; children: ReactNode
           </div>
         </div>
       </header>
-      {status === 'offline' && <OfflineBanner />}
-      <motion.main
-        key={pathname.split('/').slice(0, 3).join('/')}
-        initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: EASE }}
-        className="mx-auto max-w-[1160px] px-4 pt-8 pb-36 sm:px-6 sm:pt-10 md:px-10 md:pt-14"
-      >
-        {children}
-      </motion.main>
+      <AnimatePresence>{status === 'offline' && <OfflineBanner />}</AnimatePresence>
+      <main className="mx-auto max-w-[1160px] px-4 pt-8 pb-36 sm:px-6 sm:pt-10 md:px-10 md:pt-14">{children}</main>
       <div className="pointer-events-none fixed inset-x-0 bottom-6 z-30 flex justify-center overflow-hidden px-4">
         <div className="pointer-events-auto">{dock}</div>
       </div>
+      <LiveToasts />
     </div>
   );
 }

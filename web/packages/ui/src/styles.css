@@ -35,6 +35,7 @@ button:disabled {
 }
 .bs-feature {
   background: var(--bs-gradient-feature);
+  box-shadow: var(--bs-shadow-feature);
 }
 .bs-quarantine {
   background-image: repeating-linear-gradient(
@@ -55,4 +56,12 @@ button:disabled {
   .bs-live-pulse {
     animation: none;
   }
+}
+.bs-hatch-approval {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--bs-color-decision-approval-fg) 0 2px,
+    transparent 2px 5px
+  );
+  box-shadow: inset 0 0 0 1px var(--bs-color-decision-approval-fg);
 }

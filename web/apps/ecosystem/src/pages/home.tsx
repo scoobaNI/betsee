@@ -1,5 +1,13 @@
-import { useEffect } from "react";
-import { Icon, IdToken, KpiTile, SeverityBadge } from "@betsee/ui";
+import { useEffect, useMemo, useState } from "react";
+import {
+  DecisionBars,
+  Icon,
+  IdToken,
+  KpiTile,
+  SeverityBadge,
+  decisionBuckets,
+} from "@betsee/ui";
+import { useTraces } from "@betsee/api";
 import {
   useControlCatalog,
   useConnectors,
@@ -33,9 +41,17 @@ export function Home() {
   const connectors = useConnectors();
   const events = useSecurityEvents();
   const me = useEcosystemMe();
+  const traces = useTraces();
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     document.title = "Home - Betsee";
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
   }, []);
+  const buckets = useMemo(
+    () => decisionBuckets(traces.data ?? [], now),
+    [traces.data, now],
+  );
   const products = [
     {
       name: "Director",
@@ -141,54 +157,32 @@ export function Home() {
           />
         </div>
       </ResourceState>
-      <div className="my-8 grid gap-5 md:grid-cols-[8fr_4fr]">
-        <section
-          id="gateway-health"
-          className="rounded-lg border border-line-subtle bg-surface-1 p-5"
-        >
-          <div className="flex items-center justify-between gap-3">
+      <div className="my-8 grid items-start gap-5 lg:grid-cols-12">
+        <section className="rounded-lg bg-surface-1 p-5 shadow-e1 lg:col-span-8">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="font-display text-xl font-semibold">
-                One execution boundary.
+                Decisions, last 15 minutes
               </h2>
               <p className="mt-2 text-sm text-fg-secondary">
-                Nondeterministic agents operate inside deterministic execution
-                boundaries.
+                Every request the Gateway decided, per minute.
               </p>
             </div>
-            <Icon
-              name="streamline-flex:shield-2"
-              size={28}
-              className="text-fg-secondary"
-            />
+            <a
+              href="http://director.betsee.localhost"
+              className="inline-flex items-center gap-1 text-sm font-medium text-accent-text hover:underline"
+            >
+              Open in Director
+              <Icon name="streamline-flex:arrow-expand" size={14} />
+            </a>
           </div>
-          <div className="mt-6 grid grid-cols-3 gap-3 lg:grid-cols-5">
-            {stages.map(([key, label, icon]) => (
-              <div
-                key={key}
-                className="rounded-md border border-line-subtle bg-surface-inset p-3"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <Icon
-                    name={`streamline-flex:${icon}`}
-                    size={16}
-                    className="text-fg-secondary"
-                  />
-                  <span className="font-mono text-sm">
-                    {summary.data
-                      ? String(summary.data.stage_counts[key] ?? 0)
-                      : "—"}
-                  </span>
-                </div>
-                <p className="mt-2 text-xs text-fg-secondary">{label}</p>
-              </div>
-            ))}
+          <div className="mt-5">
+            <ResourceState query={traces} noun="decisions">
+              <DecisionBars buckets={buckets} />
+            </ResourceState>
           </div>
-          <p className="mt-4 text-xs text-fg-secondary">
-            Counts are stage executions reported by the Gateway.
-          </p>
         </section>
-        <section className="rounded-lg border border-line-subtle bg-surface-1 p-5">
+        <section className="rounded-lg bg-surface-1 p-5 shadow-e1 lg:col-span-4">
           <h2 className="font-display text-xl font-semibold">
             Recent security events
           </h2>
@@ -237,6 +231,53 @@ export function Home() {
           </div>
         </section>
       </div>
+      <div className="mb-8">
+        <section
+          id="gateway-health"
+          className="rounded-lg bg-surface-1 p-5 shadow-e1"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-display text-xl font-semibold">
+                One execution boundary.
+              </h2>
+              <p className="mt-2 text-sm text-fg-secondary">
+                Nondeterministic agents operate inside deterministic execution
+                boundaries.
+              </p>
+            </div>
+            <Icon
+              name="streamline-flex:shield-2"
+              size={28}
+              className="text-fg-secondary"
+            />
+          </div>
+          <div className="mt-6 grid grid-cols-3 gap-2 md:grid-cols-5 xl:grid-cols-15">
+            {stages.map(([key, label, icon]) => (
+              <div key={key} className="rounded-md bg-surface-2 p-3 shadow-e1">
+                <div className="flex items-center justify-between gap-2">
+                  <Icon
+                    name={`streamline-flex:${icon}`}
+                    size={16}
+                    className="text-fg-secondary"
+                  />
+                  <span className="font-mono text-sm">
+                    {summary.data
+                      ? String(summary.data.stage_counts[key] ?? 0)
+                      : "—"}
+                  </span>
+                </div>
+                <p className="mt-2 truncate text-xs text-fg-secondary">
+                  {label}
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-xs text-fg-secondary">
+            Counts are stage executions reported by the Gateway.
+          </p>
+        </section>
+      </div>
       <div className="mb-5 flex items-end justify-between gap-4">
         <h2 className="font-display text-2xl font-semibold">
           One ecosystem. Six products.
@@ -250,14 +291,18 @@ export function Home() {
           <a
             key={product.name}
             href={product.href}
-            className="group flex min-h-56 flex-col rounded-lg border border-line-subtle bg-surface-1 p-5 shadow-e1 hover:bg-surface-2 hover:shadow-e2"
+            className="group flex min-h-56 flex-col rounded-lg bg-surface-1 p-5 shadow-e1 hover:bg-surface-2 hover:shadow-e2"
           >
             <div className="flex items-center justify-between">
               <span className="rounded-sm bg-surface-3 p-3 text-accent-text">
                 <Icon name={product.icon} size={28} />
               </span>
               <Icon
-                name="streamline-flex:arrow-expand"
+                name={
+                  product.href.startsWith("http")
+                    ? "streamline-flex:arrow-expand"
+                    : "streamline:interface-arrows-upright-corner-arrow-up-right-upright-corner"
+                }
                 size={16}
                 className="text-fg-tertiary group-hover:text-fg-primary"
               />

@@ -85,15 +85,15 @@ Betsee is an ecosystem on three hosts, not a monolith:
 
 Dark only. Elevation comes from luminance steps plus a hairline, not from shadows.
 
-| Level | Token / class                                               | Use                                             |
-| ----- | ----------------------------------------------------------- | ----------------------------------------------- |
-| 0     | `bg-void`                                                   | behind the ecosystem app frame                  |
-| 1     | `bg-app`                                                    | page, Director canvas                           |
-| 2     | `bg-surface-1` + `shadow-e1`                                | cards, rails, panels                            |
-| 3     | `bg-surface-2` (+ `shadow-e2` on hover)                     | hover, active nav item, selected row            |
-| 4     | `bg-surface-3`                                              | inputs, popovers, id tokens                     |
-| well  | `bg-surface-inset`                                          | meters, code, parameter blocks, waterfall lanes |
-| float | `bg-surface-overlay` + `backdrop-blur-[16px]` + `shadow-e3` | scenario dock, Director feed rail, popovers     |
+| Level | Token / class                                               | Use                                                                  |
+| ----- | ----------------------------------------------------------- | -------------------------------------------------------------------- |
+| 0     | `bg-void`                                                   | behind the ecosystem app frame                                       |
+| 1     | `bg-app`                                                    | page, Director canvas                                                |
+| 2     | `bg-surface-1` + `shadow-e1`                                | cards, rails, panels                                                 |
+| 3     | `bg-surface-2` (+ `shadow-e2` on hover)                     | hover, active nav item, selected row, tiles nested in a card         |
+| 4     | `bg-surface-3`                                              | inputs, popovers, id tokens                                          |
+| well  | `bg-surface-inset`                                          | meters, code, parameter blocks, waterfall lanes; never a nested tile |
+| float | `bg-surface-overlay` + `backdrop-blur-[16px]` + `shadow-e3` | scenario dock, Director feed rail, popovers                          |
 
 - **Spacing**: 4px base. Card padding 16 (Director) or 20 (ecosystem, KPI, approval). Grid gutter 20. In-row gaps 8-12.
 - **Radius**: `pill` for chips, tabs and segmented controls; `xs` badges and id tokens; `sm` inputs and
@@ -271,8 +271,8 @@ across them:
 
 ## 14. Accessibility and verification
 
-- Contrast on `surface-1`: primary 16.7, secondary 8.0, tertiary 4.9; decision
-  foregrounds 5.6 (deny) to 10.4 (approval). Focus: a 2px `line-focus` ring with a 2px offset,
+- Contrast on `surface-1`: primary 16.2, secondary 7.7, tertiary 4.8; decision
+  foregrounds 5.5 (deny) to 10.0 (approval). Focus: a 2px `line-focus` ring with a 2px offset,
   never removed. Feed rows, tiles, stages and span rows are keyboard reachable; Esc closes drawers.
   The feed announces summaries ("3 new actions, 1 denied") through a polite live region.
 - F15/F16 verification checks: tokens only, decisions per section 5, MockBadge wherever AI analysis

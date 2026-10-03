@@ -310,7 +310,7 @@ export function KpiTile({
 }) {
   return (
     <article
-      className={`relative rounded-lg border border-line-subtle ${compact ? "p-3" : "p-5"} ${feature ? "bs-feature text-fg-on-feature" : "bg-surface-1"} ${className}`}
+      className={`relative rounded-lg ${compact ? "p-3" : "p-5"} ${feature ? "bs-feature text-fg-on-feature" : "bg-surface-1 shadow-e1"} ${className}`}
     >
       <p
         className={`text-sm ${feature ? "text-fg-on-feature" : "text-fg-secondary"}`}
@@ -334,9 +334,16 @@ export function KpiTile({
           href={href}
           title={`Open ${label}`}
           aria-label={`Open ${label}`}
-          className="absolute right-4 top-4 rounded-pill border border-current p-1"
+          className={`absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-pill ${feature ? "bg-fg-on-feature text-brand-900" : "border border-line-default text-fg-secondary hover:text-fg-primary"}`}
         >
-          <Icon name="streamline-flex:arrow-expand" size={14} />
+          <Icon
+            name={
+              /^https?:\/\//.test(href)
+                ? "streamline-flex:arrow-expand"
+                : "streamline:interface-arrows-upright-corner-arrow-up-right-upright-corner"
+            }
+            size={14}
+          />
         </a>
       )}
     </article>

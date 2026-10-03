@@ -250,14 +250,19 @@ def main():
     status, _ = call("POST", f"{SITE}/api/v1/chat/messages", daniel, {"chat_id": chat["chat_id"], "text": "hi"})
     check(status == 404, "another human cannot write into Maya's chat")
     stream = Stream(chat["chat_id"], maya)
-    if args.only in (None, "filter"):
-        filter_checks(chat["chat_id"], maya, daniel, stream)
-    if args.only in (None, "runtime"):
-        runtime_checks(chat["chat_id"], maya, daniel, stream)
-    if args.only in (None, "failclosed"):
-        hook_fail_closed(chat)
-    if args.live_gateway_stop:
-        live_gateway_stop(chat["chat_id"], maya, stream)
+    try:
+        if args.only in (None, "filter"):
+            filter_checks(chat["chat_id"], maya, daniel, stream)
+        if args.only in (None, "runtime"):
+            runtime_checks(chat["chat_id"], maya, daniel, stream)
+        if args.only in (None, "failclosed"):
+            hook_fail_closed(chat)
+        if args.live_gateway_stop:
+            live_gateway_stop(chat["chat_id"], maya, stream)
+    finally:
+        # Ending the session voids any approval a timed-out run left pending, so the shared
+        # stack's Approvals inbox is as the suite found it.
+        call("POST", f"{API}/api/v1/sessions/{chat['session']['id']}/end", maya, {})
     print(f"{len(failures)} failed" if failures else "all checks passed")
     sys.exit(1 if failures else 0)
 

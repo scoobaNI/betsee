@@ -4,13 +4,13 @@
   --bs-color-bg-void: #040504;
   --bs-color-bg-app: #080908;
   --bs-color-bg-canvas-dot: rgba(237, 242, 237, 0.055);
-  --bs-color-surface-1: #0f110f;
-  --bs-color-surface-2: #151815;
-  --bs-color-surface-3: #1c201c;
+  --bs-color-surface-1: #121512;
+  --bs-color-surface-2: #1a1e1a;
+  --bs-color-surface-3: #242924;
   --bs-color-surface-inset: #060706;
-  --bs-color-surface-overlay: rgba(15, 17, 15, 0.86);
-  --bs-color-border-subtle: rgba(237, 242, 237, 0.06);
-  --bs-color-border-default: rgba(237, 242, 237, 0.1);
+  --bs-color-surface-overlay: rgba(18, 21, 18, 0.86);
+  --bs-color-border-subtle: rgba(237, 242, 237, 0.08);
+  --bs-color-border-default: rgba(237, 242, 237, 0.12);
   --bs-color-border-strong: rgba(237, 242, 237, 0.18);
   --bs-color-border-focus: #5bc85f;
   --bs-color-text-primary: #edf2ed;
@@ -80,11 +80,12 @@
   --bs-color-viz-neutral-3: #3a403a;
   --bs-color-viz-grid: rgba(237, 242, 237, 0.06);
   --bs-color-viz-axis: #7c847c;
-  --bs-gradient-feature: linear-gradient(
-    135deg,
-    #134c13 0%,
-    #1f7a22 55%,
-    #3aae3f 100%
+  --bs-gradient-feature: radial-gradient(
+    130% 140% at 100% 0%,
+    #1f9a26 0%,
+    #15721b 38%,
+    #0e4f12 72%,
+    #0a3a0d 100%
   );
   --bs-gradient-rail-sheen: linear-gradient(
     180deg,
@@ -135,13 +136,15 @@
   --bs-radius-xl: 20px;
   --bs-radius-pill: 999px;
   --bs-shadow-e1:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(237, 242, 237, 0.06);
+    inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(237, 242, 237, 0.08);
   --bs-shadow-e2:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px rgba(237, 242, 237, 0.1),
-    0 8px 24px rgba(0, 0, 0, 0.4);
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 0 0 1px rgba(237, 242, 237, 0.12), 0 8px 24px rgba(0, 0, 0, 0.4);
   --bs-shadow-e3:
     inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(237, 242, 237, 0.1),
     0 16px 48px rgba(0, 0, 0, 0.55);
+  --bs-shadow-feature:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 0 0 1px rgba(91, 200, 95, 0.28);
   --bs-shadow-selected: 0 0 0 1px #3aae3f, 0 0 0 4px rgba(91, 200, 95, 0.14);
   --bs-shadow-live: 0 0 12px rgba(76, 230, 90, 0.45);
   --bs-motion-duration-instant: 80ms;
@@ -166,12 +169,15 @@
   --bs-size-avatar-sm: 24px;
   --bs-size-avatar-md: 32px;
   --bs-size-avatar-lg: 40px;
+  --bs-size-avatar-xl: 56px;
   --bs-layout-eco-frame-gutter: 12px;
   --bs-layout-eco-rail-collapsed: 72px;
   --bs-layout-eco-rail-expanded: 248px;
   --bs-layout-eco-topbar: 64px;
   --bs-layout-eco-page-padding: 32px;
   --bs-layout-eco-content-max: 1440px;
+  --bs-layout-eco-chat-history: 280px;
+  --bs-layout-eco-chat-column: 760px;
   --bs-layout-grid-gutter: 20px;
   --bs-layout-dir-topbar: 56px;
   --bs-layout-dir-nav-rail: 64px;

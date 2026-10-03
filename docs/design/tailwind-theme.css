@@ -110,6 +110,7 @@
   --shadow-e1: var(--bs-shadow-e1);
   --shadow-e2: var(--bs-shadow-e2);
   --shadow-e3: var(--bs-shadow-e3);
+  --shadow-feature: var(--bs-shadow-feature);
   --shadow-selected: var(--bs-shadow-selected);
   --shadow-live: var(--bs-shadow-live);
   --ease-standard: var(--bs-motion-easing-standard);

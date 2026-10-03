@@ -260,7 +260,8 @@ async fn agents(
         let agent_id=text(&entity["uid"],"id");
         let session=sessions.iter().find(|s|s["agent_id"]==agent_id&&s["status"]=="active"&&can_read(&claims,s));
         let state=states.iter().find(|s|s["agent_id"]==agent_id);
-        json!({"id":agent_id,"name":agent_id,"team":entity["parents"][0]["id"],"provider":MODEL_LABEL,"model":"mock-model-demo","state":entity["attrs"]["state"],"state_reason":state.map(|s|s["reason"].clone()),"state_changed_at":state.map(|s|s["occurred_at"].clone()),"current_session":session,"budget":session.map(|s|s["budget"].clone()).unwrap_or(json!({"limit":2000,"used":0,"unit":"cents"}))})
+        let (provider,model)=agent_model(agent_id);
+        json!({"id":agent_id,"name":agent_id,"team":entity["parents"][0]["id"],"provider":provider,"model":model,"state":entity["attrs"]["state"],"state_reason":state.map(|s|s["reason"].clone()),"state_changed_at":state.map(|s|s["occurred_at"].clone()),"current_session":session,"budget":session.map(|s|s["budget"].clone()).unwrap_or(json!({"limit":2000,"used":0,"unit":"cents"}))})
     }).collect();
     Ok(Json(json!({"items":items})))
 }
@@ -278,6 +279,15 @@ async fn use_cases(
         json!({"id":id,"name":use_case_name(id),"permitted":refs(&attrs["permitted"]),"tier_ceiling":tier(attrs["tierCeiling"].as_i64().unwrap_or(0)),"approval_required":refs(&attrs["approvalRequired"]),"step_up_required":refs(&attrs["stepUpRequired"]),"approval_threshold_cents":attrs["approvalThresholdCents"],"budget":{"limit":if id=="weekly-reporting" {2000} else {5000},"used":0,"unit":"cents"},"agent_ids":refs(&attrs["agents"]),"peer_ids":refs(&attrs["peers"])})
     }).collect();
     Ok(Json(json!({"items":items})))
+}
+/// The employee assistant runs real Claude Code on the host; every other demo agent is scripted
+/// against the mock model.
+fn agent_model(agent_id: &str) -> (&'static str, &'static str) {
+    if agent_id == "employee-assistant" {
+        ("Claude Code (agent runtime)", "claude")
+    } else {
+        (MODEL_LABEL, "mock-model-demo")
+    }
 }
 fn use_case_name(id: &str) -> &str {
     match id {

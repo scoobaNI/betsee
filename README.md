@@ -26,12 +26,12 @@ never built it, downloading and compiling the dependencies takes several minutes
 idle while it does. A rebuild of the Gateway image without Docker's layer cache, with the Cargo cache
 kept, measured 97 seconds. Later starts reuse everything.
 
-| Open                               | What                                                    |
-| ---------------------------------- | ------------------------------------------------------- |
-| http://betsee.localhost            | Ecosystem home: Approvals, Policy Studio, Identity, Connect |
-| http://director.betsee.localhost   | Director: the live control room                         |
-| http://auth.betsee.localhost       | Keycloak sign-in and step-up                            |
-| http://api.betsee.localhost        | Gateway API, for agents, scripts and tests              |
+| Open                             | What                                                        |
+| -------------------------------- | ----------------------------------------------------------- |
+| http://betsee.localhost          | Ecosystem home: Approvals, Policy Studio, Identity, Connect |
+| http://director.betsee.localhost | Director: the live control room                             |
+| http://auth.betsee.localhost     | Keycloak sign-in and step-up                                |
+| http://api.betsee.localhost      | Gateway API, for agents, scripts and tests                  |
 
 Sign in as **Daniel Ortiz** (`daniel`, security officer and approver); the demo passwords are in
 `.env.example`. Step-up asks for a one-time code: `scripts/otp.sh` prints Daniel's current code.
@@ -42,15 +42,34 @@ The seven-act stage demo is in [`docs/demo-script.md`](docs/demo-script.md). Eac
 the Director's scenario dock; `demo/` holds the scenarios and the runner that drives them through the
 real Gateway.
 
+### Chat with a governed agent
+
+`http://betsee.localhost/chat` is an employee (Maya) talking to real Claude Code. The claude CLI
+and its login live on the host, so its runner, agent-host, runs outside Docker:
+
+```sh
+python3 scripts/keycloak-sync-clients.py employee-assistant   # once, on a realm imported before the client existed
+scripts/agent-host.sh                                         # builds and starts agent-host on 127.0.0.1:8095
+```
+
+What Maya types first passes the Gateway's content filter (CTL-IN-001: card numbers by Luhn, IBANs
+by mod-97, PESEL by checksum, API and private keys, names of resources above the session tier).
+Every tool call Claude Code then attempts goes through a PreToolUse hook to `POST /api/v1/actions`
+as the agent `employee-assistant` (CTL-RT-001): reads of catalogued workspace files by tier,
+read-only shell templates, writes after an approver says yes in Approvals, no network egress, and
+deny when the Gateway cannot be reached. Each attempt is a trace in the Director. The workspace is
+`state/agent-workspace`, copied from `demo/workspace`; `scripts/agent-host.sh --reset-workspace`
+restores it. `python3 tests/agent-chat/e2e.py` checks all of it end to end.
+
 ## The ecosystem
 
-| Product           | Host                        | Purpose                                                          |
-| ----------------- | --------------------------- | ---------------------------------------------------------------- |
-| **Director**      | `director.betsee.localhost` | See every agent, every action, every decision, live.             |
-| **Gateway**       | `api.betsee.localhost`      | Every agent action passes one deterministic boundary.            |
-| **Policy Studio** | `betsee.localhost`          | Controls, Cedar policies and use cases in one place.             |
-| **Identity**      | `betsee.localhost`          | Every agent is a principal with its own identity.                |
-| **Connect**       | `betsee.localhost`          | Every model, provider and tool behind one boundary.              |
+| Product           | Host                        | Purpose                                                           |
+| ----------------- | --------------------------- | ----------------------------------------------------------------- |
+| **Director**      | `director.betsee.localhost` | See every agent, every action, every decision, live.              |
+| **Gateway**       | `api.betsee.localhost`      | Every agent action passes one deterministic boundary.             |
+| **Policy Studio** | `betsee.localhost`          | Controls, Cedar policies and use cases in one place.              |
+| **Identity**      | `betsee.localhost`          | Every agent is a principal with its own identity.                 |
+| **Connect**       | `betsee.localhost`          | Every model, provider and tool behind one boundary.               |
 | **Approvals**     | `betsee.localhost`          | High-impact actions wait for a human, with proof of who they are. |
 
 ## Architecture
@@ -119,18 +138,18 @@ API contract: [`contracts/openapi.yaml`](contracts/openapi.yaml) and
 
 Nine small primitives in one pipeline, not ten separate defences.
 
-| Risk                                       | Primary Betsee primitive                      | Demo act |
-| ------------------------------------------ | --------------------------------------------- | -------- |
-| ASI01 Agent Goal Hijack                    | Information tiers + taint (no write-down)     | 3        |
-| ASI02 Tool Misuse and Exploitation         | Capability intersection + Cedar authorization | 2        |
-| ASI03 Identity and Privilege Abuse         | Agent identity + delegation (AgentSession)    | 2, 5     |
-| ASI04 Agentic Supply Chain Vulnerabilities | Tool integrity (pinned MCP descriptors)       | 6        |
-| ASI05 Unexpected Code Execution            | Command validation                            | 2        |
-| ASI06 Memory and Context Poisoning         | Information tiers + taint; AI analysis tightens | 3      |
-| ASI07 Insecure Inter-Agent Communication   | Mediated agent-to-agent channel               | 4        |
-| ASI08 Cascading Failures                   | Budget, circuit breaker + quarantine          | 4        |
-| ASI09 Human-Agent Trust Exploitation       | Human approval + step-up                      | 5        |
-| ASI10 Rogue Agents                         | Budget, circuit breaker + quarantine          | 6        |
+| Risk                                       | Primary Betsee primitive                        | Demo act |
+| ------------------------------------------ | ----------------------------------------------- | -------- |
+| ASI01 Agent Goal Hijack                    | Information tiers + taint (no write-down)       | 3        |
+| ASI02 Tool Misuse and Exploitation         | Capability intersection + Cedar authorization   | 2        |
+| ASI03 Identity and Privilege Abuse         | Agent identity + delegation (AgentSession)      | 2, 5     |
+| ASI04 Agentic Supply Chain Vulnerabilities | Tool integrity (pinned MCP descriptors)         | 6        |
+| ASI05 Unexpected Code Execution            | Command validation                              | 2        |
+| ASI06 Memory and Context Poisoning         | Information tiers + taint; AI analysis tightens | 3        |
+| ASI07 Insecure Inter-Agent Communication   | Mediated agent-to-agent channel                 | 4        |
+| ASI08 Cascading Failures                   | Budget, circuit breaker + quarantine            | 4        |
+| ASI09 Human-Agent Trust Exploitation       | Human approval + step-up                        | 5        |
+| ASI10 Rogue Agents                         | Budget, circuit breaker + quarantine            | 6        |
 
 The full mapping, with every control, the Agent Control Standard, LLM Top 10 2026, MCP Top 10 and
 AISVS cross-references, and an explicit list of what Betsee does **not** claim, is in
@@ -148,6 +167,9 @@ cargo test --manifest-path gateway/Cargo.toml -p betsee-decision
 
 # Positive and negative security suite against the running stack
 ./tests/run-security.sh
+
+# Governed employee chat end to end (needs scripts/agent-host.sh and a logged-in claude CLI)
+python3 tests/agent-chat/e2e.py
 ```
 
 The security suite has 37 cases and runs in under a minute against the live stack, with real HTTP
@@ -167,17 +189,17 @@ expected one in [`demo/scenarios/`](demo/scenarios/).
 
 ## Repository layout
 
-| Path                      | Contents                                                                 |
-| ------------------------- | ------------------------------------------------------------------------ |
-| `gateway/`                | Rust workspace: the pure decision crate and the Gateway server; MCP demo server and mock model binaries |
-| `policies/`               | Cedar schema and policies, controls catalog, reference cases and checker |
-| `contracts/`              | OpenAPI contract and SSE event contract                                  |
-| `web/`                    | React, TypeScript, Vite, Tailwind: `apps/director`, `apps/ecosystem`, shared `packages/ui` and `packages/api` |
-| `infra/`, `docker-compose.yml` | Compose services, Caddy, Keycloak realm, Dockerfiles                 |
-| `scripts/`                | Bootstrap, OIDC login helper, one-time code helper                       |
-| `demo/`                   | Demo scenarios and the scenario runner                                   |
-| `tests/`                  | Security suite                                                           |
-| `docs/`                   | Design Contract, security decisions and OWASP mapping, demo script       |
+| Path                           | Contents                                                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `gateway/`                     | Rust workspace: the pure decision crate and the Gateway server; MCP demo server and mock model binaries       |
+| `policies/`                    | Cedar schema and policies, controls catalog, reference cases and checker                                      |
+| `contracts/`                   | OpenAPI contract and SSE event contract                                                                       |
+| `web/`                         | React, TypeScript, Vite, Tailwind: `apps/director`, `apps/ecosystem`, shared `packages/ui` and `packages/api` |
+| `infra/`, `docker-compose.yml` | Compose services, Caddy, Keycloak realm, Dockerfiles                                                          |
+| `scripts/`                     | Bootstrap, OIDC login helper, one-time code helper                                                            |
+| `demo/`                        | Demo scenarios and the scenario runner                                                                        |
+| `tests/`                       | Security suite                                                                                                |
+| `docs/`                        | Design Contract, security decisions and OWASP mapping, demo script                                            |
 
 ## Demo-only shortcuts
 

@@ -173,6 +173,10 @@
         "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M10.15.5L4 6.65a.48.48 0 0 0 0 .7l6.15 6.15\"/>",
         "hidden": true
       },
+      "interface-arrows-upright-corner-arrow-up-right-upright-corner": {
+        "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M.5.5h12a1 1 0 0 1 1 1v12\"/>",
+        "hidden": true
+      },
       "interface-edit-view-eye-eyeball-open-view": {
         "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M13.23 6.33a1 1 0 0 1 0 1.34C12.18 8.8 9.79 11 7 11S1.82 8.8.77 7.67a1 1 0 0 1 0-1.34C1.82 5.2 4.21 3 7 3s5.18 2.2 6.23 3.33Z\"/><circle cx=\"7\" cy=\"7\" r=\"2\"/></g>",
         "hidden": true

@@ -103,8 +103,48 @@ button:disabled {
 }
 .lift:hover {
   box-shadow: var(--shadow-lift);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
   border-color: var(--color-line-strong);
+}
+.lift:active {
+  transform: translateY(0) scale(0.985);
+  transition-duration: 90ms;
+}
+
+/* Buttons and pills sink a little under the finger. */
+.press {
+  transition: transform 160ms var(--ease-out-soft);
+}
+.press:active {
+  transform: scale(0.96);
+  transition-duration: 70ms;
+}
+
+/*
+ * A soft light that follows the pointer across a card; --mx and --my are set by trackPointer().
+ * It sits behind the content inside the card's own stacking context.
+ */
+.spotlight {
+  position: relative;
+  isolation: isolate;
+}
+.spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(
+    380px circle at var(--mx, 50%) var(--my, 50%),
+    color-mix(in srgb, var(--spot, var(--color-accent)) 9%, transparent),
+    transparent 60%
+  );
+  opacity: 0;
+  transition: opacity 280ms var(--ease-out-soft);
+  pointer-events: none;
+}
+.spotlight:hover::before {
+  opacity: 1;
 }
 
 .row-hover {
@@ -137,24 +177,164 @@ button:disabled {
 }
 
 .flash-in {
-  animation: flash-in 1.2s var(--ease-out-soft) 1;
+  animation: flash-in 1.6s var(--ease-out-soft) 1;
 }
 @keyframes flash-in {
   from {
-    background: var(--color-accent-soft);
+    background: var(--flash, var(--color-accent-soft));
+  }
+}
+
+/* A row that just arrived: a coloured edge on the left that fades as the row settles. */
+.arrive-edge {
+  position: absolute;
+  inset: 8px auto 8px 0;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--edge, var(--color-accent));
+  animation: arrive-edge 2.4s var(--ease-out-soft) forwards;
+  pointer-events: none;
+}
+@keyframes arrive-edge {
+  0% {
+    transform: scaleY(0);
+    opacity: 1;
+  }
+  18% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 0;
   }
 }
 
 .edge-flow {
-  stroke-dasharray: 28 10000;
-  animation: edge-flow 1.1s var(--ease-out-soft) 1 forwards;
+  stroke-dasharray: 36 10000;
+  animation: edge-flow 1.3s cubic-bezier(0.45, 0, 0.2, 1) 1 forwards;
 }
 @keyframes edge-flow {
   from {
-    stroke-dashoffset: 28;
+    stroke-dashoffset: 36;
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
   }
   to {
-    stroke-dashoffset: -1200;
+    stroke-dashoffset: -1400;
+    opacity: 0;
+  }
+}
+
+/* A spark that travels along an edge path; the path is set inline as offset-path. */
+.particle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: var(--spark);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--spark) 22%, transparent),
+    0 0 14px 2px color-mix(in srgb, var(--spark) 55%, transparent);
+  offset-rotate: 0deg;
+  offset-distance: 0%;
+  opacity: 0;
+  animation: particle 1.25s cubic-bezier(0.45, 0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+@keyframes particle {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  12% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  88% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+/* Live traffic lanes: each dot's track slides from the right edge (now) to the left (window start). */
+.lane-track {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation-name: lane-drift;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes lane-drift {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+/* Slow drifting light behind the overview headline; its colours follow the mood. */
+.aura-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(64px);
+  animation: aura-drift 18s ease-in-out infinite alternate;
+}
+.aura-blob:nth-child(2) {
+  animation-duration: 23s;
+  animation-delay: -7s;
+}
+.aura-blob:nth-child(3) {
+  animation-duration: 29s;
+  animation-delay: -13s;
+}
+@keyframes aura-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(6%, 10%, 0) scale(1.12);
+  }
+  100% {
+    transform: translate3d(-8%, -4%, 0) scale(0.94);
+  }
+}
+
+.dot-grid {
+  background-image: radial-gradient(color-mix(in srgb, var(--color-ink-4) 55%, transparent) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+}
+
+.toast-timer {
+  transform-origin: left;
+  animation: toast-timer linear forwards;
+}
+.toast-timer.paused {
+  animation-play-state: paused;
+}
+@keyframes toast-timer {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
   }
 }
 
@@ -190,10 +370,18 @@ button:disabled {
   .live-dot,
   .waiting-ring,
   .edge-flow,
-  .flash-in {
+  .flash-in,
+  .arrive-edge,
+  .aura-blob {
     animation: none;
   }
-  .lift:hover {
+  .arrive-edge,
+  .particle {
+    display: none;
+  }
+  .lift:hover,
+  .lift:active,
+  .press:active {
     transform: none;
   }
   .skeleton {

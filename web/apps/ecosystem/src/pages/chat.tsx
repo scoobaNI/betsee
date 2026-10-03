@@ -48,7 +48,7 @@ const capabilities = [
     id: "files.read",
     title: "Read workspace files",
     body: "Handbook and notes are open. Confidential and restricted files stay closed.",
-    tag: "Ask a question",
+    tag: "Ask",
     prompt: "What is the hotel limit in the expense policy?",
     icon: "streamline-flex:text-file",
   },
@@ -56,7 +56,7 @@ const capabilities = [
     id: "shell.exec",
     title: "Run read-only commands",
     body: "ls, cat, head, tail, wc and grep on one file. Anything else is refused.",
-    tag: "List files",
+    tag: "List",
     prompt: "List the files in the workspace with ls -la.",
     icon: "streamline-flex:code-monitor-1",
   },
@@ -64,7 +64,7 @@ const capabilities = [
     id: "files.write",
     title: "Draft files",
     body: "Every write waits for an approver in Betsee before it happens.",
-    tag: "Draft a note",
+    tag: "Draft",
     prompt:
       "Create notes/q4-scorecard.md with a short outline for the Q4 carrier scorecard.",
     icon: "streamline-flex:pencil-square",
@@ -93,7 +93,10 @@ function AgentMark({ size = 24 }: { size?: number }) {
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
-      <Icon name="streamline-flex:ai-chip-robot" size={Math.round(size * 0.58)} />
+      <Icon
+        name="streamline-flex:ai-chip-robot"
+        size={Math.round(size * 0.58)}
+      />
     </span>
   );
 }
@@ -144,7 +147,10 @@ function RichText({ text }: { text: string }) {
             >
               {lines.map((line, item) => (
                 <li key={item}>
-                  {inline(line.replace(/^\s*([-*]|\d+[.)]) /, ""), `${index}-${item}`)}
+                  {inline(
+                    line.replace(/^\s*([-*]|\d+[.)]) /, ""),
+                    `${index}-${item}`,
+                  )}
                 </li>
               ))}
             </List>
@@ -165,7 +171,13 @@ function RichText({ text }: { text: string }) {
   );
 }
 
-function TraceLink({ traceId, label = "View trace" }: { traceId: string | null; label?: string }) {
+function TraceLink({
+  traceId,
+  label = "View trace",
+}: {
+  traceId: string | null;
+  label?: string;
+}) {
   if (!traceId) return null;
   return (
     <a
@@ -194,14 +206,21 @@ function ControlIds({ ids }: { ids: string[] }) {
   );
 }
 
-function toolTarget(tool: string, input: Record<string, unknown>, decision: ToolDecision | null) {
-  const text = (key: string) => (typeof input[key] === "string" ? (input[key] as string) : "");
+function toolTarget(
+  tool: string,
+  input: Record<string, unknown>,
+  decision: ToolDecision | null,
+) {
+  const text = (key: string) =>
+    typeof input[key] === "string" ? (input[key] as string) : "";
   if (tool === "Bash") return text("command");
   if (tool === "WebFetch") return text("url");
   if (tool === "WebSearch") return text("query");
   const path = text("file_path") || text("path") || text("pattern");
   const resource = decision?.resource.id ?? "";
-  return resource.startsWith("workspace") ? resource.replace(/^workspace\/?/, "") || "." : path;
+  return resource.startsWith("workspace")
+    ? resource.replace(/^workspace\/?/, "") || "."
+    : path;
 }
 
 function ToolCard({ item }: { item: Extract<ThreadItem, { kind: "tool" }> }) {
@@ -217,20 +236,32 @@ function ToolCard({ item }: { item: Extract<ThreadItem, { kind: "tool" }> }) {
       className={`relative overflow-hidden rounded-lg p-4 shadow-e1 ${pending ? "border border-approval-border bg-approval-bg" : "bg-surface-1"}`}
     >
       {denied && (
-        <span className="absolute inset-y-0 left-0 w-0.5 bg-deny-fg" aria-hidden="true" />
+        <span
+          className="absolute inset-y-0 left-0 w-0.5 bg-deny-fg"
+          aria-hidden="true"
+        />
       )}
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex h-7 w-7 items-center justify-center rounded-sm bg-surface-2 text-fg-secondary">
-          <Icon name={TOOL_ICONS[item.tool] ?? "streamline-flex:text-file"} size={14} />
+          <Icon
+            name={TOOL_ICONS[item.tool] ?? "streamline-flex:text-file"}
+            size={14}
+          />
         </span>
-        <span className="font-mono text-sm font-medium">{item.tool || "Tool"}</span>
+        <span className="font-mono text-sm font-medium">
+          {item.tool || "Tool"}
+        </span>
         {shown?.capability && <IdToken id={shown.capability} copy={false} />}
-        <span className="min-w-0 flex-1 truncate font-mono text-sm text-fg-secondary" title={target}>
+        <span
+          className="min-w-0 flex-1 truncate font-mono text-sm text-fg-secondary"
+          title={target}
+        >
           {target}
         </span>
-        {tier && ["public", "internal", "confidential", "restricted"].includes(tier) && (
-          <TierBadge tier={tier as "public"} />
-        )}
+        {tier &&
+          ["public", "internal", "confidential", "restricted"].includes(
+            tier,
+          ) && <TierBadge tier={tier as "public"} />}
         {shown ? (
           <DecisionChip
             decision={shown.decision}
@@ -265,12 +296,16 @@ function ToolCard({ item }: { item: Extract<ThreadItem, { kind: "tool" }> }) {
           <Link to="/approvals" className="font-semibold underline">
             Approvals
           </Link>
-          {waiting?.waitingSeconds ? ` (up to ${Math.round(waiting.waitingSeconds / 60)} min)` : ""}.
+          {waiting?.waitingSeconds
+            ? ` (up to ${Math.round(waiting.waitingSeconds / 60)} min)`
+            : ""}
+          .
         </p>
       )}
       {item.timedOut && !decision && (
         <p className="mt-2 text-sm text-approval-fg">
-          No approval in time; nothing ran. Approve it in Approvals, then ask again.
+          No approval in time; nothing ran. Approve it in Approvals, then ask
+          again.
         </p>
       )}
       {shown && (
@@ -295,7 +330,11 @@ function ToolCard({ item }: { item: Extract<ThreadItem, { kind: "tool" }> }) {
   );
 }
 
-function BlockedMessage({ item }: { item: Extract<ThreadItem, { kind: "blocked" }> }) {
+function BlockedMessage({
+  item,
+}: {
+  item: Extract<ThreadItem, { kind: "blocked" }>;
+}) {
   return (
     <div className="ml-auto flex max-w-[80%] flex-col items-end gap-2">
       <div className="relative overflow-hidden rounded-xl rounded-br-xs border border-deny-border bg-deny-bg px-4 py-3">
@@ -332,13 +371,17 @@ function Thread({ items, busy }: { items: ThreadItem[]; busy: boolean }) {
   const reduced = useReducedMotion();
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    end.current?.scrollIntoView({ block: "end", behavior: reduced ? "auto" : "smooth" });
+    end.current?.scrollIntoView({
+      block: "end",
+      behavior: reduced ? "auto" : "smooth",
+    });
   }, [items.length, busy, reduced]);
   let previousAgent = false;
   return (
     <div className="flex flex-col gap-5 pb-6 pt-8">
       {items.map((item) => {
-        const startsAgent = item.kind !== "user" && item.kind !== "blocked" && !previousAgent;
+        const startsAgent =
+          item.kind !== "user" && item.kind !== "blocked" && !previousAgent;
         previousAgent = item.kind !== "user" && item.kind !== "blocked";
         return (
           <motion.div
@@ -351,7 +394,9 @@ function Thread({ items, busy }: { items: ThreadItem[]; busy: boolean }) {
               <div className="mb-2 flex items-center gap-2">
                 <AgentMark />
                 <span className="font-mono text-sm font-medium">{AGENT}</span>
-                <span className="text-2xs text-fg-tertiary">{time(item.at)}</span>
+                <span className="text-2xs text-fg-tertiary">
+                  {time(item.at)}
+                </span>
               </div>
             )}
             {item.kind === "user" && (
@@ -378,7 +423,10 @@ function Thread({ items, busy }: { items: ThreadItem[]; busy: boolean }) {
         );
       })}
       {busy && (
-        <div className="flex items-center gap-2 text-sm text-fg-tertiary" role="status">
+        <div
+          className="flex items-center gap-2 text-sm text-fg-tertiary"
+          role="status"
+        >
           <AgentMark />
           <span className="bs-live-pulse">{AGENT} is working</span>
         </div>
@@ -414,7 +462,11 @@ function Composer({
         }}
       >
         <label className="flex flex-1 gap-3">
-          <Icon name="streamline:ai-prompt-spark" size={18} className="mt-1 text-accent-text" />
+          <Icon
+            name="streamline:ai-prompt-spark"
+            size={18}
+            className="mt-1 text-accent-text"
+          />
           <span className="sr-only">Message the employee assistant</span>
           <textarea
             value={value}
@@ -457,16 +509,22 @@ function Composer({
         </div>
       </form>
       <p className="mt-2 text-center text-2xs text-fg-tertiary">
-        Messages pass the Betsee content filter before the assistant sees them. Every tool call is
-        decided by the Gateway and recorded as a trace.
+        Messages pass the Betsee content filter before the assistant sees them.
+        Every tool call is decided by the Gateway and recorded as a trace.
       </p>
     </div>
   );
 }
 
-function EmptyState({ name, onPick }: { name: string; onPick: (prompt: string) => void }) {
+function EmptyState({
+  name,
+  onPick,
+}: {
+  name: string;
+  onPick: (prompt: string) => void;
+}) {
   return (
-    <div className="flex flex-col items-center pt-[12vh] text-center">
+    <div className="flex flex-col items-center pt-[6vh] text-center">
       <span className="inline-flex h-16 w-16 items-center justify-center rounded-lg bg-surface-2 text-accent-text shadow-e2">
         <Icon name="streamline-flex:ai-chip-robot" size={28} />
       </span>
@@ -474,8 +532,8 @@ function EmptyState({ name, onPick }: { name: string; onPick: (prompt: string) =
         What do you need{name ? `, ${name}` : ""}?
       </h1>
       <p className="mt-2 max-w-xl text-md text-fg-secondary">
-        The employee assistant is Claude Code working in your team workspace. Betsee decides each
-        step it takes: what it may read, run and write.
+        The employee assistant is Claude Code working in your team workspace.
+        Betsee decides each step it takes: what it may read, run and write.
       </p>
       <div className="mt-10 flex w-full flex-wrap gap-2">
         {suggestions.map((suggestion) => (
@@ -486,7 +544,11 @@ function EmptyState({ name, onPick }: { name: string; onPick: (prompt: string) =
             className="inline-flex h-9 items-center gap-2 rounded-pill border border-line-default bg-surface-1 px-3.5 text-sm hover:bg-surface-2"
           >
             {suggestion.label}
-            <Icon name={suggestion.icon} size={14} className="text-fg-secondary" />
+            <Icon
+              name={suggestion.icon}
+              size={14}
+              className="text-fg-secondary"
+            />
           </button>
         ))}
       </div>
@@ -508,12 +570,16 @@ function CapabilityCards({ onPick }: { onPick: (prompt: string) => void }) {
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-pill bg-surface-2 text-fg-secondary">
               <Icon name={capability.icon} size={16} />
             </span>
-            <span className="inline-flex h-7 items-center rounded-pill bg-surface-3 px-2.5 text-xs font-semibold text-fg-secondary">
+            <span className="inline-flex h-7 items-center whitespace-nowrap rounded-pill bg-surface-3 px-2.5 text-xs font-semibold text-fg-secondary">
               {capability.tag}
             </span>
           </span>
-          <span className="mt-4 block text-md font-semibold">{capability.title}</span>
-          <span className="mt-1 line-clamp-2 block text-sm text-fg-secondary">{capability.body}</span>
+          <span className="mt-4 block text-md font-semibold">
+            {capability.title}
+          </span>
+          <span className="mt-1 line-clamp-2 block text-sm text-fg-secondary">
+            {capability.body}
+          </span>
           <IdToken id={capability.id} copy={false} className="mt-2" />
         </button>
       ))}
@@ -549,13 +615,21 @@ function History({
         ASSISTANTS
       </p>
       <div className="relative flex min-h-11 items-center gap-3 rounded-md bg-surface-2 px-3">
-        <span className="absolute inset-y-2 left-0 w-0.5 rounded-pill bg-accent" aria-hidden="true" />
+        <span
+          className="absolute inset-y-2 left-0 w-0.5 rounded-pill bg-accent"
+          aria-hidden="true"
+        />
         <AgentMark />
         <span className="font-mono text-sm font-medium">{AGENT}</span>
       </div>
       <div className="my-4 h-px bg-line-subtle" />
-      <p className="mb-2 text-2xs font-semibold tracking-widest text-fg-tertiary">RECENT</p>
-      <nav aria-label="Recent chats" className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+      <p className="mb-2 text-2xs font-semibold tracking-widest text-fg-tertiary">
+        RECENT
+      </p>
+      <nav
+        aria-label="Recent chats"
+        className="min-h-0 flex-1 space-y-1 overflow-y-auto"
+      >
         {chats.length === 0 && (
           <p className="px-3 text-sm text-fg-tertiary">No chats yet.</p>
         )}
@@ -567,8 +641,12 @@ function History({
             aria-current={chat.chat_id === active ? "page" : undefined}
             className={`flex min-h-10 w-full items-center justify-between gap-2 rounded-md px-3 text-left text-sm ${chat.chat_id === active ? "bg-surface-2 text-fg-primary" : "text-fg-secondary hover:bg-surface-1"}`}
           >
-            <span className="truncate">Chat started {time(chat.created_at)}</span>
-            {chat.busy && <span className="bs-live-pulse h-1.5 w-1.5 shrink-0 rounded-pill bg-accent" />}
+            <span className="truncate">
+              Chat started {time(chat.created_at)}
+            </span>
+            {chat.busy && (
+              <span className="bs-live-pulse h-1.5 w-1.5 shrink-0 rounded-pill bg-accent" />
+            )}
           </button>
         ))}
       </nav>
@@ -576,10 +654,12 @@ function History({
         <span className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-pill bg-surface-2 text-accent-text">
           <Icon name="streamline-flex:shield-2" size={16} />
         </span>
-        <p className="mt-2 text-sm font-semibold">Every request passes the Gateway</p>
+        <p className="mt-2 text-sm font-semibold">
+          Every request passes the Gateway
+        </p>
         <p className="mt-1 text-xs text-fg-secondary">
-          What you type is checked first. Each action the assistant takes is checked against your
-          delegation and policy.
+          What you type is checked first. Each action the assistant takes is
+          checked against your delegation and policy.
         </p>
       </div>
     </aside>
@@ -589,14 +669,19 @@ function History({
 function AgentPanel({ chat }: { chat: ChatSession | null }) {
   const session = chat?.session;
   return (
-    <aside className="chat-agent min-h-0 overflow-y-auto border-l border-line-subtle p-5" aria-label="This agent">
+    <aside
+      className="chat-agent min-h-0 overflow-y-auto border-l border-line-subtle p-5"
+      aria-label="This agent"
+    >
       <div className="space-y-3">
         <section className="rounded-lg bg-surface-1 p-4 shadow-e1">
           <div className="flex items-center gap-3">
             <AgentMark size={44} />
             <div className="min-w-0">
               <p className="truncate font-mono text-md font-medium">{AGENT}</p>
-              <p className="text-xs text-fg-secondary">Team workplace · Claude Code</p>
+              <p className="text-xs text-fg-secondary">
+                Team workplace · Claude Code
+              </p>
             </div>
           </div>
           <a
@@ -605,11 +690,14 @@ function AgentPanel({ chat }: { chat: ChatSession | null }) {
             rel="noreferrer"
             className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-accent-text hover:underline"
           >
-            Open in Director <Icon name="streamline-flex:arrow-expand" size={12} />
+            Open in Director{" "}
+            <Icon name="streamline-flex:arrow-expand" size={12} />
           </a>
         </section>
         <section className="rounded-lg bg-surface-1 p-4 shadow-e1">
-          <p className="text-2xs font-semibold tracking-widest text-fg-tertiary">SESSION</p>
+          <p className="text-2xs font-semibold tracking-widest text-fg-tertiary">
+            SESSION
+          </p>
           <dl className="mt-2 divide-y divide-line-subtle text-sm">
             <div className="flex min-h-9 items-center justify-between gap-3">
               <dt className="text-fg-secondary">Use case</dt>
@@ -618,12 +706,16 @@ function AgentPanel({ chat }: { chat: ChatSession | null }) {
             <div className="flex min-h-9 items-center justify-between gap-3">
               <dt className="text-fg-secondary">Tier ceiling</dt>
               <dd>
-                <TierBadge tier={(session?.tier_ceiling as "internal") ?? "internal"} />
+                <TierBadge
+                  tier={(session?.tier_ceiling as "internal") ?? "internal"}
+                />
               </dd>
             </div>
             <div className="flex min-h-9 items-center justify-between gap-3">
               <dt className="text-fg-secondary">On behalf of</dt>
-              <dd className="truncate">{session?.human.display_name ?? "You"}</dd>
+              <dd className="truncate">
+                {session?.human.display_name ?? "You"}
+              </dd>
             </div>
             {session && (
               <div className="flex min-h-9 items-center justify-between gap-3">
@@ -636,9 +728,13 @@ function AgentPanel({ chat }: { chat: ChatSession | null }) {
           </dl>
         </section>
         <section className="rounded-lg bg-surface-1 p-4 shadow-e1">
-          <p className="text-2xs font-semibold tracking-widest text-fg-tertiary">CAN DO</p>
+          <p className="text-2xs font-semibold tracking-widest text-fg-tertiary">
+            CAN DO
+          </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {(session?.effective ?? ["files.read", "files.write", "shell.exec"]).map((capability) => (
+            {(
+              session?.effective ?? ["files.read", "files.write", "shell.exec"]
+            ).map((capability) => (
               <IdToken key={capability} id={capability} copy={false} />
             ))}
           </div>
@@ -647,14 +743,22 @@ function AgentPanel({ chat }: { chat: ChatSession | null }) {
           </p>
         </section>
         <section className="rounded-lg bg-surface-1 p-4 shadow-e1">
-          <p className="text-2xs font-semibold tracking-widest text-fg-tertiary">CONTROLS</p>
+          <p className="text-2xs font-semibold tracking-widest text-fg-tertiary">
+            CONTROLS
+          </p>
           <ul className="mt-2 space-y-2 text-sm">
             <li className="flex items-start gap-2">
-              <IdToken id="CTL-IN-001" href="/policy-studio/controls/CTL-IN-001" />
+              <IdToken
+                id="CTL-IN-001"
+                href="/policy-studio/controls/CTL-IN-001"
+              />
               <span className="text-fg-secondary">Input content filter</span>
             </li>
             <li className="flex items-start gap-2">
-              <IdToken id="CTL-RT-001" href="/policy-studio/controls/CTL-RT-001" />
+              <IdToken
+                id="CTL-RT-001"
+                href="/policy-studio/controls/CTL-RT-001"
+              />
               <span className="text-fg-secondary">Delegated execution</span>
             </li>
           </ul>
@@ -691,11 +795,17 @@ export function Chat() {
         const items = await chatApi.sessions();
         setChats(items);
         setChatId((current) =>
-          current && items.some((chat) => chat.chat_id === current) ? current : null,
+          current && items.some((chat) => chat.chat_id === current)
+            ? current
+            : null,
         );
         setError(null);
       } catch (cause) {
-        setError(cause instanceof ApiRequestError ? cause.message : "Chat service unreachable");
+        setError(
+          cause instanceof ApiRequestError
+            ? cause.message
+            : "Chat service unreachable",
+        );
       }
     },
     [],
@@ -721,7 +831,11 @@ export function Chat() {
       setError(null);
       return chat.chat_id;
     } catch (cause) {
-      setError(cause instanceof ApiRequestError ? cause.message : "Could not start a chat");
+      setError(
+        cause instanceof ApiRequestError
+          ? cause.message
+          : "Could not start a chat",
+      );
       return null;
     } finally {
       setStarting(false);
@@ -740,7 +854,9 @@ export function Chat() {
       setDraft("");
       setError(null);
     } catch (cause) {
-      setError(cause instanceof ApiRequestError ? cause.message : "Message not sent");
+      setError(
+        cause instanceof ApiRequestError ? cause.message : "Message not sent",
+      );
     } finally {
       setSending(false);
     }
@@ -748,14 +864,37 @@ export function Chat() {
 
   const active = chats.find((chat) => chat.chat_id === chatId) ?? null;
   const empty = thread.items.length === 0;
+  const composer = (
+    <>
+      {error && (
+        <p
+          role="alert"
+          className="mb-2 rounded-md border border-deny-border bg-deny-bg p-3 text-sm text-deny-fg"
+        >
+          {error}
+        </p>
+      )}
+      <Composer
+        value={draft}
+        onChange={setDraft}
+        onSend={() => void send(draft)}
+        sending={sending}
+        disabled={sending || starting || thread.busy}
+        compact={!empty}
+      />
+    </>
+  );
 
   if (mockMode)
     return (
       <div className="mx-auto max-w-xl p-10 text-center">
-        <h1 className="font-display text-3xl font-semibold">Chat needs the live stack</h1>
+        <h1 className="font-display text-3xl font-semibold">
+          Chat needs the live stack
+        </h1>
         <p className="mt-3 text-md text-fg-secondary">
-          The employee assistant is real Claude Code governed by the Gateway. Run the stack and
-          scripts/agent-host.sh, then open this page without mock data.
+          The employee assistant is real Claude Code governed by the Gateway.
+          Run the stack and scripts/agent-host.sh, then open this page without
+          mock data.
         </p>
       </div>
     );
@@ -769,7 +908,10 @@ export function Chat() {
         onNew={() => void start()}
         starting={starting}
       />
-      <section className="flex min-h-0 min-w-0 flex-col" aria-label="Conversation">
+      <section
+        className="flex min-h-0 min-w-0 flex-col"
+        aria-label="Conversation"
+      >
         <header className="flex h-16 shrink-0 items-center gap-2 px-6">
           <span className="inline-flex h-9 items-center gap-2 rounded-pill border border-line-default bg-surface-1 px-3">
             <AgentMark size={20} />
@@ -784,32 +926,27 @@ export function Chat() {
           <GovernedMarker />
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto px-6">
-          <div className="mx-auto w-full max-w-[760px]">
+          <div className="mx-auto w-full max-w-(--bs-layout-eco-chat-column)">
             {empty ? (
-              <EmptyState name={firstName} onPick={setDraft} />
+              // Before the first message the composer scrolls with the hero, so a short
+              // viewport never covers the heading.
+              <div className="pb-6">
+                <EmptyState name={firstName} onPick={setDraft} />
+                <div className="mt-3">{composer}</div>
+                <CapabilityCards onPick={setDraft} />
+              </div>
             ) : (
               <Thread items={thread.items} busy={thread.busy} />
             )}
           </div>
         </div>
-        <div className="shrink-0 px-6 pb-6 pt-2">
-          <div className="mx-auto w-full max-w-[760px]">
-            {error && (
-              <p role="alert" className="mb-2 rounded-md border border-deny-border bg-deny-bg p-3 text-sm text-deny-fg">
-                {error}
-              </p>
-            )}
-            <Composer
-              value={draft}
-              onChange={setDraft}
-              onSend={() => void send(draft)}
-              sending={sending}
-              disabled={sending || starting || thread.busy}
-              compact={!empty}
-            />
-            {empty && <CapabilityCards onPick={setDraft} />}
+        {!empty && (
+          <div className="shrink-0 px-6 pb-6 pt-2">
+            <div className="mx-auto w-full max-w-(--bs-layout-eco-chat-column)">
+              {composer}
+            </div>
           </div>
-        </div>
+        )}
       </section>
       <AgentPanel chat={active} />
     </div>

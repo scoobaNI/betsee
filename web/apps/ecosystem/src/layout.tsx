@@ -90,7 +90,7 @@ export function Shell({ children }: { children: ReactNode }) {
               end={item.end}
               title={item.label}
               className={({ isActive }) =>
-                `flex min-h-11 items-center gap-3 rounded-md px-3 text-md ${isActive ? "bg-surface-2 text-fg-primary" : "text-fg-secondary hover:bg-surface-1"}`
+                `flex min-h-11 items-center gap-3 rounded-md px-3 text-md ${isActive ? "relative bg-surface-2 font-semibold text-fg-primary before:absolute before:-left-3 before:top-2.5 before:h-6 before:w-0.75 before:rounded-pill before:bg-accent" : "text-fg-secondary hover:bg-surface-1"}`
               }
             >
               <Icon name={item.icon} size={20} />
@@ -186,12 +186,16 @@ export function Shell({ children }: { children: ReactNode }) {
         >
           {children}
           {!bleed && (
-          <footer className="mt-12 flex flex-wrap justify-between gap-3 border-t border-line-subtle pt-5 text-xs text-fg-tertiary">
-            <span>Betsee · Better see what your agents do.</span>
-            <a href="https://streamlinehq.com" target="_blank" rel="noreferrer">
-              Icons by Streamline (streamlinehq.com), CC BY 4.0
-            </a>
-          </footer>
+            <footer className="mt-12 flex flex-wrap justify-between gap-3 border-t border-line-subtle pt-5 text-xs text-fg-tertiary">
+              <span>Betsee · Better see what your agents do.</span>
+              <a
+                href="https://streamlinehq.com"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Icons by Streamline (streamlinehq.com), CC BY 4.0
+              </a>
+            </footer>
           )}
         </main>
       </div>

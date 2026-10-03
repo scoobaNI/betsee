@@ -101,7 +101,8 @@ def build():
     cases["human_direct_action"] = direct
     for case_id, create in (
         ("use_case_ceiling", session("research-agent", "market-research", ["email.send"], "public")),
-        ("human_via_agent", session("ops-runner", "deployment-helper", ["shell.exec"])),
+        # Maya holds shell.exec for the employee assistant; tickets.write is one she never holds.
+        ("human_via_agent", session("support-triage", "ticket-triage", ["tickets.write"])),
     ):
         cases[case_id] = {
             "setup": [token("betsee-demo-runner", "human_token", "maya" if case_id == "human_via_agent" else "priya")],
