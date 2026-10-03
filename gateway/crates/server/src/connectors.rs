@@ -4,7 +4,9 @@ use async_trait::async_trait;
 use rmcp::{
     ServiceExt,
     model::{CallToolRequestParams, Tool},
-    transport::StreamableHttpClientTransport,
+    transport::{
+        StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
+    },
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -15,6 +17,66 @@ pub fn hash(value: &Value) -> String {
         "sha256:{:x}",
         Sha256::digest(serde_json::to_vec(value).expect("JSON serializes"))
     )
+}
+
+pub fn action_hash(value: &Value) -> String {
+    let mut canonical = Vec::new();
+    canonical_action(value, &mut canonical);
+    format!("sha256:{:x}", Sha256::digest(canonical))
+}
+
+fn canonical_action(value: &Value, output: &mut Vec<u8>) {
+    match value {
+        Value::Object(object) => {
+            output.push(b'{');
+            let mut keys: Vec<_> = object.keys().collect();
+            keys.sort_unstable();
+            for (index, key) in keys.into_iter().enumerate() {
+                if index != 0 {
+                    output.push(b',');
+                }
+                output.extend(serde_json::to_vec(key).expect("JSON key serializes"));
+                output.push(b':');
+                canonical_action(&object[key], output);
+            }
+            output.push(b'}');
+        }
+        Value::Array(values) => {
+            output.push(b'[');
+            for (index, value) in values.iter().enumerate() {
+                if index != 0 {
+                    output.push(b',');
+                }
+                canonical_action(value, output);
+            }
+            output.push(b']');
+        }
+        Value::Number(number) => {
+            // Decimal normalization preserves integer precision and survives JSONB rewriting.
+            let spelling = number.to_string();
+            let (mantissa, exponent) = spelling.split_once(['e', 'E']).unwrap_or((&spelling, "0"));
+            let negative = mantissa.starts_with('-');
+            let unsigned = mantissa.trim_start_matches('-');
+            let fraction = unsigned.split_once('.').map_or(0, |(_, part)| part.len());
+            let coefficient = unsigned.replace('.', "");
+            let leading_trimmed = coefficient.trim_start_matches('0');
+            let digits = leading_trimmed.trim_end_matches('0');
+            if digits.is_empty() {
+                output.push(b'0');
+            } else {
+                if negative {
+                    output.push(b'-');
+                }
+                output.extend(digits.as_bytes());
+                let power = exponent.parse::<i32>().expect("JSON number exponent")
+                    - fraction as i32
+                    + (leading_trimmed.len() - digits.len()) as i32;
+                output.push(b'e');
+                output.extend(power.to_string().as_bytes());
+            }
+        }
+        _ => output.extend(serde_json::to_vec(value).expect("JSON value serializes")),
+    }
 }
 
 pub fn reviewed_tools() -> Vec<Tool> {
@@ -94,7 +156,7 @@ impl SecurityAnalyzer for OpenAiCompatible {
         let content = response["choices"][0]["message"]["content"]
             .as_str()
             .context("missing analyzer response")?;
-        let mut analysis: Value = serde_json::from_str(content).context("invalid analyzer JSON")?;
+        let analysis: Value = serde_json::from_str(content).context("invalid analyzer JSON")?;
         if !matches!(
             analysis["verdict"].as_str(),
             Some("clean" | "suspicious" | "malicious")
@@ -102,20 +164,50 @@ impl SecurityAnalyzer for OpenAiCompatible {
         {
             bail!("invalid analyzer verdict");
         }
-        analysis["model_label"] = json!(MODEL_LABEL);
-        Ok(analysis)
+        let finding: String = analysis["rationale"]
+            .as_str()
+            .expect("validated rationale")
+            .chars()
+            .take(300)
+            .collect();
+        Ok(
+            json!({"verdict":analysis["verdict"],"rationale":finding,"finding":finding,"model_label":MODEL_LABEL}),
+        )
     }
 }
 
 #[derive(Clone)]
 pub struct McpConnector {
     pub url: String,
+    client: reqwest::Client,
+    token: String,
 }
 
 impl McpConnector {
+    pub fn new(url: String, token: String) -> Result<Self> {
+        if token.trim().is_empty() {
+            bail!("MCP_GATEWAY_TOKEN must not be empty");
+        }
+        Ok(Self {
+            url,
+            token,
+            client: reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()?,
+        })
+    }
+
+    fn transport(&self) -> StreamableHttpClientTransport<reqwest::Client> {
+        StreamableHttpClientTransport::with_client(
+            self.client.clone(),
+            StreamableHttpClientTransportConfig::with_uri(self.url.clone())
+                .auth_header(self.token.clone()),
+        )
+    }
+
     pub async fn tools(&self) -> Result<Vec<Tool>> {
         tokio::time::timeout(Duration::from_secs(8), async {
-            let transport = StreamableHttpClientTransport::from_uri(self.url.clone());
+            let transport = self.transport();
             let service = ().serve(transport).await?;
             let tools = service.list_all_tools().await?;
             service.cancel().await?;
@@ -127,7 +219,7 @@ impl McpConnector {
 
     pub async fn call(&self, name: &str, arguments: Value, expected_hash: &str) -> Result<Value> {
         tokio::time::timeout(Duration::from_secs(8), async {
-            let transport = StreamableHttpClientTransport::from_uri(self.url.clone());
+            let transport = self.transport();
             let service = ().serve(transport).await?;
             let tools = service.list_all_tools().await?;
             let descriptor = tools
@@ -164,6 +256,21 @@ impl McpConnector {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn action_binding_survives_jsonb_order_and_number_normalization() {
+        let arrival: Value = serde_json::from_str(r#"{"session_id":"s","capability":"payments.transfer","resource":{"type":"payment_account","id":"supplier","tier":"internal"},"parameters":{"amount_cents":4800000,"currency":"EUR","invoice":"I-1","nested":{"z":1.0,"a":[-0.0,1e3,0.001]}}}"#).unwrap();
+        let stored: Value = serde_json::from_str(r#"{"resource":{"id":"supplier","tier":"internal","type":"payment_account"},"parameters":{"nested":{"a":[0,1000,1e-3],"z":1},"invoice":"I-1","currency":"EUR","amount_cents":4800000},"capability":"payments.transfer","session_id":"s"}"#).unwrap();
+        assert_ne!(hash(&arrival), hash(&stored));
+        assert_eq!(action_hash(&arrival), action_hash(&stored));
+        let mut altered = stored;
+        altered["parameters"]["amount_cents"] = json!(4800001);
+        assert_ne!(action_hash(&arrival), action_hash(&altered));
+        assert_ne!(
+            action_hash(&json!(9007199254740992u64)),
+            action_hash(&json!(9007199254740993u64))
+        );
+        assert_ne!(action_hash(&json!([1, 2])), action_hash(&json!([2, 1])));
+    }
     #[test]
     fn connector_urls_reject_credentials_and_unknown_http_hosts() {
         let allowed = vec!["mock-llm".into(), "betsee-mcp".into()];

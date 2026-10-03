@@ -1,7 +1,7 @@
 use crate::{
     MODEL_LABEL,
     auth::Claims,
-    connectors::hash,
+    connectors::action_hash,
     pipeline::{ActionRequest, Gateway, STAGES, agent_ref, append_span, summary, tier, tier_rank},
     store::{find_entity, now, text},
 };
@@ -115,13 +115,13 @@ pub fn incoming_trace(headers: &HeaderMap) -> String {
     }
     if let Some(value) = headers.get("x-request-id").and_then(|v| v.to_str().ok())
         && !value.is_empty()
-            && value.len() <= 128
-            && value
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
-        {
-            return value.into();
-        }
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+    {
+        return value.into();
+    }
     uuid::Uuid::new_v4().simple().to_string()
 }
 async fn correlate(mut request: Request, next: Next) -> Response {
@@ -540,19 +540,49 @@ async fn approvals(
     Extension(claims): Extension<Claims>,
     Extension(id): Extension<Correlation>,
 ) -> ApiResult {
-    let items: Vec<_> = gateway
+    let approvals = gateway
         .store
         .list("approval")
         .await
         .map_err(|e| ApiError::unavailable(e, &id.0))?
         .into_iter()
-        .filter(|approval| claims.role("approver") || can_read(&claims, &approval["action"]))
-        .map(|mut value| {
-            value.as_object_mut().unwrap().remove("request");
-            value
-        })
-        .collect();
+        .filter(|approval| claims.role("approver") || can_read(&claims, &approval["action"]));
+    let mut items = Vec::new();
+    for mut approval in approvals {
+        if approval.get("requested_reasons").is_none()
+            && let Some(reasons) = gateway
+                .store
+                .approval_requested_reasons(text(&approval, "trace_id"))
+                .await
+                .map_err(|e| ApiError::unavailable(e, &id.0))?
+        {
+            approval["requested_reasons"] = reasons;
+        }
+        if approval.get("approver_acr").is_none()
+            && matches!(approval["state"].as_str(), Some("approved" | "rejected"))
+            && let Some(trace) = gateway
+                .store
+                .get("trace", text(&approval, "trace_id"))
+                .await
+                .map_err(|e| ApiError::unavailable(e, &id.0))?
+            && let Some(acr) = recorded_approver_acr(&approval, &trace)
+        {
+            approval["approver_acr"] = json!(acr);
+        }
+        approval.as_object_mut().unwrap().remove("request");
+        items.push(approval);
+    }
     Ok(Json(json!({"items":items})))
+}
+fn recorded_approver_acr<'a>(approval: &Value, trace: &'a Value) -> Option<&'a str> {
+    let approver_sub = approval["approver"]["sub"].as_str()?;
+    trace["spans"].as_array()?.iter().rev().find_map(|span| {
+        (matches!(span["stage"].as_str(), Some("approval" | "step_up"))
+            && matches!(span["status"].as_str(), Some("passed" | "denied"))
+            && span["attributes"]["approver_sub"] == approver_sub)
+            .then(|| span["attributes"]["acr"].as_str())
+            .flatten()
+    })
 }
 async fn approve(
     State(gateway): State<Arc<Gateway>>,
@@ -625,17 +655,19 @@ async fn approve(
             json!({"status":"step_up_required","trace_id":trace_id,"approval_id":approval_id,"acr_values":"2","action":summary(&previous)}),
         ));
     }
-    let request: ActionRequest = serde_json::from_value(approval["request"].clone())
+    let mut request: ActionRequest = serde_json::from_value(approval["request"].clone())
         .map_err(|_| ApiError::new(StatusCode::CONFLICT, "Invalid stored action", &id.0))?;
-    if hash(&serde_json::to_value(&request).unwrap()) != approval["action_hash"] {
+    if action_hash(&serde_json::to_value(&request).unwrap()) != approval["action_hash"] {
         return Err(ApiError::new(
             StatusCode::CONFLICT,
             "Stored action hash mismatch",
             &id.0,
         ));
     }
+    request.mediated = approval["origin"] == "agent_message";
     approval["state"] = json!("executing");
     approval["approver"] = json!({"sub":claims.sub,"display_name":human.0["display_name"]});
+    approval["approver_acr"] = json!(claims.acr);
     approval["decided_at"] = json!(now());
     gateway
         .store
@@ -645,6 +677,16 @@ async fn approve(
     let mut agent_claims = claims.clone();
     agent_claims.azp = text(&previous["agent"], "id").to_owned();
     agent_claims.agent_id = Some(agent_claims.azp.clone());
+    agent_claims.sub = previous["spans"]
+        .as_array()
+        .and_then(|spans| spans.iter().find(|span| span["stage"] == "authenticate"))
+        .and_then(|span| span["attributes"]["sub"].as_str())
+        .unwrap_or("bound-agent")
+        .to_owned();
+    agent_claims.realm_access = json!({"roles":[]});
+    agent_claims.acr.clear();
+    agent_claims.auth_time = None;
+    agent_claims.authentication_timing = None;
     let mut result = gateway
         .decide_action(
             &agent_claims,
@@ -722,6 +764,7 @@ async fn reject(
     approval["state"] = json!("rejected");
     approval["decided_at"] = json!(now());
     approval["approver"] = json!({"sub":claims.sub,"display_name":human.0["display_name"]});
+    approval["approver_acr"] = json!(claims.acr);
     trace["decision"] = json!("deny");
     trace["approval_state"] = json!("rejected");
     trace["reasons"]
@@ -805,7 +848,7 @@ async fn release_agent(
         .map_err(|e| ApiError::unavailable(e, &id.0))?;
     gateway
         .security(
-            "agent_quarantined",
+            "agent_released",
             "info",
             &id.0,
             "Agent released by authorized human",
@@ -887,6 +930,7 @@ async fn attach_control(
         .entities()
         .await
         .map_err(|e| ApiError::unavailable(e, &id.0))?;
+    let mut previous_attributes = Value::Null;
     if control["mode"] == "template" {
         let kind = match body.target_type.as_str() {
             "team" => "Team",
@@ -936,6 +980,7 @@ async fn attach_control(
         let mut entity = find_entity(&entities, kind, &body.target_id)
             .cloned()
             .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "Unknown target", &id.0))?;
+        previous_attributes = entity["attrs"].clone();
         let params = body.parameters.as_object().ok_or_else(|| {
             ApiError::new(StatusCode::BAD_REQUEST, "Object parameters required", &id.0)
         })?;
@@ -1021,11 +1066,11 @@ async fn attach_control(
         .map_err(|e| ApiError::unavailable(e, &id.0))?;
     gateway
         .security(
-            "agent_quarantined",
+            "control_attachment_changed",
             "info",
             &id.0,
             "Control attachment changed by authorized human",
-            json!({"attachment":attachment,"human_sub":claims.sub}),
+            json!({"attachment":attachment,"human_sub":claims.sub,"previous_attributes":previous_attributes}),
         )
         .await
         .map_err(|e| ApiError::unavailable(e, &id.0))?;
@@ -1083,6 +1128,7 @@ async fn send_message(
 ) -> ApiResult {
     let _gate = gateway.action_gate.lock().await;
     let request = ActionRequest {
+        mediated: true,
         session_id: body.session_id.clone(),
         capability: "agent.message".into(),
         resource: crate::pipeline::Resource {
@@ -1201,13 +1247,6 @@ async fn overview(
     Extension(claims): Extension<Claims>,
     Extension(id): Extension<Correlation>,
 ) -> ApiResult {
-    if !privileged(&claims) {
-        return Err(ApiError::new(
-            StatusCode::FORBIDDEN,
-            "Security role required",
-            &id.0,
-        ));
-    }
     let entities = gateway
         .store
         .entities()
@@ -1228,6 +1267,7 @@ async fn overview(
         .into_iter()
         .filter(|trace| {
             can_read(&claims, trace)
+                && trace["record_type"].is_null()
                 && text(trace, "occurred_at")
                     .parse::<DateTime<Utc>>()
                     .is_ok_and(|time| time > cutoff)
@@ -1335,6 +1375,18 @@ async fn events(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn historical_approval_acr_requires_resolved_matching_approver_evidence() {
+        let approval = json!({"approver":{"sub":"daniel"},"requires_step_up":true});
+        let mut trace = json!({"spans":[
+            {"stage":"step_up","status":"pending","attributes":{"approver_sub":"daniel","acr":"2"}},
+            {"stage":"approval","status":"passed","attributes":{"approver_sub":"other-human","acr":"2"}}
+        ]});
+        assert_eq!(recorded_approver_acr(&approval, &trace), None);
+        trace["spans"].as_array_mut().unwrap().push(json!({"stage":"approval","status":"passed","attributes":{"approver_sub":"daniel","acr":"2"}}));
+        assert_eq!(recorded_approver_acr(&approval, &trace), Some("2"));
+        assert_eq!(recorded_approver_acr(&json!({}), &trace), None);
+    }
     #[test]
     fn correlation_accepts_valid_w3c_and_rejects_invalid_ids() {
         let mut headers = HeaderMap::new();

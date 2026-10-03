@@ -15,6 +15,7 @@
     "test:ecosystem": "playwright test --config playwright.ecosystem.config.ts",
     "check:icons": "node packages/ui/generate-icons.mjs --check",
     "check:tokens": "python3 ../docs/design/build-tokens.py --check",
+    "check:policies": "node packages/api/generate-ecosystem-fixtures.mjs --check",
     "format:check": "prettier --check '**/*.{json,md,yaml,yml}' --ignore-path .prettierignore"
   },
   "devDependencies": {

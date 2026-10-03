@@ -124,11 +124,12 @@ Source: `~/Desktop/model_choices.md`.
 | security-architect | Claude Opus 5.5          | high   | OWASP interpretation, threat model, policy design       |
 | product-designer   | Claude Opus 5.5          | high   | visual direction, UX architecture, UI verification      |
 | frontend-director  | Claude Opus 5.5          | high   | flagship visual surface; cross-reviewed by Codex        |
-| backend-gateway    | Codex GPT-6.1 Sol        | high   | Rust, PostgreSQL, API implementation                    |
-| identity-infra     | Codex GPT-6.1 Sol        | high   | Docker, Keycloak, scripts                               |
-| frontend-ecosystem | Codex GPT-6.1 Sol        | high   | frontend implementation                                 |
-| security-tester    | Codex GPT-6.1 Sol        | high   | automated tests, end-to-end verification                |
+| backend-gateway    | Claude Opus 5.5 (from 19:15, D19)        | high   | Rust, PostgreSQL, API implementation                    |
+| identity-infra     | Claude Opus 5.5 (from 19:15, D19)        | high   | Docker, Keycloak, scripts                               |
+| frontend-ecosystem | Claude Opus 5.5 (from 19:15, D19)        | high   | frontend implementation                                 |
+| security-tester    | Claude Opus 5.5 (from 19:15, D19)        | high   | automated tests, end-to-end verification                |
 
+From 19:15 (D19) the four Codex roles run on Claude Opus 5.5 because the Codex workspace hit its usage limit; model_choices.md allows this when a family is unavailable.
 Claude sessions think, specify and review rather than own long implementation loops. Never give
 Claude and Codex the same implementation task; use the other model as reviewer. Claude sessions
 convert `.webp` to `.png` before reading (`magick in.webp out.png`, in your scratch directory).

@@ -458,15 +458,18 @@ export interface components {
             verdict: "clean" | "suspicious" | "malicious" | "unavailable" | "skipped";
             rationale: string;
             model_label: string;
+            /** @description Mock analyzer finding, always displayed together with model_label. */
+            finding?: string;
         };
         ActionSummary: {
             trace_id: string;
             /** Format: date-time */
             occurred_at: string;
             agent: components["schemas"]["AgentRef"];
-            session_id: string;
-            human: components["schemas"]["Human"];
-            use_case: components["schemas"]["UseCaseRef"];
+            /** @description Omitted, together with human and use_case, on an unknown or foreign session denial (D9). */
+            session_id?: string;
+            human?: components["schemas"]["Human"];
+            use_case?: components["schemas"]["UseCaseRef"];
             capability: string;
             resource: components["schemas"]["Resource"];
             tool: components["schemas"]["ToolRef"] | null;
@@ -476,7 +479,7 @@ export interface components {
             ai_tightened: boolean;
             control_ids: string[];
             policy_ids: string[];
-            reasons: string[];
+            reasons: (components["schemas"]["DecisionReason"] | string)[];
             approval_state: components["schemas"]["ApprovalState"];
             latency_ms: number;
             executed: boolean;
@@ -486,6 +489,7 @@ export interface components {
             obligations: string[];
             step_up_required: boolean;
             caller_trace_id: string | null;
+            analysis?: components["schemas"]["Analyzer"];
         };
         Span: {
             span_id: string;
@@ -496,22 +500,29 @@ export interface components {
             status: "passed" | "denied" | "tightened" | "pending" | "skipped";
             /** Format: date-time */
             started_at: string;
-            duration_ms: number;
+            /** @description Measured boundary duration; null for status derived from another measured stage. */
+            duration_ms: number | null;
             control_ids: string[];
             policy_ids: string[];
             reason: string;
             attributes: {
                 [key: string]: unknown;
             };
+            /**
+             * @description Cedar-derived identity, capability and information_tier statuses refer to cedar_authz.
+             * @enum {string|null}
+             */
+            parent_stage?: "authenticate" | "resolve_context" | "identity" | "capability" | "cedar_authz" | "information_tier" | "command_validation" | "budget" | "ai_analysis" | "decision" | "approval" | "step_up" | "connector" | "output_controls" | "audit" | null;
         };
         Trace: {
             trace_id: string;
             /** Format: date-time */
             occurred_at: string;
             agent: components["schemas"]["AgentRef"];
-            session_id: string;
-            human: components["schemas"]["Human"];
-            use_case: components["schemas"]["UseCaseRef"];
+            /** @description Omitted, together with human and use_case, on an unknown or foreign session denial (D9). */
+            session_id?: string;
+            human?: components["schemas"]["Human"];
+            use_case?: components["schemas"]["UseCaseRef"];
             capability: string;
             resource: components["schemas"]["Resource"];
             tool: components["schemas"]["ToolRef"] | null;
@@ -521,7 +532,7 @@ export interface components {
             ai_tightened: boolean;
             control_ids: string[];
             policy_ids: string[];
-            reasons: string[];
+            reasons: (components["schemas"]["DecisionReason"] | string)[];
             approval_state: components["schemas"]["ApprovalState"];
             latency_ms: number;
             executed: boolean;
@@ -535,6 +546,7 @@ export interface components {
             execution_context: {
                 [key: string]: unknown;
             };
+            analysis?: components["schemas"]["Analyzer"];
         };
         AgentSession: {
             id: string;
@@ -769,6 +781,11 @@ export interface components {
             data: {
                 [key: string]: unknown;
             };
+        };
+        DecisionReason: {
+            policy_id: string;
+            control_id: string;
+            text: string;
         };
     };
     responses: never;
@@ -2702,7 +2719,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Durable ordered SSE; see contracts/events.md. Native browser EventSource uses same-origin human session cookie. */
+            /** @description Durable ordered SSE; see contracts/events.md. Fetch-based SSE uses Authorization Bearer. */
             200: {
                 headers: {
                     [name: string]: unknown;

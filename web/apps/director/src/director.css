@@ -120,12 +120,36 @@ body {
   }
 }
 
+/* Contract 11: skeletons appear after 150 ms (no flash on fast loads), then shimmer at 1.6 s. */
+.dir-skeleton {
+  background: var(--bs-color-surface-2);
+  opacity: 0;
+  animation:
+    dir-appear 1ms linear 150ms forwards,
+    dir-shimmer 1.6s ease-in-out 150ms infinite;
+}
+
+@keyframes dir-appear {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dir-shimmer {
+  50% {
+    background: var(--bs-color-surface-3);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dir-ring-pending,
   .dir-quarantine-ring,
   .dir-act-glow,
   .dir-edge-flow {
     animation: none;
+  }
+  .dir-skeleton {
+    animation: dir-appear 1ms linear 150ms forwards;
   }
   .dir-row-resolved {
     animation-duration: 120ms;

@@ -148,6 +148,9 @@ export function openEventStream(options: EventStreamOptions): EventStreamHandle 
   let closed = false;
   let status: StreamStatus | undefined;
   let controller: AbortController | undefined;
+  // Cancelled directly on close(): a fetch implementation that ignores its abort signal must not
+  // keep the read (and its drop timer) alive.
+  let activeReader: ReadableStreamDefaultReader<string> | undefined;
   let generation = 0;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -215,6 +218,7 @@ export function openEventStream(options: EventStreamOptions): EventStreamHandle 
         lastEventId,
       );
       const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+      activeReader = reader;
       for (;;) {
         const { value, done } = await reader.read();
         if (replaced()) {
@@ -256,6 +260,7 @@ export function openEventStream(options: EventStreamOptions): EventStreamHandle 
       closed = true;
       clearTimeout(reconnectTimer);
       controller?.abort();
+      void activeReader?.cancel().catch(() => {});
     },
     retry() {
       if (closed) return;

@@ -27,6 +27,8 @@ pub struct Claims {
     pub auth_time: Option<i64>,
     #[serde(default)]
     pub realm_access: Value,
+    #[serde(skip)]
+    pub authentication_timing: Option<(String, f64)>,
 }
 
 impl Claims {
@@ -86,6 +88,8 @@ impl Auth {
     }
 
     pub async fn verify(&self, headers: &HeaderMap) -> Result<Claims> {
+        let started_at = Utc::now().to_rfc3339();
+        let started = Instant::now();
         let bearer = headers
             .get("authorization")
             .and_then(|h| h.to_str().ok())
@@ -119,7 +123,7 @@ impl Auth {
         validation.leeway = 0;
         validation.validate_nbf = true;
         validation.set_required_spec_claims(&["exp", "iss", "aud", "sub", "iat"]);
-        let claims = decode::<Claims>(token, &key, &validation)?.claims;
+        let mut claims = decode::<Claims>(token, &key, &validation)?.claims;
         if claims.iat > Utc::now().timestamp() + 5 {
             bail!("issued in future");
         }
@@ -128,6 +132,7 @@ impl Auth {
         {
             bail!("invalid agent claims");
         }
+        claims.authentication_timing = Some((started_at, started.elapsed().as_secs_f64() * 1000.0));
         Ok(claims)
     }
 

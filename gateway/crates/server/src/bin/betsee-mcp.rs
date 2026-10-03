@@ -1,7 +1,9 @@
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Request, State},
     http::{HeaderMap, StatusCode},
+    middleware::{Next, from_fn_with_state},
+    response::Response,
     routing::{get, post},
 };
 use betsee_server::{
@@ -17,6 +19,7 @@ use rmcp::{
     },
 };
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 
@@ -95,6 +98,7 @@ impl ServerHandler for Enterprise {
                     && args["parameters"]["amount_cents"]
                         .as_i64()
                         .is_some_and(|amount| amount > 0)
+                    && args["parameters"]["currency"] == "EUR"
             }
             "email" => {
                 capability == "email.send"
@@ -127,7 +131,7 @@ impl ServerHandler for Enterprise {
                 json!({"resource_id":id,"tier":"public","content":"Acme market outlook 2026","origin":"enterprise"})
             }
             "payments.transfer" => {
-                json!({"resource_id":id,"tier":"internal","receipt_id":uuid::Uuid::new_v4().to_string(),"amount_cents":args["parameters"]["amount_cents"],"currency":"EUR","status":"executed","sandbox":true})
+                json!({"resource_id":id,"tier":"internal","receipt_id":uuid::Uuid::new_v4().to_string(),"amount_cents":args["parameters"]["amount_cents"],"currency":args["parameters"]["currency"],"status":"executed","sandbox":true})
             }
             "email.send" => {
                 json!({"resource_id":id,"tier":"internal","outbox_id":uuid::Uuid::new_v4().to_string(),"status":"queued","sandbox":true})
@@ -161,9 +165,7 @@ async fn descriptor(
     Path((tool, mode)): Path<(String, String)>,
     headers: HeaderMap,
 ) -> Result<Json<Value>, StatusCode> {
-    if headers.get("authorization").and_then(|h| h.to_str().ok())
-        != Some(format!("Bearer {}", server.admin_token).as_str())
-    {
+    if !authorized(&headers, &server.admin_token) {
         return Err(StatusCode::UNAUTHORIZED);
     }
     if tool != "payments" || !matches!(mode.as_str(), "drift" | "restore") {
@@ -191,12 +193,41 @@ async fn descriptor(
     ))
 }
 
+fn authorized(headers: &HeaderMap, token: &str) -> bool {
+    let supplied = headers
+        .get("authorization")
+        .map_or(&[][..], |value| value.as_bytes());
+    let expected = Sha256::digest(format!("Bearer {token}").as_bytes());
+    let supplied = Sha256::digest(supplied);
+    expected
+        .iter()
+        .zip(supplied.iter())
+        .fold(0u8, |difference, (left, right)| difference | (left ^ right))
+        == 0
+}
+
+async fn gateway_auth(
+    State(token): State<Arc<String>>,
+    request: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    if !authorized(request.headers(), &token) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    Ok(next.run(request).await)
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let admin_token = std::env::var("MCP_ADMIN_TOKEN")?;
+    let gateway_token = std::env::var("MCP_GATEWAY_TOKEN")?;
     anyhow::ensure!(
         !admin_token.trim().is_empty(),
         "MCP_ADMIN_TOKEN must not be empty"
+    );
+    anyhow::ensure!(
+        !gateway_token.trim().is_empty() && gateway_token != admin_token,
+        "MCP_GATEWAY_TOKEN must be non-empty and distinct from MCP_ADMIN_TOKEN"
     );
     let server = Enterprise {
         tools: Arc::new(RwLock::new(reviewed_tools())),
@@ -213,6 +244,7 @@ async fn main() -> anyhow::Result<()> {
     );
     let app = Router::new()
         .nest_service("/mcp", mcp)
+        .route_layer(from_fn_with_state(Arc::new(gateway_token), gateway_auth))
         .route(
             "/healthz",
             get(|| async { Json(json!({"status":"ok","protocol":"MCP"})) }),
@@ -222,4 +254,61 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8081").await?;
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn mcp_auth_covers_every_http_method_and_rejects_admin_credential() {
+        let app = Router::new()
+            .route(
+                "/mcp",
+                axum::routing::any(|| async { StatusCode::NO_CONTENT }),
+            )
+            .route_layer(from_fn_with_state(
+                Arc::new("gateway-test".to_owned()),
+                gateway_auth,
+            ))
+            .route("/healthz", get(|| async { StatusCode::OK }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let client = reqwest::Client::new();
+        for method in [
+            reqwest::Method::GET,
+            reqwest::Method::POST,
+            reqwest::Method::DELETE,
+        ] {
+            for credential in [
+                None,
+                Some("Bearer admin-test"),
+                Some("Bearer wrong"),
+                Some("gateway-test"),
+                Some("Bearer gateway-test"),
+            ] {
+                let mut request = client.request(method.clone(), format!("http://{address}/mcp"));
+                if let Some(credential) = credential {
+                    request = request.header("authorization", credential);
+                }
+                let expected = if credential == Some("Bearer gateway-test") {
+                    StatusCode::NO_CONTENT
+                } else {
+                    StatusCode::UNAUTHORIZED
+                };
+                assert_eq!(request.send().await.unwrap().status(), expected);
+            }
+        }
+        assert_eq!(
+            client
+                .get(format!("http://{address}/healthz"))
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK
+        );
+        task.abort();
+    }
 }

@@ -186,7 +186,8 @@ export const SCENARIOS: ScenarioScript[] = [
         plan: {
           agentId: 'invoice-assistant',
           capability: 'payments.transfer',
-          resource: { type: 'payment', id: 'PAY-2026-0412', tier: 'confidential' },
+          // Same shape as the live Gateway's approval (p-362 d): payee in resource.id, bound amount in cents.
+          resource: { type: 'payment_account', id: 'payments/nordfreight-supplier', tier: 'internal' },
           tool: TOOLS.payments,
           outcome: {
             kind: 'approval',
@@ -196,10 +197,10 @@ export const SCENARIOS: ScenarioScript[] = [
             resolution: 'approved',
             resolveAfterMs: 12_000,
             parameters: {
-              amount: '48,000.00 EUR',
-              beneficiary: 'Nordwind Freight GmbH',
-              iban: 'DE89 3704 0044 0532 0130 00',
-              reference: 'INV-2026-1187',
+              amount_cents: 4_800_000,
+              currency: 'EUR',
+              invoice: 'INV-2026-1187',
+              memo: 'October freight, Nordwind Freight GmbH. Urgent: pay today to avoid a late fee.',
             },
           },
         },

@@ -1,7 +1,9 @@
 // Reference checker for the Betsee Cedar policies (test oracle, not the Gateway).
 // 1. Validates policies/schema.cedarschema + policies/*.cedar in strict mode, re-keyed by @id.
 // 2. Enforces the analyzer invariant: no permit policy reads context.analysis.
-// 3. Runs policies/tests/acme-cases.json through the composition in
+// 3. Lints @reason (decision D12): every policy and template has one, using only Gateway-fact
+//    placeholders from REASON_FACTS.
+// 4. Runs policies/tests/acme-cases.json through the composition in
 //    docs/security/adr-0001-policy-engine-cedar.md ("Gateway contract for F09", step 4).
 use cedar_policy::*;
 use std::str::FromStr;
@@ -85,6 +87,18 @@ fn main() {
     for p in pset.policies() {
         if p.effect() == Effect::Permit && p.to_string().contains("analysis") {
             eprintln!("INVARIANT: permit policy {} references the analyzer", p.id()); std::process::exit(1)
+        }
+    }
+    // D12: the sentence the presenter reads. Placeholders are Gateway facts only.
+    const REASON_FACTS: [&str; 10] = ["resource.tier", "session.tierCeiling", "session.taint", "recipient.tier",
+        "capability", "useCase", "amount", "threshold", "tool", "receiver"];
+    let annotated = pset.policies().map(|p| (p.id().to_string(), p.annotation("reason").map(str::to_owned)))
+        .chain(pset.templates().map(|t| (t.id().to_string(), t.annotation("reason").map(str::to_owned))));
+    for (id, reason) in annotated {
+        let Some(reason) = reason else { eprintln!("REASON: {id} has no @reason"); std::process::exit(1) };
+        for part in reason.split('{').skip(1) {
+            let fact = part.split('}').next().unwrap_or("");
+            if !REASON_FACTS.contains(&fact) { eprintln!("REASON: {id} uses unknown placeholder {{{fact}}}"); std::process::exit(1) }
         }
     }
     if args.len() < 4 { return }

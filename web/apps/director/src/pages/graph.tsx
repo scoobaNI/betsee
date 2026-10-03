@@ -2,7 +2,8 @@ import { toolKey, useAgentMessages, useAgents, useConnectors, useToolDrift, useT
 import { Icon } from '@betsee/ui';
 import { useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { ErrorCard, Skeleton } from '../components/states.tsx';
+import { EmptyState, ErrorCard, Skeleton } from '../components/states.tsx';
+import { callerOf, type Caller, type CallerKind } from '../domain/caller.ts';
 import { outcomeTone } from '../domain/decision.ts';
 import { edgeStyle, stoppedByBreaker, type EdgeLatest } from '../domain/graph-style.ts';
 import { groupByTeam, teamName } from '../domain/feed.ts';
@@ -10,23 +11,25 @@ import { initials } from '../domain/format.ts';
 
 const W = 208;
 const H = 56;
-const GAP = 16;
-const TEAM_GAP = 28;
+const GAP = 10;
+const TEAM_GAP = 24;
 const COLUMN_X = [0, 320, 636];
 // Agent-to-agent labels sit in the gutter between the humans and agents columns (contract GraphCanvas).
 const GUTTER_X = (COLUMN_X[0]! + W + COLUMN_X[1]!) / 2;
 const SUB_WIDTH = W - 24 - 32 - 12; // node padding, mark, gap
 const SUB_LINE = 14;
-const TOP = 36;
-const WINDOW_MS = 15 * 60_000;
+const TOP = 28;
+// The live stack has no background traffic; an hour keeps the acts on the graph through a rehearsal.
+const WINDOW_MS = 60 * 60_000;
 
-type NodeKind = 'human' | 'agent' | 'tool' | 'connector';
+type NodeKind = 'human' | 'caller' | 'agent' | 'tool' | 'connector';
 
 interface GraphNode {
   id: string;
   /** Grows when a state message wraps; names truncate, state messages never do. */
   h: number;
   stateMessage: boolean;
+  callerKind?: CallerKind;
   kind: NodeKind;
   label: string;
   sub: string;
@@ -102,13 +105,30 @@ function useGraph() {
       }
     }
 
-    // Humans from sessions and traces, left column.
-    const humans = new Map<string, string>();
-    for (const agent of agents.data ?? []) if (agent.current_session) humans.set(agent.current_session.human.sub, agent.current_session.human.display_name);
-    for (const t of recent) humans.set(t.human.sub, t.human.display_name);
+    // Humans from sessions and traces, left column; non-human callers (unauthenticated requests,
+    // the Gateway's own observer) go below them under OTHER CALLERS (p-420), never as humans.
+    const callers = new Map<string, Caller>();
+    for (const agent of agents.data ?? []) {
+      if (agent.current_session) {
+        const caller = callerOf(agent.current_session.human);
+        callers.set(caller.id, caller);
+      }
+    }
+    for (const t of recent) {
+      const caller = callerOf(t.human);
+      callers.set(caller.id, caller);
+    }
     y = TOP + TEAM_GAP;
-    for (const [sub, name] of [...humans].sort((a, b) => a[1].localeCompare(b[1]))) {
-      nodes.set(`human:${sub}`, { id: `human:${sub}`, kind: 'human', label: name, sub: 'Human', x: COLUMN_X[0]!, y, h: H, stateMessage: false });
+    const byName = (a: Caller, b: Caller) => a.name.localeCompare(b.name);
+    const people = [...callers.values()].filter((c) => c.kind === 'human').sort(byName);
+    const others = [...callers.values()].filter((c) => c.kind !== 'human').sort(byName);
+    for (const c of people) {
+      nodes.set(`human:${c.id}`, { id: `human:${c.id}`, kind: 'human', label: c.name, sub: 'Human', x: COLUMN_X[0]!, y, h: H, stateMessage: false });
+      y += H + GAP;
+    }
+    if (others.length) y += TEAM_GAP;
+    for (const c of others) {
+      nodes.set(`human:${c.id}`, { id: `human:${c.id}`, kind: 'caller', callerKind: c.kind, label: c.name, sub: c.id, x: COLUMN_X[0]!, y, h: H, stateMessage: false });
       y += H + GAP;
     }
 
@@ -125,7 +145,12 @@ function useGraph() {
         tools.set(`tool:${tool.name}`, { kind: 'tool', label: tool.name, sub: tool.pinned_hash ? `pinned ${tool.pinned_hash.slice(0, 14)}` : 'MCP tool', blocked });
       }
     }
-    const targetOf = (tool: { name: string; connector: string }) => (tool.connector === 'mcp' ? `tool:${tool.name}` : `connector:${tool.connector}`);
+    // Live MCP traffic arrives on the mcp-demo connector: an action lands on its tool node.
+    const mcpConnectors = new Set(
+      (connectors.data ?? []).filter((c) => (c as { kind?: string }).kind === 'mcp').map((c) => c.id),
+    );
+    const isMcp = (connector: string) => mcpConnectors.has(connector) || connector.startsWith('mcp');
+    const targetOf = (tool: { name: string; connector: string }) => (isMcp(tool.connector) ? `tool:${tool.name}` : `connector:${tool.connector}`);
     for (const t of recent) {
       if (!t.tool) continue;
       const key = targetOf(t.tool);
@@ -167,10 +192,14 @@ function useGraph() {
     });
 
     for (const agent of agents.data ?? []) {
-      if (agent.current_session) bump(`s:${agent.current_session.human.sub}:${agent.id}`, `human:${agent.current_session.human.sub}`, `agent:${agent.id}`, 'session', undefined);
+      if (agent.current_session) {
+        const caller = callerOf(agent.current_session.human).id;
+        bump(`s:${caller}:${agent.id}`, `human:${caller}`, `agent:${agent.id}`, 'session', undefined);
+      }
     }
     for (const t of recent) {
-      bump(`s:${t.human.sub}:${t.agent.id}`, `human:${t.human.sub}`, `agent:${t.agent.id}`, 'session', latestOf(t));
+      const caller = callerOf(t.human).id;
+      bump(`s:${caller}:${t.agent.id}`, `human:${caller}`, `agent:${t.agent.id}`, 'session', latestOf(t));
       if (t.tool && t.capability !== 'agent.message') bump(`a:${t.agent.id}:${targetOf(t.tool)}`, `agent:${t.agent.id}`, targetOf(t.tool), 'action', latestOf(t));
     }
     for (const m of messages.data ?? []) {
@@ -198,9 +227,13 @@ function useGraph() {
 
 function NodeCard({ node, onClick }: { node: GraphNode; onClick?: () => void }) {
   const quarantined = node.state === 'quarantined';
-  const border = node.blocked ? 'border-deny-fg' : quarantined ? 'border-quarantined-border dir-quarantined' : node.state === 'suspended' ? 'border-suspended-border dir-suspended' : 'border-line-default';
+  const border = node.kind === 'caller' ? 'border-dashed border-line-strong' : node.blocked ? 'border-deny-fg' : quarantined ? 'border-quarantined-border dir-quarantined' : node.state === 'suspended' ? 'border-suspended-border dir-suspended' : 'border-line-default';
   const mark =
-    node.kind === 'human' ? (
+    node.kind === 'caller' ? (
+      <span className={`flex h-8 w-8 items-center justify-center rounded-sm bg-surface-3 ${node.callerKind === 'gateway' ? 'text-accent-text' : 'text-fg-secondary'}`}>
+        <Icon name={node.callerKind === 'gateway' ? 'streamline-flex:shield-2' : 'streamline-flex:shield-cross'} size={16} />
+      </span>
+    ) : node.kind === 'human' ? (
       <span className="flex h-8 w-8 items-center justify-center rounded-pill bg-surface-3 text-xs font-semibold text-fg-secondary">{initials(node.label)}</span>
     ) : (
       <span className={`flex h-8 w-8 items-center justify-center rounded-sm bg-surface-3 ${node.blocked ? 'text-deny-fg' : quarantined ? 'text-quarantined-fg' : node.kind === 'agent' ? 'text-accent-text' : 'text-fg-secondary'}`}>
@@ -221,7 +254,7 @@ function NodeCard({ node, onClick }: { node: GraphNode; onClick?: () => void }) 
       {mark}
       <span className="min-w-0">
         <span title={node.label} className={`block truncate text-sm ${node.kind === 'human' ? '' : 'font-mono font-medium'}`}>{node.label}</span>
-        <span title={node.stateMessage ? undefined : node.sub} className={`block text-2xs ${node.stateMessage ? 'whitespace-normal' : 'truncate'} ${node.blocked ? 'text-deny-fg' : quarantined ? 'text-quarantined-fg' : node.kind === 'tool' ? 'font-mono text-fg-tertiary' : 'text-fg-secondary'}`}>{node.sub}</span>
+        <span title={node.stateMessage ? undefined : node.sub} className={`block text-2xs ${node.kind === 'caller' ? 'font-mono' : ''} ${node.stateMessage ? 'whitespace-normal' : 'truncate'} ${node.blocked ? 'text-deny-fg' : quarantined ? 'text-quarantined-fg' : node.kind === 'tool' ? 'font-mono text-fg-tertiary' : 'text-fg-secondary'}`}>{node.sub}</span>
       </span>
       <span aria-hidden="true" className="absolute -left-0.75 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-pill border border-line-strong bg-surface-3" />
       <span aria-hidden="true" className="absolute -right-0.75 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-pill border border-line-strong bg-surface-3" />
@@ -246,6 +279,13 @@ export function GraphPage() {
 
   if (graph.loading) return <Skeleton className="h-[640px]" />;
   if (graph.error) return <ErrorCard title="Could not load the graph" error={graph.error} />;
+  if (graph.edges.every((e) => !e.latest)) {
+    return (
+      <div className="rounded-xl border border-line-subtle bg-surface-1">
+        <EmptyState icon="streamline-flex:hierarchy-2" title="No agent has acted in the last hour" body="Launch Act 1 from the scenario dock, or start an agent." />
+      </div>
+    );
+  }
 
   const width = COLUMN_X[2]! + W + 8;
   return (
@@ -253,7 +293,7 @@ export function GraphPage() {
       <header className="flex flex-wrap items-end gap-4">
         <div>
           <h1 className="font-display text-3xl font-semibold tracking-[var(--bs-font-tracking-display)]">Agent graph</h1>
-          <p className="mt-1 text-sm text-fg-secondary">Who launched which agent, what each agent touched, and which agents talked, over the last 15 minutes.</p>
+          <p className="mt-1 text-sm text-fg-secondary">Who launched which agent, what each agent touched, and which agents talked, over the last hour.</p>
         </div>
         <ul className="ml-auto flex flex-wrap gap-4 text-xs text-fg-secondary">
           {LEGEND.map((item) => (
@@ -268,6 +308,14 @@ export function GraphPage() {
       </header>
       <div className="overflow-x-auto rounded-xl border border-line-subtle p-4">
         <div className="relative mx-auto" style={{ width, height: graph.height }}>
+          {(() => {
+            const first = [...graph.nodes.values()].find((n) => n.kind === 'caller');
+            return first ? (
+              <p style={{ left: COLUMN_X[0], top: first.y - 20 }} className="absolute text-2xs font-semibold uppercase tracking-[var(--bs-font-tracking-caps)] text-fg-tertiary">
+                Other callers
+              </p>
+            ) : null;
+          })()}
           {['Humans', 'Agents', 'Tools and connectors'].map((title, i) => (
             <p key={title} style={{ left: COLUMN_X[i], top: 0, width: W }} className="absolute text-2xs font-semibold uppercase tracking-[var(--bs-font-tracking-caps)] text-fg-tertiary">
               {title}
@@ -304,7 +352,7 @@ export function GraphPage() {
                       className="pointer-events-auto cursor-pointer"
                       onClick={() => navigate(`/traces/${encodeURIComponent(edge.latest!.trace_id)}`)}
                     >
-                      <title>{`${a.label} to ${b.label}: ${edge.count} in 15 min. Open the latest trace.`}</title>
+                      <title>{`${a.label} to ${b.label}: ${edge.count} in the last hour. Open the latest trace.`}</title>
                     </path>
                   )}
                 </g>

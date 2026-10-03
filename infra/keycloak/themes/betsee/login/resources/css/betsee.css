@@ -1,0 +1,231 @@
+@import url("tokens.css");
+
+@font-face {
+  font-family: Inter;
+  src: url("../fonts/inter-latin-wght-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Urbanist;
+  src: url("../fonts/urbanist-latin-wght-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  --pf-v5-global--FontFamily--text: Inter, sans-serif;
+  --pf-v5-global--FontFamily--heading: Urbanist, sans-serif;
+  --pf-v5-global--Color--100: var(--bs-color-text-primary);
+  --pf-v5-global--Color--200: var(--bs-color-text-secondary);
+  --pf-v5-global--BackgroundColor--100: var(--bs-color-surface-1);
+  --pf-v5-global--primary-color--100: var(--bs-color-accent-default);
+  --pf-v5-global--primary-color--200: var(--bs-color-accent-hover);
+}
+
+html.login-pf,
+.login-pf body {
+  min-height: 100%;
+  color: var(--bs-color-text-primary);
+  background: var(--bs-color-bg-app);
+  font-family: Inter, sans-serif;
+  font-size: 14px;
+}
+
+.login-pf body {
+  background-image: radial-gradient(
+    var(--bs-color-bg-canvas-dot) 1px,
+    transparent 1px
+  );
+  background-size: 20px 20px;
+}
+
+.pf-v5-c-login {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  min-height: 100vh;
+  padding: 24px;
+  background: none;
+}
+
+.pf-v5-c-login__container {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  width: 400px;
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
+  background: var(--bs-color-surface-1);
+  border-radius: var(--bs-radius-xl);
+  box-shadow: var(--bs-shadow-e3);
+  overflow: hidden;
+}
+
+.pf-v5-c-login__header {
+  padding: 32px 32px 0;
+  margin: 0;
+}
+
+#kc-header-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding-left: 44px;
+  color: var(--bs-color-accent-text) !important;
+  font-family: Urbanist, sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+}
+
+#kc-header-wrapper::before {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--bs-radius-sm);
+  background: var(--bs-color-surface-3);
+  content: "";
+}
+
+#kc-header-wrapper::after {
+  position: absolute;
+  inset: 8px auto auto 8px;
+  width: 16px;
+  height: 16px;
+  background: var(--bs-color-accent-text);
+  mask: url("../img/shield.svg") center / contain no-repeat;
+  content: "";
+}
+
+.pf-v5-c-login__main {
+  background: transparent;
+  color: var(--bs-color-text-primary);
+  box-shadow: none;
+}
+
+.pf-v5-c-login__main-header {
+  display: block;
+  padding: 24px 32px;
+  border-top: 0;
+}
+
+#kc-page-title {
+  font-family: Urbanist, sans-serif;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.pf-v5-c-login__main-body,
+.pf-v5-c-login__main-footer {
+  padding: 0 32px 32px;
+}
+
+.pf-v5-c-login__main-footer:not(:has(*)) {
+  display: none;
+}
+
+.pf-v5-c-form__label {
+  color: var(--bs-color-text-secondary);
+  font-size: 13px;
+}
+
+.pf-v5-c-form-control {
+  min-height: 44px;
+  border: 1px solid var(--bs-color-border-default);
+  border-radius: var(--bs-radius-sm);
+  background: var(--bs-color-surface-3);
+  color: var(--bs-color-text-primary);
+}
+
+.pf-v5-c-form-control::before,
+.pf-v5-c-form-control::after {
+  border: 0;
+}
+
+.pf-v5-c-form-control:focus-within {
+  border-color: var(--bs-color-border-focus);
+  outline: 2px solid var(--bs-color-accent-tint);
+  outline-offset: 2px;
+}
+
+.pf-v5-c-form-control:has([aria-invalid="true"]) {
+  border-color: var(--bs-color-decision-deny-border);
+  outline-color: var(--bs-color-decision-deny-bg);
+}
+
+.pf-v5-c-form-control input {
+  min-height: 42px;
+  color: var(--bs-color-text-primary);
+  font-family: Inter, sans-serif;
+  font-size: 14px;
+  outline: none;
+}
+
+.pf-v5-c-button {
+  min-height: 44px;
+  border-radius: var(--bs-radius-sm);
+  background: var(--bs-color-surface-3);
+  color: var(--bs-color-text-secondary);
+}
+
+.pf-v5-c-button::after {
+  border-color: var(--bs-color-border-default);
+  border-radius: var(--bs-radius-sm);
+}
+
+.kc-feedback-text,
+.pf-v5-c-form-control__icon.pf-m-status {
+  color: var(--bs-color-decision-deny-fg);
+}
+
+.pf-v5-c-button.pf-m-primary {
+  background: var(--bs-color-accent-default);
+  color: var(--bs-color-text-on-accent);
+  font-weight: 600;
+}
+
+.pf-v5-c-button.pf-m-primary:hover {
+  background: var(--bs-color-accent-hover);
+}
+
+.pf-v5-c-button.pf-m-primary:active {
+  background: var(--bs-color-accent-pressed);
+}
+
+.pf-v5-c-form__helper-text,
+.pf-v5-c-login__main-footer-band {
+  color: var(--bs-color-text-secondary);
+  background: transparent;
+}
+
+a {
+  color: var(--bs-color-accent-text);
+}
+
+body:has(#kc-otp-login-form) #kc-page-title {
+  font-size: 0;
+}
+
+body:has(#kc-otp-login-form) #kc-page-title::before {
+  display: block;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 16px;
+  background: var(--bs-color-accent-text);
+  mask: url("../img/fingerprint.svg") center / contain no-repeat;
+  content: "";
+}
+
+body:has(#kc-otp-login-form) #kc-page-title::after {
+  content: "Confirm it is you";
+  font-size: 24px;
+}

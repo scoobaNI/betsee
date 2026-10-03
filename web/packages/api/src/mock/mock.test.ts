@@ -79,10 +79,11 @@ describe('mock world over mock fetch', () => {
     assert.ok(stages.includes('step_up:passed'));
     assert.ok(stages.includes('connector:passed'));
     assert.equal(trace.body.executed, true);
-    const approvals = await get<{ items: { trace_id: string; state: string; requires_step_up: boolean }[] }>(fetchImpl, '/api/v1/approvals');
+    const approvals = await get<{ items: { trace_id: string; state: string; requires_step_up: boolean; provenance: { fields?: Record<string, string> } }[] }>(fetchImpl, '/api/v1/approvals');
     const approval = approvals.body.items.find((a) => a.trace_id === decided.trace_id)!;
     assert.equal(approval.state, 'approved');
     assert.equal(approval.requires_step_up, true);
+    assert.deepEqual(approval.provenance.fields, { amount_cents: 'gateway', currency: 'gateway', invoice: 'agent', memo: 'agent' });
     const run = await get<{ status: string; steps: { trace_id: string }[] }>(fetchImpl, `/api/v1/demo/runs/${run_id}`);
     assert.equal(run.body.status, 'passed');
     assert.equal(run.body.steps[0].trace_id, decided.trace_id);

@@ -7,3 +7,5 @@ dist/
 __pycache__/
 *.pyc
 state/
+# Generated from docs/design/tokens.css by init-env.
+infra/keycloak/themes/betsee/login/resources/css/tokens.css

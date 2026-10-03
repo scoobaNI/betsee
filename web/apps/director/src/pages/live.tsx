@@ -39,10 +39,14 @@ function StatStrip() {
         feature
         label="Agents active"
         value={formatCount(kpis.agentsActive)}
-        detail={offLine ? `${kpis.agentsQuarantined} quarantined, ${kpis.agentsSuspended} suspended` : 'None quarantined'}
+        detail={
+          offLine
+            ? [kpis.agentsQuarantined && `${kpis.agentsQuarantined} quarantined`, kpis.agentsSuspended && `${kpis.agentsSuspended} suspended`].filter(Boolean).join(', ')
+            : 'None quarantined'
+        }
       />
-      <KpiTile compact label="Actions, 15 min" value={formatCount(kpis.actions15m)} detail="All decided by the Gateway" />
-      <KpiTile compact label="Denied, 15 min" value={formatCount(kpis.denied15m)} detail="Deterministic or tightened" />
+      <KpiTile compact label="Actions, 15 min" value={formatCount(kpis.actions15m)} detail="Each one a trace" />
+      <KpiTile compact label="Denied, 15 min" value={formatCount(kpis.denied15m)} detail="Never executed" />
       <KpiTile compact label="Awaiting human" value={formatCount(kpis.awaitingHuman)} detail="Approval or step-up" />
       <KpiTile compact label="AI-tightened, 15 min" value={formatCount(kpis.tightened15m)} detail="Analyzer raised it" />
     </div>
@@ -75,7 +79,7 @@ function Population() {
   }
   return (
     // Team groups flow side by side so the whole population fits without scrolling (contract 6).
-    <div className="flex flex-wrap gap-x-5 gap-y-4">
+    <div className="flex flex-wrap gap-x-5 gap-y-3">
       {teams.map(([team, list]) => (
         <section key={team} aria-label={`${team} agents`}>
           <h3 className="mb-2 text-2xs font-semibold uppercase tracking-[var(--bs-font-tracking-caps)] text-fg-tertiary">{teamName(team)}</h3>

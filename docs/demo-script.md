@@ -59,8 +59,10 @@ the fallback. Every step lands in the live feed within a second.
 - Click one feed row. The trace explorer opens on the decision sentence: read it aloud.
 - Point at the seven cells. Who initiated: Maya. Which agent: `invoice-assistant`. Why: Invoice
   processing. What capability: `crm.read`. What resource: a customer record, tier internal. Which
-  policy: `permit-effective-capability`. What decision: `allow`. Below them, each pipeline stage is a
-  span with its timing.
+  policy: `permit-effective-capability`. What decision: `allow`, with its sentence: "crm.read is
+  delegated in this session and permitted for Invoice processing". Below them, the pipeline with
+  measured times: token check, context, one Cedar evaluation that decides identity, capability, tier
+  and budget together, the AI analysis, the tool call, output controls, audit.
 - Line: "Every action an agent takes in the world arrives here as a small, observable request."
 
 ### 2. Deterministic boundaries (60 s) - ASI02, ASI03, ASI05. Stay in the Director.
@@ -108,8 +110,10 @@ the fallback. Every step lands in the live feed within a second.
 - The approval card leads with the exact parameters the Gateway received and their provenance, not the
   agent's persuasive summary.
 - Four-eyes: Maya created the session, so Daniel approves, never Maya.
-- Click "Approve with step-up". Keycloak on auth.betsee.localhost asks for the OTP. Without it the
-  Gateway answers `require_step_up`; with it, acr level 2, the MCP payments tool executes.
+- Click "Approve with step-up". The click goes to the Gateway first, and the Gateway refuses: the card
+  holds "The Gateway requires step-up" for a moment. Say it: "The UI did not decide that. The
+  Gateway did." Keycloak on auth.betsee.localhost then asks for the OTP; with acr level 2, approve
+  again and the MCP payments tool executes.
 - Still on the Approvals tab: the inbox also holds act 3's tightened `memory.write` (the payment card
   was on top, newest first). Reject it: "And the poisoned memory write from act 3? Rejected." A human
   closes what AI analysis tightened.
@@ -160,7 +164,12 @@ Final mapping, with every control, lives in `docs/security/owasp-mapping.md` (F0
 ## Stage checklist
 
 - Screen 1920x1080, browser zoom 100%, bookmarks bar hidden.
-- Cold `docker compose up` finished, then the bootstrap script ran.
+- Fresh volumes, so no rehearsal residue reaches the stage (audit is append-only): about an hour
+  before, `docker compose down -v && docker compose up`, wait until every service is healthy; the
+  bootstrap one-shot seeds Acme by itself. Run no act before going on stage.
+- `./scripts/stage-check.sh` prints GO. It is read-only: it checks every service, both hosts, Daniel's
+  sign-in, all agents active, no pending approvals and the payments tool pinned, and it writes
+  nothing.
 - Signed in as Daniel in both tabs: Keycloak SSO shares one session, the Director needs
   security-officer or org-admin, and Daniel approves act 5. Tab 1: betsee.localhost. Tab 2:
   director.betsee.localhost.

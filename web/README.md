@@ -42,6 +42,7 @@ npm test
 npm run test:ecosystem
 npm run check:tokens
 npm run check:icons
+npm run check:policies
 npm run format:check
 ```
 

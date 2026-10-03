@@ -7,7 +7,8 @@ import {
 } from "react";
 import { AuthProvider, useAuth } from "react-oidc-context";
 import { WebStorageStateStore } from "oidc-client-ts";
-import { configureApi } from "@betsee/api/client";
+import { useQuery } from "@tanstack/react-query";
+import { api, configureApi, unwrap } from "@betsee/api/client";
 import { Icon, MockBadge } from "@betsee/ui";
 
 export const mockMode = import.meta.env.VITE_BETSEE_MOCK === "1";
@@ -28,10 +29,20 @@ export function useSessionAuth() {
 function LiveSession({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const accessToken = useRef(auth.user?.access_token);
+  const tokenVersion = useRef(0);
+  if (accessToken.current !== auth.user?.access_token)
+    tokenVersion.current += 1;
   accessToken.current = auth.user?.access_token;
   useLayoutEffect(() => {
     configureApi({ getAccessToken: () => accessToken.current });
   }, []);
+  const identity = useQuery({
+    queryKey: ["verified-identity", tokenVersion.current],
+    queryFn: () => unwrap(api.GET("/api/v1/me")),
+    enabled: auth.isAuthenticated && !!auth.user?.access_token,
+    retry: false,
+    staleTime: 0,
+  });
   if (auth.isLoading)
     return (
       <main className="mx-auto max-w-lg p-8">
@@ -71,7 +82,7 @@ function LiveSession({ children }: { children: ReactNode }) {
         auth.user?.profile.preferred_username ??
         "Human",
     ),
-    acr: String(auth.user?.profile.acr ?? "1"),
+    acr: String(identity.data?.acr ?? "1"),
     mock: false,
     signOut: () => {
       void auth.signoutRedirect();
@@ -82,7 +93,7 @@ function LiveSession({ children }: { children: ReactNode }) {
         acr_values: "2",
         prompt: "login",
         max_age: 0,
-        state: { returnTo: "/approvals" },
+        state: { returnTo: "/approvals", approvalId: id },
       });
     },
   };
@@ -121,8 +132,11 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
       scope="openid profile email"
       userStore={new WebStorageStateStore({ store: sessionStorage })}
       onSigninCallback={(user) => {
-        const destination = (user?.state as { returnTo?: string } | undefined)
-          ?.returnTo;
+        const state = user?.state as
+          { returnTo?: string; approvalId?: string } | undefined;
+        const destination = state?.returnTo;
+        if (state?.approvalId)
+          sessionStorage.setItem("betsee-step-up-approval", state.approvalId);
         history.replaceState(
           {},
           document.title,

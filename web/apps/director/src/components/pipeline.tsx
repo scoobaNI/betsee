@@ -3,7 +3,17 @@ import { DecisionChip, Icon, IdToken, MockBadge } from '@betsee/ui';
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { analyzerVerdictLabel, resolutionOf } from '../domain/decision.ts';
 import { formatDateTime } from '../domain/format.ts';
-import { RAIL_STATUS_LABEL, STAGE_GROUP_LABEL, formatDuration, type Rail, type RailStage, type RailStatus } from '../domain/pipeline.ts';
+import {
+  RAIL_STATUS_LABEL,
+  STAGE_GROUP_LABEL,
+  STAGES,
+  formatDuration,
+  parentStage,
+  spanDuration,
+  type Rail,
+  type RailStage,
+  type RailStatus,
+} from '../domain/pipeline.ts';
 import { ECOSYSTEM_URL } from './shell.tsx';
 
 const NODE: Record<RailStatus, string> = {
@@ -75,7 +85,7 @@ export function PipelineRail({ rail, selected, onSelect }: { rail: Rail; selecte
                 onKeyDown={(e) => onKey(e, index)}
                 aria-pressed={selected === stage.id}
                 aria-label={`${stage.label}: ${RAIL_STATUS_LABEL[stage.status]}`}
-                title={`${stage.label}: ${RAIL_STATUS_LABEL[stage.status]}${stage.span ? `, ${formatDuration(stage.span.duration_ms)}` : ''}`}
+                title={`${stage.label}: ${RAIL_STATUS_LABEL[stage.status]}${stage.span && spanDuration(stage.span) !== null ? `, ${formatDuration(spanDuration(stage.span)!)}` : ''}`}
                 className={`relative z-(--bs-z-base) flex h-8 w-8 items-center justify-center rounded-sm ${NODE[stage.status]} ${
                   pending && stepUp ? 'dir-ring-stepup border-stepup-fg text-stepup-fg' : ''
                 } ${selected === stage.id ? 'shadow-selected' : ''}`}
@@ -109,7 +119,18 @@ const BAR: Partial<Record<RailStatus, string>> = {
 
 export function Waterfall({ rail, selected, onSelect }: { rail: Rail; selected: string | undefined; onSelect: (id: RailStage['id']) => void }) {
   const total = Math.max(rail.totalMs, 1);
-  const rows = rail.stages.filter((s) => s.span);
+  // D11: stages decided inside one Cedar evaluation carry no duration; list them under their parent.
+  // D20: a stage nests under its parent only when the span names one (parent_stage); any other
+  // stage without a duration is a normal row with its status and no bar.
+  const withSpan = rail.stages.filter((s) => s.span);
+  const nested = withSpan.filter((s) => parentStage(s.span) !== undefined);
+  const rows: { stage: RailStage; child: boolean }[] = [];
+  for (const stage of withSpan) {
+    if (nested.includes(stage)) continue;
+    rows.push({ stage, child: false });
+    for (const child of nested) if (parentStage(child.span) === stage.id) rows.push({ stage: child, child: true });
+  }
+  for (const orphan of nested) if (!rows.some((r) => r.stage === orphan)) rows.push({ stage: orphan, child: true });
   return (
     <div className="rounded-lg border border-line-subtle bg-surface-1 p-2 shadow-e1">
       <div className="flex items-center justify-between px-2 pb-2 pt-1 text-2xs text-fg-tertiary">
@@ -117,10 +138,13 @@ export function Waterfall({ rail, selected, onSelect }: { rail: Rail; selected: 
         <span className="font-mono tabular-nums">{formatDuration(rail.totalMs)} end to end</span>
       </div>
       <ul>
-        {rows.map((stage) => {
+        {rows.map(({ stage, child }) => {
           const span = stage.span!;
+          const duration = spanDuration(span);
           const left = ((stage.offsetMs ?? 0) / total) * 100;
-          const width = Math.max(0.6, (span.duration_ms / total) * 100);
+          const width = Math.max(0.6, ((duration ?? 0) / total) * 100);
+          const parentId = parentStage(span);
+          const parent = STAGES.find((s) => s.id === parentId)?.label;
           return (
             <li key={stage.id}>
               <button
@@ -130,14 +154,21 @@ export function Waterfall({ rail, selected, onSelect }: { rail: Rail; selected: 
                   selected === stage.id ? 'bg-surface-2 before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-pill before:bg-accent' : ''
                 }`}
               >
-                <span className="flex min-w-0 items-center gap-2 text-sm">
+                <span className={`relative flex min-w-0 items-center gap-2 text-sm ${child ? 'pl-5 text-fg-secondary' : ''}`}>
+                  {child && <span aria-hidden="true" className="absolute left-2 top-[-18px] h-[27px] w-2.5 rounded-bl-xs border-b border-l border-line-default" />}
                   <Icon name={stage.icon} size={14} className="text-fg-secondary" />
                   <span className="truncate">{stage.label}</span>
                 </span>
-                <span className="relative h-2 rounded-xs bg-surface-inset">
-                  <span className={`absolute inset-y-0 rounded-xs ${BAR[stage.status] ?? 'bg-line-default'}`} style={{ left: `${Math.min(left, 99.4)}%`, width: `${width}%` }} />
-                </span>
-                <span className="text-right font-mono text-xs tabular-nums text-fg-secondary">{formatDuration(span.duration_ms)}</span>
+                {duration === null ? (
+                  <span className="text-xs text-fg-tertiary">
+                    {child && parent ? `decided in the same ${parent === 'Cedar authz' ? 'Cedar' : parent} evaluation` : RAIL_STATUS_LABEL[stage.status]}
+                  </span>
+                ) : (
+                  <span className="relative h-2 rounded-xs bg-surface-inset">
+                    <span className={`absolute inset-y-0 rounded-xs ${BAR[stage.status] ?? 'bg-line-default'}`} style={{ left: `${Math.min(left, 99.4)}%`, width: `max(2px, ${width}%)` }} />
+                  </span>
+                )}
+                <span className="text-right font-mono text-xs tabular-nums text-fg-secondary">{duration === null ? '\u2013' : formatDuration(duration)}</span>
               </button>
             </li>
           );
@@ -203,7 +234,13 @@ export function SpanDetail({ stage, controls }: { stage: RailStage | undefined; 
           <h3 className="text-lg font-semibold">{stage.label}</h3>
           <p className="text-xs text-fg-secondary">
             {RAIL_STATUS_LABEL[stage.status]}
-            {span ? ` - ${formatDuration(span.duration_ms)} - started ${formatDateTime(span.started_at)}` : ''}
+            {span
+              ? spanDuration(span) === null
+                ? parentStage(span) === 'cedar_authz'
+                  ? ` - decided inside the Cedar evaluation - ${formatDateTime(span.started_at)}`
+                  : ` - no measured duration - ${formatDateTime(span.started_at)}`
+                : ` - ${formatDuration(spanDuration(span)!)} - started ${formatDateTime(span.started_at)}`
+              : ''}
           </p>
         </div>
         {modelLabel && <MockBadge modelLabel={modelLabel} className="ml-auto" />}
@@ -251,7 +288,7 @@ export function CompositionPanel({ trace }: { trace: Trace }) {
   return (
     <section aria-label="Decision composition" className="space-y-4 rounded-lg border border-line-subtle bg-surface-1 p-5 shadow-e1">
       <h3 className="text-lg font-semibold">How the decision was composed</h3>
-      <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-start gap-3">
+      <div className="flex flex-wrap items-start gap-x-4 gap-y-3 [&>div]:shrink-0">
         <div className="space-y-2">
           <p className="text-xs font-semibold text-fg-secondary">Deterministic</p>
           <DecisionChip decision={trace.deterministic_decision} size="sm" />

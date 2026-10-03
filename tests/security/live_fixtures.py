@@ -32,6 +32,37 @@ def plan(requests, agent="invoice-assistant", use_case="invoice-processing", del
     }
 
 
+RATE_LIMIT = 30  # regression-a2a-receiver.maxActionsPerMinute; the action past it trips CTL-RUN-002.
+
+# runner.core reads MCP_ADMIN_URL/MCP_ADMIN_TOKEN inside the container; the admin route is in-network
+# only. Mode is "drift" or "restore"; exits nonzero unless the MCP admin answers 2xx.
+MCP_ADMIN_PY = "import sys; from runner.core import http, MCP_ADMIN_URL, env; s, _ = http('POST', MCP_ADMIN_URL + '/tools/payments/{mode}', env('MCP_ADMIN_TOKEN'), {{}}); sys.exit(0 if 200 <= s < 300 else (s or 1))"
+
+
+def descriptor(mode):
+    return {"shell": ["docker", "compose", "--project-name", "betsee", "exec", "-T", "demo-runner", "python", "-c", MCP_ADMIN_PY.format(mode=mode)]}
+
+
+def release(agent, variable="reset_token"):
+    # Release with Daniel's real acr-1 browser token (scripts/oidc-login.py); no OTP, no step-up.
+    return [
+        {"oidc": {"username": "daniel", "acr": "1"}, "save": {variable: "access_token"}},
+        {"path": f"/api/v1/agents/{agent}/release", "method": "POST", "headers": auth(variable), "json": {}},
+    ]
+
+
+def peer_plan(steps, use_case="regression-a2a-receiver", delegated=None, budget=5000, human="priya", agent="research-peer", cleanup_release=True):
+    delegated = delegated if delegated is not None else ["files.read"]
+    plan = {
+        "setup": [*release(agent), token("betsee-demo-runner", "human_token", human), token(agent, "agent_token"), session(agent, use_case, delegated, "internal", budget)],
+        "steps": steps,
+        "audit": {"path": "/api/v1/traces", "headers": auth("viewer_token")},
+    }
+    if cleanup_release:
+        plan["cleanup"] = release(agent, "cleanup_token")
+    return plan
+
+
 def build():
     crm = action()
     hr = action("files.read", "file", "files/hr/salaries-2026.xlsx", "restricted")
@@ -116,4 +147,26 @@ def build():
     pending_approval_setup = clean_payment | {"save": {"trace_id": "trace_id"}, "check": {"decision": "require_approval", "executed": False}}
     cases["demo_runner_no_approval"] = plan([approve | {"headers": auth("human_token")}], delegated=["payments.transfer"])
     cases["demo_runner_no_approval"]["setup"].extend([pending_approval_setup, approval_lookup])
+
+    # Isolated ASI08/ASI10 fixtures on the test-only research-peer agent, released afterwards so the
+    # shared breaker window and agent state are left exactly as found (cleanup runs in a finally).
+    peer_read = action("files.read", "file", "files/regression/internal-brief.pdf", "internal", session_id={"$ref": "session_id"})
+    peer_restricted = action("files.read", "file", "files/hr/salaries-2026.xlsx", "restricted", session_id={"$ref": "session_id"})
+    # CTL-RUN-002: RATE_LIMIT allowed reads, then one more exceeds maxActionsPerMinute. The breaker
+    # (quarantine at 5 denials) is untouched: the measured action is the only denial.
+    cases["cascade_breaker"] = peer_plan([{"before": [peer_read] * RATE_LIMIT, "request": peer_read}])
+    # CTL-ID-002: five tier denials quarantine research-peer, then a normally-allowed read is refused
+    # because the agent is no longer active.
+    cases["quarantined_agent"] = peer_plan([{"before": [peer_restricted] * 5, "request": peer_read}])
+    # CTL-RUN-001: a one-cent session budget cannot cover a ten-cent action, so the first read denies.
+    cases["budget_exceeded"] = peer_plan([{"request": peer_read}], budget=1)
+    # CTL-TOOL-001: drift the payments MCP descriptor, confirm a below-threshold transfer is denied
+    # before execution, and GUARANTEE the pinned descriptor is restored in cleanup.
+    drift_payment = action("payments.transfer", "payment_account", "payments/nordfreight-supplier", parameters={"amount_cents": 50000, "currency": "EUR", "invoice": "INV-F17-DRIFT"}, session_id={"$ref": "session_id"})
+    cases["descriptor_drift"] = {
+        "setup": [descriptor("drift"), *release("invoice-assistant"), token("betsee-demo-runner", "human_token", "maya"), token("invoice-assistant", "agent_token"), session("invoice-assistant", "invoice-processing", ["payments.transfer"], "internal", 5000)],
+        "steps": [{"request": drift_payment}],
+        "cleanup": [descriptor("restore")],
+        "audit": {"path": "/api/v1/traces", "headers": auth("viewer_token")},
+    }
     return {"version": 1, "setup": [token("betsee-demo-runner", "viewer_token", "priya")], "cases": cases}

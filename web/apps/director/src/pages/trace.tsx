@@ -1,21 +1,27 @@
 import { ApiRequestError, useAgentMessages, useControls, useTrace, type Control, type Trace } from '@betsee/api';
-import { DecisionChip, Icon, IdToken, TierBadge } from '@betsee/ui';
+import { DecisionChip, Icon, IdToken, MockBadge, TierBadge } from '@betsee/ui';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { chipHistory } from '../components/feed.tsx';
 import { AgentMark, HumanAvatar } from '../components/marks.tsx';
 import { CompositionPanel, PipelineRail, SpanDetail, Waterfall } from '../components/pipeline.tsx';
-import { ReasonText } from '../components/reason.tsx';
+import { Breakable, ReasonText } from '../components/reason.tsx';
 import { ECOSYSTEM_URL } from '../components/shell.tsx';
 import { EmptyState, ErrorCard, Skeleton } from '../components/states.tsx';
-import { becauseSentence, decisionLabel, resolutionOf } from '../domain/decision.ts';
+import { callerLabel, callerOf, type Caller } from '../domain/caller.ts';
+import { becauseSentence, decisionLabel, reasonFromAnalyzer, resolutionOf } from '../domain/decision.ts';
 import { formatDateTime, formatTime } from '../domain/format.ts';
 import { teamName } from '../domain/feed.ts';
 import { buildRail, decidingStage, formatDuration, type RailStage } from '../domain/pipeline.ts';
 
+/** After a human decides, the Gateway rewrites decision to allow; the sentence names the human step. */
 function verdictWords(trace: Trace): string {
   const resolution = resolutionOf(trace);
-  if (resolution) return `${decisionLabel[trace.decision]}, then ${resolution}`;
+  // After approval the Gateway clears step_up_required; a passed step-up span is the evidence then.
+  const stepUp =
+    trace.step_up_required || trace.obligations.includes('step_up') || trace.spans.some((s) => s.stage === 'step_up' && s.status === 'passed');
+  if (resolution === 'approved' || resolution === 'verified') return stepUp ? 'Approved by a human with step-up' : 'Approved by a human';
+  if (resolution === 'rejected' || resolution === 'failed') return 'Rejected by a human';
   return decisionLabel[trace.decision];
 }
 
@@ -23,18 +29,40 @@ function DecisionSentence({ trace }: { trace: Trace }) {
   const policy = trace.policy_ids[0];
   return (
     <p className="font-display text-xl leading-snug">
-      <span className="font-semibold">{trace.human.display_name}</span>, through{' '}
-      <span className="font-mono text-lg">{trace.agent.id}</span>, for {trace.use_case.name}, asked for{' '}
+      <span className="font-semibold">{callerLabel(callerOf(trace.human))}</span>, through{' '}
+      <span className="font-mono text-lg">{trace.agent.id}</span>, {trace.use_case ? `for ${trace.use_case.name}` : 'with no bound use case'}, asked for{' '}
       <span className="font-mono text-lg">{trace.capability}</span> on {trace.resource.type} {trace.resource.id} ({trace.resource.tier}).{' '}
       <span className="font-semibold">{verdictWords(trace)}</span>
       {policy ? (
         <>
-          {' '}
-          by policy <span className="font-mono text-lg">{policy}</span>.
+          {resolutionOf(trace) ? ', under policy ' : ' by policy '}
+          <span className="font-mono text-lg">{policy}</span>.
         </>
       ) : (
         '.'
       )}
+    </p>
+  );
+}
+
+/** A human gets the avatar; an unauthenticated request or the Gateway never does (p-420). */
+function CallerLine({ caller }: { caller: Caller }) {
+  if (caller.kind === 'human') {
+    return (
+      <p className="flex items-center gap-2 text-md">
+        <HumanAvatar name={caller.name} />
+        <span className="truncate">{caller.name}</span>
+      </p>
+    );
+  }
+  return (
+    <p className="flex items-center gap-2 text-md">
+      <span className={`flex h-6 w-6 items-center justify-center rounded-sm bg-surface-3 ${caller.kind === 'gateway' ? 'text-accent-text' : 'text-fg-secondary'}`}>
+        <Icon name={caller.kind === 'gateway' ? 'streamline-flex:shield-2' : 'streamline-flex:shield-cross'} size={14} />
+      </span>
+      <span>
+        {caller.name} <span className="font-mono text-sm text-fg-secondary">({caller.id})</span>
+      </span>
     </p>
   );
 }
@@ -56,10 +84,7 @@ function SevenQuestions({ trace, controls }: { trace: Trace; controls: Map<strin
     <div className="space-y-3">
       <div className="grid grid-cols-4 gap-3">
         <Cell label="Who initiated" icon="streamline-flex:user-circle-single">
-          <p className="flex items-center gap-2 text-md">
-            <HumanAvatar name={trace.human.display_name} />
-            <span className="truncate">{trace.human.display_name}</span>
-          </p>
+          <CallerLine caller={callerOf(trace.human)} />
         </Cell>
         <Cell label="Which agent" icon="streamline-flex:ai-chip-robot">
           <Link to={`/agents/${encodeURIComponent(trace.agent.id)}`} className="flex items-center gap-2 hover:text-accent-text">
@@ -69,10 +94,16 @@ function SevenQuestions({ trace, controls }: { trace: Trace; controls: Map<strin
           <p className="mt-1 text-xs text-fg-secondary">{teamName(trace.agent.team)}</p>
         </Cell>
         <Cell label="Why (use case)" icon="streamline-flex:target">
-          <p className="text-md">{trace.use_case.name}</p>
-          <p className="mt-1 text-xs text-fg-secondary">
-            Session <span className="font-mono">{trace.session_id}</span>
-          </p>
+          {trace.use_case ? (
+            <p className="text-md">{trace.use_case.name}</p>
+          ) : (
+            <p className="text-md text-fg-secondary">None: the request was not bound to a valid session</p>
+          )}
+          {trace.session_id && (
+            <p className="mt-1 text-xs text-fg-secondary">
+              Session <span className="font-mono">{trace.session_id}</span>
+            </p>
+          )}
         </Cell>
         <Cell label="What capability" icon="streamline-flex:tag">
           <IdToken copy={false}>{trace.capability}</IdToken>
@@ -85,8 +116,8 @@ function SevenQuestions({ trace, controls }: { trace: Trace; controls: Map<strin
       </div>
       <div className="grid grid-cols-3 gap-3">
         <Cell label="What resource" icon="streamline-flex:layers-1">
-          <p className="break-all font-mono text-sm">
-            {trace.resource.type}:{trace.resource.id}
+          <p className="font-mono text-sm [overflow-wrap:normal]">
+            <Breakable text={`${trace.resource.type}:${trace.resource.id}`} />
           </p>
           <TierBadge tier={trace.resource.tier} className="mt-1.5" />
         </Cell>
@@ -111,8 +142,9 @@ function SevenQuestions({ trace, controls }: { trace: Trace; controls: Map<strin
             history={chipHistory(trace)}
           />
           <p className="mt-2 text-sm text-fg-secondary">
-            <ReasonText text={becauseSentence(trace, (id) => controls.get(id)?.name)} />
+            <ReasonText text={becauseSentence(trace, (id) => controls.get(id))} />
           </p>
+          {reasonFromAnalyzer(trace) && <MockBadge modelLabel={trace.analyzer.model_label} className="mt-1.5" />}
           <p className="mt-1 text-xs text-fg-tertiary">{trace.executed ? 'Executed by the connector.' : 'Not executed.'}</p>
         </Cell>
       </div>

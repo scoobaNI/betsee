@@ -68,7 +68,68 @@ pub struct Engine {
     pub policies: PolicySet,
 }
 
+pub struct ReasonTemplate {
+    pub policy_id: String,
+    pub control_id: String,
+    pub text: String,
+}
+
 impl Engine {
+    pub fn deciding_outcome(&self, mut outcome: Outcome) -> Outcome {
+        let deciding = self.deciding_reasons(&outcome);
+        let policy_ids: BTreeSet<_> = deciding
+            .iter()
+            .map(|reason| reason.policy_id.clone())
+            .collect();
+        let control_ids: BTreeSet<_> = deciding
+            .iter()
+            .map(|reason| reason.control_id.clone())
+            .collect();
+        let removed_controls: BTreeSet<_> = outcome
+            .policy_ids
+            .iter()
+            .filter(|id| !policy_ids.contains(*id))
+            .filter_map(|id| self.annotation(id, "control"))
+            .collect();
+        let old_ids = outcome.policy_ids.clone();
+        outcome.policy_ids.retain(|id| policy_ids.contains(id));
+        outcome
+            .control_ids
+            .retain(|id| control_ids.contains(id) || !removed_controls.contains(id));
+        outcome
+            .reasons
+            .retain(|reason| !old_ids.contains(reason) || policy_ids.contains(reason));
+        if outcome.deny {
+            outcome.approval = false;
+            outcome.step_up = false;
+        }
+        outcome
+    }
+
+    pub fn deciding_reasons(&self, outcome: &Outcome) -> Vec<ReasonTemplate> {
+        outcome
+            .policy_ids
+            .iter()
+            .filter_map(|id| {
+                let policy = self.policies.policy(&PolicyId::new(id))?;
+                let deciding = if outcome.deny {
+                    policy.effect() == Effect::Forbid && policy.annotation("outcome").is_none()
+                } else if outcome.approval || outcome.step_up {
+                    policy.annotation("outcome").is_some()
+                } else {
+                    policy.effect() == Effect::Permit
+                };
+                deciding.then(|| ReasonTemplate {
+                    policy_id: id.clone(),
+                    control_id: self
+                        .annotation(id, "control")
+                        .unwrap_or_else(|| "CTL-POL-001".into()),
+                    text: self.annotation(id, "reason").unwrap_or_default(),
+                })
+            })
+            .collect()
+    }
+
     pub fn load(dir: impl AsRef<Path>) -> Result<Self> {
         let dir = dir.as_ref();
         let (schema, _) = Schema::from_cedarschema_str(&std::fs::read_to_string(
@@ -133,6 +194,18 @@ impl Engine {
             HashMap::from([(SlotId::principal(), EntityUid::from_str(principal)?)]),
         )?;
         self.validate()
+    }
+
+    /// An annotation of a static or template-linked policy, or of a template.
+    pub fn annotation(&self, policy_id: &str, key: &str) -> Option<String> {
+        let id = PolicyId::new(policy_id);
+        match self.policies.policy(&id) {
+            Some(policy) => policy.annotation(key).map(str::to_owned),
+            None => self
+                .policies
+                .template(&id)
+                .and_then(|template| template.annotation(key).map(str::to_owned)),
+        }
     }
 
     pub fn evaluate(
@@ -208,11 +281,24 @@ impl Engine {
             return Ok(Outcome::denied("default-deny (no permit)"));
         }
         if outcome.deny {
-            outcome.policy_ids.retain(|id| self.policies.policy(&PolicyId::new(id)).is_none_or(|policy| policy.annotation("outcome").is_none()));
-            outcome.control_ids=outcome.policy_ids.iter().filter_map(|id|self.policies.policy(&PolicyId::new(id)).and_then(|policy|policy.annotation("control")).map(str::to_owned)).collect();
-            outcome.reasons=outcome.policy_ids.clone();
-            outcome.approval=false;
-            outcome.step_up=false;
+            outcome.policy_ids.retain(|id| {
+                self.policies
+                    .policy(&PolicyId::new(id))
+                    .is_none_or(|policy| policy.annotation("outcome").is_none())
+            });
+            outcome.control_ids = outcome
+                .policy_ids
+                .iter()
+                .filter_map(|id| {
+                    self.policies
+                        .policy(&PolicyId::new(id))
+                        .and_then(|policy| policy.annotation("control"))
+                        .map(str::to_owned)
+                })
+                .collect();
+            outcome.reasons = outcome.policy_ids.clone();
+            outcome.approval = false;
+            outcome.step_up = false;
             return Ok(outcome);
         }
         let mut discharged = context;
@@ -290,10 +376,13 @@ mod tests {
                 )
             };
             let mut outcome = evaluate(context.clone());
-            if !outcome.deny && let Some(analysis) = analysis {
+            if !outcome.deny
+                && let Some(analysis) = analysis
+            {
                 context["analysis"] = analysis;
                 outcome = outcome.tighten(evaluate(context));
             }
+            outcome = engine.deciding_outcome(outcome);
             assert_eq!(
                 outcome.reference_label(),
                 case["expect"].as_str().unwrap(),
@@ -311,6 +400,9 @@ mod tests {
             }
             if case["step"] == "att.1" {
                 assert!(outcome.control_ids.contains("CTL-RUN-004"));
+            }
+            if case["step"] == "act3.s2" {
+                assert_eq!(outcome.control_ids, BTreeSet::from(["CTL-TIER-002".into()]));
             }
         }
     }

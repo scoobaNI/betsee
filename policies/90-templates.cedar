@@ -3,5 +3,6 @@
 // (control attachment) in PostgreSQL.
 
 @id("tpl-suspend-high-impact")
+@reason("high-impact capabilities are suspended for this team or agent")
 @control("CTL-RUN-004")
 forbid (principal in ?principal, action in Betsee::Action::"high_impact", resource);

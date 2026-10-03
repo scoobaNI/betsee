@@ -6,35 +6,48 @@ import policies from "./ecosystem-policies.json" with { type: "json" };
 export const POLICY_FIXTURES: Policy[] = policies;
 export const CONNECTOR_FIXTURES: Connector[] = [
   {
-    id: "mcp",
+    id: "mcp-demo",
     name: "Acme operations tools",
     kind: "mcp",
     status: "connected",
     model_label: null,
-    base_url: "http://mcp-demo:8090/mcp",
+    base_url: "http://mcp:8081/mcp",
     tools: [
-      {
-        name: "payments",
-        status: "pinned",
-        pinned_hash: "demo-fixture",
-        description:
-          "Transfer payments after exact-action approval and step-up.",
-      },
-      {
-        name: "crm",
-        status: "pinned",
-        pinned_hash: "demo-fixture",
-        description: "Read customer records inside the session tier ceiling.",
-      },
-    ],
+      [
+        "crm",
+        "5d67492dc11c0965bd70ae15829120aee075b5d534d3bc4347853c1eef21d8f5",
+      ],
+      [
+        "tickets",
+        "84a809d567f41d877a3d6f791a45b333fedbd5dba7bf76c57fadf509240f44b0",
+      ],
+      [
+        "files",
+        "b96c522f7e3edf787d99b08114185ea27d66a44033f2b383eaa8c9c47c5e7e2c",
+      ],
+      [
+        "payments",
+        "60e647f273024fb53ba686954c5320ce4faf0e7b9556c42695b39907ff13fd00",
+      ],
+      [
+        "email",
+        "2a75cb9cfb0dbcbec5244ca4ddf61aba4ef84c41a41be5cac53e16eecc316580",
+      ],
+    ].map(([name, hash]) => ({
+      name,
+      connector_id: "mcp-demo",
+      status: "ready",
+      pinned_hash: `sha256:${hash}`,
+      observed_hash: `sha256:${hash}`,
+    })),
   },
   {
-    id: "company-ai-gateway",
+    id: "openai-compatible",
     name: "OpenAI-compatible gateway",
     kind: "company-ai-gateway",
     status: "connected",
     model_label: "mock model (demo)",
-    base_url: "http://mock-llm:8091/v1",
+    base_url: "http://mock-llm:8082/v1",
     tools: [],
   },
   {
