@@ -1,0 +1,6 @@
+name: betsee
+
+include:
+  - path: ./infra/compose.yml
+    project_directory: .
+    env_file: ./.env.example

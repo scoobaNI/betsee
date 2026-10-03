@@ -1,0 +1,118 @@
+.eco-frame {
+  display: grid;
+  grid-template-columns: var(--bs-layout-eco-rail-collapsed) minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--bs-color-bg-app);
+}
+.eco-rail {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--bs-color-border-subtle);
+}
+.rail-label {
+  display: none;
+}
+.eco-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  height: var(--bs-layout-eco-topbar);
+  padding: 0 var(--bs-layout-eco-page-padding);
+  border-bottom: 1px solid var(--bs-color-border-subtle);
+}
+.eco-content {
+  max-width: var(--bs-layout-eco-content-max);
+  margin: auto;
+  padding: var(--bs-layout-eco-page-padding);
+}
+.eco-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--bs-layout-grid-gutter);
+}
+.eco-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--bs-layout-grid-gutter);
+}
+.eco-detail {
+  display: grid;
+  grid-template-columns: 5fr 7fr;
+  gap: var(--bs-layout-grid-gutter);
+}
+.eco-detail-panel {
+  align-self: start;
+  position: sticky;
+  top: 24px;
+}
+.bs-skeleton {
+  animation: bs-shimmer var(--bs-motion-duration-pulse) ease-in-out infinite;
+}
+@keyframes bs-shimmer {
+  50% {
+    opacity: 0.5;
+  }
+}
+@media (min-width: 1280px) {
+  .eco-frame {
+    grid-template-columns: var(--bs-layout-eco-rail-expanded) minmax(0, 1fr);
+    min-height: calc(100vh - 24px);
+    margin: var(--bs-layout-eco-frame-gutter);
+    border: 1px solid var(--bs-color-border-subtle);
+    border-radius: var(--bs-radius-xl);
+    overflow: clip;
+  }
+  .rail-label {
+    display: revert;
+  }
+}
+@media (max-width: 1023px) {
+  .eco-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .eco-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .eco-detail {
+    grid-template-columns: 1fr;
+  }
+  .eco-topbar {
+    padding: 0 20px;
+  }
+  .eco-content {
+    padding: 24px 20px;
+  }
+}
+@media (max-width: 639px) {
+  .eco-frame {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+  .eco-rail nav {
+    padding: 0 4px;
+  }
+  .eco-rail > a {
+    padding-left: 8px;
+    padding-right: 8px;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .eco-grid {
+    grid-template-columns: 1fr;
+  }
+  .eco-topbar {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 64px;
+    padding: 12px;
+    gap: 12px;
+  }
+  .eco-content {
+    padding: 24px 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bs-skeleton {
+    animation: none;
+  }
+}

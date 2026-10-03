@@ -1,0 +1,8 @@
+**
+!gateway/
+!gateway/**
+!policies/
+!policies/**
+gateway/target/
+gateway/**/.env*
+policies/tests/cedar-check/target/

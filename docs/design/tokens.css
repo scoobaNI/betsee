@@ -1,0 +1,192 @@
+/* Generated from docs/design/tokens.json by docs/design/build-tokens.py. Do not edit. */
+:root {
+  color-scheme: dark;
+  --bs-color-bg-void: #040504;
+  --bs-color-bg-app: #080908;
+  --bs-color-bg-canvas-dot: rgba(237, 242, 237, 0.055);
+  --bs-color-surface-1: #0f110f;
+  --bs-color-surface-2: #151815;
+  --bs-color-surface-3: #1c201c;
+  --bs-color-surface-inset: #060706;
+  --bs-color-surface-overlay: rgba(15, 17, 15, 0.86);
+  --bs-color-border-subtle: rgba(237, 242, 237, 0.06);
+  --bs-color-border-default: rgba(237, 242, 237, 0.1);
+  --bs-color-border-strong: rgba(237, 242, 237, 0.18);
+  --bs-color-border-focus: #5bc85f;
+  --bs-color-text-primary: #edf2ed;
+  --bs-color-text-secondary: #a2aaa2;
+  --bs-color-text-tertiary: #7c847c;
+  --bs-color-text-disabled: #484e48;
+  --bs-color-text-on-accent: #031004;
+  --bs-color-text-on-feature: #ffffff;
+  --bs-color-brand-950: #071a08;
+  --bs-color-brand-900: #0d2e0e;
+  --bs-color-brand-800: #134c13;
+  --bs-color-brand-700: #1d6a1f;
+  --bs-color-brand-600: #2a8e2d;
+  --bs-color-brand-500: #3aae3f;
+  --bs-color-brand-400: #5bc85f;
+  --bs-color-brand-300: #8fdd91;
+  --bs-color-brand-200: #c3eec4;
+  --bs-color-brand-100: #e7f8e7;
+  --bs-color-accent-default: #3aae3f;
+  --bs-color-accent-hover: #5bc85f;
+  --bs-color-accent-pressed: #2a8e2d;
+  --bs-color-accent-text: #5bc85f;
+  --bs-color-accent-tint: rgba(91, 200, 95, 0.1);
+  --bs-color-accent-glow: rgba(76, 230, 90, 0.45);
+  --bs-color-accent-edge: #6cf279;
+  --bs-color-decision-allow-fg: #5bc85f;
+  --bs-color-decision-allow-solid: #2a8e2d;
+  --bs-color-decision-allow-bg: rgba(91, 200, 95, 0.1);
+  --bs-color-decision-allow-border: rgba(91, 200, 95, 0.24);
+  --bs-color-decision-deny-fg: #f2555a;
+  --bs-color-decision-deny-solid: #d93a40;
+  --bs-color-decision-deny-bg: rgba(242, 85, 90, 0.12);
+  --bs-color-decision-deny-border: rgba(242, 85, 90, 0.36);
+  --bs-color-decision-approval-fg: #f2b544;
+  --bs-color-decision-approval-solid: #c98a12;
+  --bs-color-decision-approval-bg: rgba(242, 181, 68, 0.12);
+  --bs-color-decision-approval-border: rgba(242, 181, 68, 0.34);
+  --bs-color-decision-stepup-fg: #5aaeff;
+  --bs-color-decision-stepup-solid: #2f7fd6;
+  --bs-color-decision-stepup-bg: rgba(90, 174, 255, 0.12);
+  --bs-color-decision-stepup-border: rgba(90, 174, 255, 0.34);
+  --bs-color-modifier-ai-tightened-fg: #b49cff;
+  --bs-color-modifier-ai-tightened-solid: #7c5ce0;
+  --bs-color-modifier-ai-tightened-bg: rgba(180, 156, 255, 0.12);
+  --bs-color-modifier-ai-tightened-border: rgba(180, 156, 255, 0.4);
+  --bs-color-lifecycle-active: #5bc85f;
+  --bs-color-lifecycle-quarantined-fg: #ff8a4c;
+  --bs-color-lifecycle-quarantined-solid: #d4602a;
+  --bs-color-lifecycle-quarantined-bg: rgba(255, 138, 76, 0.12);
+  --bs-color-lifecycle-quarantined-border: rgba(255, 138, 76, 0.4);
+  --bs-color-lifecycle-quarantined-hatch: rgba(255, 138, 76, 0.16);
+  --bs-color-lifecycle-suspended-fg: #8a928a;
+  --bs-color-lifecycle-suspended-border: rgba(237, 242, 237, 0.18);
+  --bs-color-lifecycle-suspended-hatch: rgba(237, 242, 237, 0.07);
+  --bs-color-demo-mock-fg: #a2aaa2;
+  --bs-color-demo-mock-border: rgba(237, 242, 237, 0.28);
+  --bs-color-status-danger: #f2555a;
+  --bs-color-status-warning: #f2b544;
+  --bs-color-status-info: #5aaeff;
+  --bs-color-viz-allow: #2e6b31;
+  --bs-color-viz-deny: #f2555a;
+  --bs-color-viz-approval: #f2b544;
+  --bs-color-viz-stepup: #5aaeff;
+  --bs-color-viz-tightened: #b49cff;
+  --bs-color-viz-neutral-1: #a2aaa2;
+  --bs-color-viz-neutral-2: #6e766e;
+  --bs-color-viz-neutral-3: #3a403a;
+  --bs-color-viz-grid: rgba(237, 242, 237, 0.06);
+  --bs-color-viz-axis: #7c847c;
+  --bs-gradient-feature: linear-gradient(
+    135deg,
+    #134c13 0%,
+    #1f7a22 55%,
+    #3aae3f 100%
+  );
+  --bs-gradient-rail-sheen: linear-gradient(
+    180deg,
+    rgba(91, 200, 95, 0.06) 0%,
+    rgba(91, 200, 95, 0) 40%
+  );
+  --bs-font-family-display:
+    "Urbanist Variable", "Inter Variable", system-ui, sans-serif;
+  --bs-font-family-ui: "Inter Variable", system-ui, sans-serif;
+  --bs-font-family-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  --bs-font-size-2xs: 11px;
+  --bs-font-size-xs: 12px;
+  --bs-font-size-sm: 13px;
+  --bs-font-size-md: 14px;
+  --bs-font-size-lg: 16px;
+  --bs-font-size-xl: 18px;
+  --bs-font-size-2xl: 22px;
+  --bs-font-size-3xl: 28px;
+  --bs-font-size-4xl: 36px;
+  --bs-font-size-5xl: 48px;
+  --bs-font-weight-regular: 400;
+  --bs-font-weight-medium: 500;
+  --bs-font-weight-semibold: 600;
+  --bs-font-weight-bold: 700;
+  --bs-font-line-height-tight: 1.15;
+  --bs-font-line-height-snug: 1.3;
+  --bs-font-line-height-normal: 1.5;
+  --bs-font-tracking-display: -0.02em;
+  --bs-font-tracking-normal: 0em;
+  --bs-font-tracking-caps: 0.06em;
+  --bs-space-0: 0px;
+  --bs-space-0-5: 2px;
+  --bs-space-1: 4px;
+  --bs-space-1-5: 6px;
+  --bs-space-2: 8px;
+  --bs-space-3: 12px;
+  --bs-space-4: 16px;
+  --bs-space-5: 20px;
+  --bs-space-6: 24px;
+  --bs-space-8: 32px;
+  --bs-space-10: 40px;
+  --bs-space-12: 48px;
+  --bs-space-16: 64px;
+  --bs-radius-xs: 6px;
+  --bs-radius-sm: 8px;
+  --bs-radius-md: 12px;
+  --bs-radius-lg: 16px;
+  --bs-radius-xl: 20px;
+  --bs-radius-pill: 999px;
+  --bs-shadow-e1:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(237, 242, 237, 0.06);
+  --bs-shadow-e2:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px rgba(237, 242, 237, 0.1),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+  --bs-shadow-e3:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(237, 242, 237, 0.1),
+    0 16px 48px rgba(0, 0, 0, 0.55);
+  --bs-shadow-selected: 0 0 0 1px #3aae3f, 0 0 0 4px rgba(91, 200, 95, 0.14);
+  --bs-shadow-live: 0 0 12px rgba(76, 230, 90, 0.45);
+  --bs-motion-duration-instant: 80ms;
+  --bs-motion-duration-fast: 140ms;
+  --bs-motion-duration-base: 200ms;
+  --bs-motion-duration-slow: 320ms;
+  --bs-motion-duration-pulse: 1800ms;
+  --bs-motion-duration-edge-flow: 1200ms;
+  --bs-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --bs-motion-easing-enter: cubic-bezier(0, 0, 0, 1);
+  --bs-motion-easing-exit: cubic-bezier(0.4, 0, 1, 1);
+  --bs-motion-distance-enter: 8px;
+  --bs-size-control-sm: 28px;
+  --bs-size-control-md: 36px;
+  --bs-size-control-lg: 44px;
+  --bs-size-chip: 24px;
+  --bs-size-icon-xs: 12px;
+  --bs-size-icon-sm: 14px;
+  --bs-size-icon-md: 16px;
+  --bs-size-icon-lg: 20px;
+  --bs-size-icon-xl: 28px;
+  --bs-size-avatar-sm: 24px;
+  --bs-size-avatar-md: 32px;
+  --bs-size-avatar-lg: 40px;
+  --bs-layout-eco-frame-gutter: 12px;
+  --bs-layout-eco-rail-collapsed: 72px;
+  --bs-layout-eco-rail-expanded: 248px;
+  --bs-layout-eco-topbar: 64px;
+  --bs-layout-eco-page-padding: 32px;
+  --bs-layout-eco-content-max: 1440px;
+  --bs-layout-grid-gutter: 20px;
+  --bs-layout-dir-topbar: 56px;
+  --bs-layout-dir-nav-rail: 64px;
+  --bs-layout-dir-feed: 384px;
+  --bs-layout-dir-drawer: 480px;
+  --bs-layout-dir-dock: 52px;
+  --bs-layout-bp-sm: 1024px;
+  --bs-layout-bp-md: 1280px;
+  --bs-layout-bp-lg: 1440px;
+  --bs-layout-bp-xl: 1920px;
+  --bs-z-base: 0;
+  --bs-z-sticky: 10;
+  --bs-z-rail: 20;
+  --bs-z-dock: 30;
+  --bs-z-popover: 40;
+  --bs-z-modal: 50;
+  --bs-z-toast: 60;
+}

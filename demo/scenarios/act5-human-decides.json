@@ -1,0 +1,85 @@
+{
+  "format": "betsee-scenario/v0",
+  "id": "act5-human-decides",
+  "act": 5,
+  "title": "A human decides, with proof of who they are",
+  "asi": ["ASI09", "ASI03"],
+  "summary": "A 48,000.00 EUR transfer waits for Daniel (four-eyes) with OTP step-up, then executes.",
+  "sessions": {
+    "maya-invoice": {
+      "human": "maya",
+      "agent": "invoice-assistant",
+      "use_case": "invoice-processing",
+      "delegated": [
+        "crm.read",
+        "files.read",
+        "payments.transfer",
+        "email.send"
+      ],
+      "tier_ceiling": "internal",
+      "budget_cents": 5000
+    }
+  },
+  "steps": [
+    {
+      "step_id": "act5.s1",
+      "kind": "action",
+      "session": "maya-invoice",
+      "capability": "payments.transfer",
+      "resource": {
+        "type": "payment_account",
+        "id": "payments/nordfreight-supplier",
+        "tier": "internal"
+      },
+      "parameters": {
+        "amount_cents": 4800000,
+        "currency": "EUR",
+        "invoice": "INV-88231",
+        "memo": "Nordfreight Q3 freight services"
+      },
+      "expect": {
+        "decision": "require_approval",
+        "step_up_required": true,
+        "controls": ["CTL-APR-003"],
+        "policies": [
+          "approval-payment-above-threshold",
+          "step-up-payment-above-threshold"
+        ],
+        "executed": false
+      },
+      "narration": "invoice-assistant prepares a 48,000.00 EUR supplier transfer: require_approval with step-up.",
+      "pace_ms": 1200
+    },
+    {
+      "step_id": "act5.s2",
+      "kind": "await_human",
+      "waits_for": "act5.s1",
+      "timeout_s": 300,
+      "expect": {
+        "approval_state": "approved",
+        "approver_sub": "00000000-0000-4000-8000-000000000002",
+        "acr": "2",
+        "executed": true
+      },
+      "narration": "Daniel opens the approval, sees the Gateway's exact parameters and provenance, approves with step-up and enters the OTP. Only then does the payments tool execute.",
+      "pace_ms": 0
+    },
+    {
+      "step_id": "act5.s3",
+      "kind": "await_human",
+      "waits_for": "act3.s3",
+      "waits_for_match": {
+        "agent": "support-triage",
+        "capability": "memory.write"
+      },
+      "timeout_s": 300,
+      "expect": {
+        "approval_state": "rejected",
+        "approver_sub": "00000000-0000-4000-8000-000000000002",
+        "executed": false
+      },
+      "narration": "Still in Approvals: act 3's AI-tightened memory write is waiting. Daniel rejects it (approver role, no step-up). A human closes what AI analysis tightened.",
+      "pace_ms": 0
+    }
+  ]
+}

@@ -1,0 +1,133 @@
+/* Director-only surfaces and loops (Design Contract 7: CSS keyframes for loops, Motion for enter/exit). */
+
+body {
+  background: var(--bs-color-bg-app);
+}
+
+.dir-canvas {
+  background-color: var(--bs-color-bg-app);
+  background-image: radial-gradient(var(--bs-color-bg-canvas-dot) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.dir-overlay {
+  background: var(--bs-color-surface-overlay);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.dir-suspended {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 6px,
+    var(--bs-color-lifecycle-suspended-hatch) 6px 12px
+  );
+}
+
+.dir-quarantined {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 6px,
+    var(--bs-color-lifecycle-quarantined-hatch) 6px 12px
+  );
+}
+
+/* Pending or not-yet-counted values: hatched, never a lighter tint (contract 11). */
+.dir-hatch-pending {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--bs-color-decision-approval-fg) 0 2px,
+    transparent 2px 5px
+  );
+}
+
+.dir-hatch-empty {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--bs-color-border-default) 0 1px,
+    transparent 1px 5px
+  );
+}
+
+.dir-ring-pending {
+  animation: dir-ring var(--bs-motion-duration-pulse) ease-in-out infinite;
+}
+
+.dir-ring-stepup {
+  --dir-ring-color: var(--bs-color-decision-stepup-fg);
+}
+
+@keyframes dir-ring {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--dir-ring-color, var(--bs-color-decision-approval-fg)) 22%, transparent);
+  }
+}
+
+.dir-quarantine-ring {
+  animation: dir-quarantine-ring 600ms var(--bs-motion-easing-enter) 1;
+}
+
+@keyframes dir-quarantine-ring {
+  from {
+    box-shadow: 0 0 0 0 var(--bs-color-lifecycle-quarantined-border);
+  }
+  to {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+
+.dir-act-glow {
+  animation: dir-act-glow 600ms var(--bs-motion-easing-standard) 1;
+}
+
+@keyframes dir-act-glow {
+  0% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  35% {
+    box-shadow: var(--bs-shadow-live);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.dir-row-resolved {
+  animation: dir-row-resolved 600ms var(--bs-motion-easing-standard) 1;
+}
+
+@keyframes dir-row-resolved {
+  from {
+    background: var(--dir-resolved-tint, var(--bs-color-decision-allow-bg));
+  }
+}
+
+.dir-edge-flow {
+  stroke-dasharray: 24 10000;
+  animation: dir-edge-flow var(--bs-motion-duration-edge-flow) var(--bs-motion-easing-standard) 1 forwards;
+}
+
+@keyframes dir-edge-flow {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dir-ring-pending,
+  .dir-quarantine-ring,
+  .dir-act-glow,
+  .dir-edge-flow {
+    animation: none;
+  }
+  .dir-row-resolved {
+    animation-duration: 120ms;
+  }
+}

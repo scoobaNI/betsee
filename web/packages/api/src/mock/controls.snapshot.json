@@ -1,0 +1,509 @@
+{
+  "source": "policies/controls.yaml",
+  "version": 0,
+  "primitives": [
+    {
+      "id": "PRM-ID",
+      "name": "Agent identity + delegation (AgentSession)"
+    },
+    {
+      "id": "PRM-CAP",
+      "name": "Capability intersection + Cedar authorization"
+    },
+    {
+      "id": "PRM-TIER",
+      "name": "Information tiers + taint"
+    },
+    {
+      "id": "PRM-TOOL",
+      "name": "Tool integrity + command validation"
+    },
+    {
+      "id": "PRM-A2A",
+      "name": "Mediated agent-to-agent channel"
+    },
+    {
+      "id": "PRM-HITL",
+      "name": "Human approval + step-up"
+    },
+    {
+      "id": "PRM-RUN",
+      "name": "Budget, circuit breaker + quarantine"
+    },
+    {
+      "id": "PRM-AI",
+      "name": "AI analysis that only tightens"
+    },
+    {
+      "id": "PRM-TRACE",
+      "name": "Trace + audit"
+    }
+  ],
+  "controls": [
+    {
+      "id": "CTL-ID-001",
+      "name": "Session bound to its agent",
+      "description": "An agent can act only inside an AgentSession created for that same agent. A session id copied by another agent is refused.",
+      "primitive": "PRM-ID",
+      "asi": ["ASI03", "ASI10"],
+      "attachment_points": ["organization"],
+      "enforcement": "baseline",
+      "policy_ids": ["forbid-session-not-bound-to-agent"],
+      "attachments": []
+    },
+    {
+      "id": "CTL-ID-002",
+      "name": "Agent lifecycle state",
+      "description": "Only an active agent can act or be given a new session. Quarantined and suspended agents are refused everywhere at once (the kill switch).",
+      "primitive": "PRM-RUN",
+      "asi": ["ASI10", "ASI08"],
+      "attachment_points": ["organization", "agent"],
+      "enforcement": "data",
+      "policy_ids": [
+        "forbid-agent-not-active",
+        "forbid-session-for-inactive-agent"
+      ],
+      "attachments": [
+        {
+          "id": "att-10",
+          "control_id": "CTL-ID-002",
+          "target_type": "agent",
+          "target_id": "report-bot",
+          "parameters": {
+            "state": "active"
+          }
+        }
+      ]
+    },
+    {
+      "id": "CTL-ID-003",
+      "name": "Session validity",
+      "description": "A session must be active and unexpired. Closing or revoking a session stops the agent immediately.",
+      "primitive": "PRM-ID",
+      "asi": ["ASI03"],
+      "attachment_points": ["organization"],
+      "enforcement": "baseline",
+      "policy_ids": ["forbid-session-not-active"],
+      "attachments": []
+    },
+    {
+      "id": "CTL-ID-004",
+      "name": "Human actor still active",
+      "description": "An agent session dies with the human behind it. Deprovisioning a person stops every agent acting on their behalf.",
+      "primitive": "PRM-ID",
+      "asi": ["ASI03"],
+      "attachment_points": ["organization", "user"],
+      "enforcement": "data",
+      "policy_ids": [
+        "forbid-session-human-not-active",
+        "forbid-session-create-human-not-active"
+      ],
+      "attachments": []
+    },
+    {
+      "id": "CTL-DEL-001",
+      "name": "Delegation within the human's entitlements",
+      "description": "A human can delegate to an agent only capabilities the human holds and the use case permits. The agent never inherits the human's whole privilege set.",
+      "primitive": "PRM-ID",
+      "asi": ["ASI03"],
+      "attachment_points": ["user", "use_case"],
+      "enforcement": "data",
+      "policy_ids": [
+        "permit-session-delegation-within-entitlements",
+        "forbid-session-delegation-exceeds-human-entitlements",
+        "forbid-session-delegation-exceeds-use-case"
+      ],
+      "attachments": []
+    },
+    {
+      "id": "CTL-DEL-002",
+      "name": "Session tier ceiling",
+      "description": "A session's tier ceiling is at most the human's clearance, the use case ceiling and the agent's clearance, whichever is lowest.",
+      "primitive": "PRM-TIER",
+      "asi": ["ASI03"],
+      "attachment_points": ["user", "agent", "use_case"],
+      "enforcement": "data",
+      "policy_ids": ["forbid-session-tier-above-ceiling"],
+      "attachments": []
+    },
+    {
+      "id": "CTL-DEL-003",
+      "name": "Agent registered for the use case",
+      "description": "A use case names the agents that may run it. No session starts for any other agent.",
+      "primitive": "PRM-ID",
+      "asi": ["ASI03", "ASI10"],
+      "attachment_points": ["use_case"],
+      "enforcement": "data",
+      "policy_ids": ["forbid-session-agent-not-registered-for-use-case"],
+      "attachments": []
+    },
+    {
+      "id": "CTL-CAP-001",
+      "name": "Effective capability intersection",
+      "description": "An agent may use a capability only if it was delegated in this session AND organization policy permits it for the use case. Everything else is denied by default.",
+      "primitive": "PRM-CAP",
+      "asi": ["ASI02", "ASI03", "ASI05"],
+      "attachment_points": ["organization", "agent", "use_case"],
+      "enforcement": "data",
+      "policy_ids": [
+        "permit-effective-capability",
+        "forbid-capability-not-delegated",
+        "forbid-capability-not-permitted-for-use-case"
+      ],
+      "attachments": [
+        {
+          "id": "att-2",
+          "control_id": "CTL-CAP-001",
+          "target_type": "use_case",
+          "target_id": "market-research",
+          "parameters": {
+            "permitted": ["llm.complete", "files.read", "agent.message"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "CTL-POL-001",
+      "name": "Fail closed",
+      "description": "Any error while building or evaluating a decision (unknown entity, schema mismatch, evaluation error) is a deny, never a skipped check.",
+      "primitive": "PRM-CAP",
+      "asi": ["ASI02", "ASI03"],
+      "attachment_points": ["organization"],
+      "enforcement": "baseline",
+      "policy_ids": [],
+      "attachments": []
+    },
+    {
+      "id": "CTL-POL-002",
+      "name": "Request integrity",
+      "description": "The capability the Gateway checks is the action the connector will execute; a request where they disagree is refused.",
+      "primitive": "PRM-CAP",
+      "asi": ["ASI02"],
+      "attachment_points": ["organization"],
+      "enforcement": "baseline",
+      "policy_ids": ["forbid-capability-action-mismatch"],
+      "attachments": []
+    },
+    {
+      "id": "CTL-TIER-001",
+      "name": "Resource tier ceiling",
+      "description": "An agent cannot touch a resource labelled above its session's tier ceiling, even when the human behind it could.",
+      "primitive": "PRM-TIER",
+      "asi": ["ASI03", "ASI02"],
+      "attachment_points": ["tier", "use_case"],
+      "enforcement": "data",
+      "policy_ids": ["forbid-resource-above-session-tier"],
+      "attachments": [
+        {
+          "id": "att-7",
+          "control_id": "CTL-TIER-001",
+          "target_type": "tier",
+          "target_id": "files/hr",
+          "parameters": {
+            "tier": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "CTL-TIER-002",
+      "name": "No write-down",
+      "description": "Once a session has read data at a tier, it cannot write or send to a destination labelled lower, such as an external mailbox. Hijacked instructions cannot move data out.",
+      "primitive": "PRM-TIER",
+      "asi": ["ASI01", "ASI02", "ASI06"],
+      "attachment_points": ["organization", "tier"],
+      "enforcement": "baseline",
+      "policy_ids": ["forbid-write-down"],
+      "attachments": []
+    },
+    {
+      "id": "CTL-TIER-003",
+      "name": "Model clearance",
+      "description": "Data goes only to models cleared for its tier. A session holding confidential data cannot call a model cleared for internal.",
+      "primitive": "PRM-TIER",
+      "asi": ["ASI02", "ASI04"],
+      "attachment_points": ["provider_model", "tier"],
+      "enforcement": "data",
+      "policy_ids": ["forbid-model-below-session-taint"],
+      "attachments": [
+        {
+          "id": "att-6",
+          "control_id": "CTL-TIER-003",
+          "target_type": "provider_model",
+          "target_id": "mock-llm",
+          "parameters": {
+            "maxTier": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "CTL-MEM-001",
+      "name": "Labelled memory",
+      "description": "Every memory entry carries the tier and provenance of the session that wrote it, and is returned to agents as labelled data, never as instructions.",
+      "primitive": "PRM-TIER",
+      "asi": ["ASI06"],
+      "attachment_points": ["organization", "tier"],
+      "enforcement": "baseline",
+      "policy_ids": [],
+      "attachments": []
+    },
+    {
+      "id": "CTL-OUT-001",
+      "name": "Labelled tool output",
+      "description": "Every tool result comes back labelled with the tier and origin of what it contains. Reading it raises the session's taint, and content from outside the organization marks the session as having untrusted input.",
+      "primitive": "PRM-TIER",
+      "asi": ["ASI01", "ASI06"],
+      "attachment_points": ["organization", "tool"],
+      "enforcement": "baseline",
+      "policy_ids": [],
+      "attachments": []
+    },
+    {
+      "id": "CTL-PROV-001",
+      "name": "Untrusted input gates high-impact actions",
+      "description": "After a session has ingested content from outside its trust boundary (an inbound ticket, another agent's message), any high-impact action needs a human approval.",
+      "primitive": "PRM-TIER",
+      "asi": ["ASI01", "ASI06", "ASI07"],
+      "attachment_points": ["organization", "use_case"],
+      "enforcement": "baseline",
+      "policy_ids": ["approval-high-impact-after-untrusted-input"],
+      "attachments": []
+    },
+    {
+      "id": "CTL-TOOL-001",
+      "name": "Pinned MCP tool descriptors",
+      "description": "Each MCP tool is pinned to the hash of its reviewed descriptor. A changed description or schema blocks the tool before any agent sees it, until an admin reviews and re-pins it.",
+      "primitive": "PRM-TOOL",
+      "asi": ["ASI04", "ASI02"],
+      "attachment_points": ["tool"],
+      "enforcement": "data",
+      "policy_ids": [
+        "forbid-mcp-call-without-tool",
+        "forbid-tool-descriptor-drift"
+      ],
+      "attachments": [
+        {
+          "id": "att-5",
+          "control_id": "CTL-TOOL-001",
+          "target_type": "tool",
+          "target_id": "payments",
+          "parameters": {
+            "pinnedDescriptorHash": "sha256 of the reviewed payments descriptor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "CTL-EXEC-001",
+      "name": "Command templates",
+      "description": "shell.exec runs only commands that parse into an approved template with validated arguments. Pipes, substitutions and downloads-to-shell never match.",
+      "primitive": "PRM-TOOL",
+      "asi": ["ASI05", "ASI02"],
+      "attachment_points": ["tool", "agent"],
+      "enforcement": "data",
+      "policy_ids": ["forbid-command-not-validated"],
+      "attachments": [
+        {
+          "id": "att-4",
+          "control_id": "CTL-EXEC-001",
+          "target_type": "agent",
+          "target_id": "ops-runner",
+          "parameters": {
+            "templates": ["deploy-service", "restart-service", "tail-logs"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "CTL-A2A-001",
+      "name": "Mediated agent channel",
+      "description": "Agents talk only through the Gateway, only to peers their use case names, and only to active agents. Each message records sender, receiver, use case, capability, provenance and trace id.",
+      "primitive": "PRM-A2A",
+      "asi": ["ASI07", "ASI08"],
+      "attachment_points": ["use_case", "agent"],
+      "enforcement": "data",
+      "policy_ids": [
+        "forbid-a2a-peer-not-allowed",
+        "forbid-a2a-receiver-not-active"
+      ],
+      "attachments": [
+        {
+          "id": "att-3",
+          "control_id": "CTL-A2A-001",
+          "target_type": "use_case",
+          "target_id": "market-research",
+          "parameters": {
+            "peers": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "CTL-A2A-002",
+      "name": "Receiver clearance",
+      "description": "An agent cannot pass data to another agent cleared for a lower tier than the data it holds.",
+      "primitive": "PRM-TIER",
+      "asi": ["ASI07"],
+      "attachment_points": ["agent", "tier"],
+      "enforcement": "data",
+      "policy_ids": ["forbid-a2a-receiver-below-session-taint"],
+      "attachments": []
+    },
+    {
+      "id": "CTL-A2A-003",
+      "name": "A message is not a delegation",
+      "description": "An agent cannot ask another agent to perform a capability it does not hold itself. Received messages mark the receiver's session as having untrusted input.",
+      "primitive": "PRM-A2A",
+      "asi": ["ASI07", "ASI03"],
+      "attachment_points": ["organization"],
+      "enforcement": "baseline",
+      "policy_ids": ["forbid-a2a-capability-escalation"],
+      "attachments": []
+    },
+    {
+      "id": "CTL-APR-001",
+      "name": "Approval required by use case",
+      "description": "Capabilities the use case lists need a human approval of the exact action before they run.",
+      "primitive": "PRM-HITL",
+      "asi": ["ASI09", "ASI02"],
+      "attachment_points": ["use_case"],
+      "enforcement": "data",
+      "policy_ids": ["approval-required-by-use-case"],
+      "attachments": []
+    },
+    {
+      "id": "CTL-APR-002",
+      "name": "Step-up required by use case",
+      "description": "Capabilities the use case lists need an approver who has just re-authenticated with OTP (acr level 2).",
+      "primitive": "PRM-HITL",
+      "asi": ["ASI03", "ASI09"],
+      "attachment_points": ["use_case"],
+      "enforcement": "data",
+      "policy_ids": ["step-up-required-by-use-case"],
+      "attachments": []
+    },
+    {
+      "id": "CTL-APR-003",
+      "name": "Payment threshold",
+      "description": "A transfer above the use case threshold needs an approval with step-up. A transfer without an amount is refused.",
+      "primitive": "PRM-HITL",
+      "asi": ["ASI09", "ASI02", "ASI03"],
+      "attachment_points": ["use_case"],
+      "enforcement": "data",
+      "policy_ids": [
+        "forbid-payment-without-amount",
+        "approval-payment-above-threshold",
+        "step-up-payment-above-threshold"
+      ],
+      "attachments": [
+        {
+          "id": "att-1",
+          "control_id": "CTL-APR-003",
+          "target_type": "use_case",
+          "target_id": "invoice-processing",
+          "parameters": {
+            "approvalThresholdCents": 1000000
+          }
+        }
+      ]
+    },
+    {
+      "id": "CTL-APR-004",
+      "name": "Approval evidence from the Gateway",
+      "description": "The approval card shows the exact parameters, resource, tier and provenance as the Gateway resolved them. Text written by the agent is shown only as labelled agent-supplied text.",
+      "primitive": "PRM-HITL",
+      "asi": ["ASI09"],
+      "attachment_points": ["organization"],
+      "enforcement": "baseline",
+      "policy_ids": [],
+      "attachments": []
+    },
+    {
+      "id": "CTL-RUN-001",
+      "name": "Session budget",
+      "description": "Each session has a spending budget; an action that would exceed it is refused.",
+      "primitive": "PRM-RUN",
+      "asi": ["ASI08", "ASI10"],
+      "attachment_points": ["use_case", "agent"],
+      "enforcement": "data",
+      "policy_ids": ["forbid-budget-exceeded"],
+      "attachments": [
+        {
+          "id": "att-8",
+          "control_id": "CTL-RUN-001",
+          "target_type": "use_case",
+          "target_id": "weekly-reporting",
+          "parameters": {
+            "budgetCents": 2000
+          }
+        }
+      ]
+    },
+    {
+      "id": "CTL-RUN-002",
+      "name": "Rate limit",
+      "description": "A use case caps how many actions an agent may take per minute; a burst beyond it is refused.",
+      "primitive": "PRM-RUN",
+      "asi": ["ASI08", "ASI10"],
+      "attachment_points": ["use_case"],
+      "enforcement": "data",
+      "policy_ids": ["forbid-rate-exceeded"],
+      "attachments": [
+        {
+          "id": "att-9",
+          "control_id": "CTL-RUN-002",
+          "target_type": "use_case",
+          "target_id": "weekly-reporting",
+          "parameters": {
+            "maxActionsPerMinute": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "CTL-RUN-003",
+      "name": "Circuit breaker",
+      "description": "Repeated denials from one agent within a short window trip a breaker that quarantines the agent, stopping a cascade before it spreads.",
+      "primitive": "PRM-RUN",
+      "asi": ["ASI08", "ASI10"],
+      "attachment_points": ["organization", "agent"],
+      "enforcement": "baseline",
+      "policy_ids": [],
+      "attachments": []
+    },
+    {
+      "id": "CTL-RUN-004",
+      "name": "Suspend high-impact capabilities",
+      "description": "During an incident, high-impact capabilities (payments, outbound email, shell) can be suspended for a whole team or a single agent in one step.",
+      "primitive": "PRM-RUN",
+      "asi": ["ASI08", "ASI10"],
+      "attachment_points": ["team", "agent"],
+      "enforcement": "template",
+      "policy_ids": [],
+      "attachments": []
+    },
+    {
+      "id": "CTL-AI-001",
+      "name": "AI analysis only tightens",
+      "description": "The analyzer (a mock model in this demo) can turn allow into require_approval or deny. It never sees a deterministic deny as negotiable and can never loosen a decision.",
+      "primitive": "PRM-AI",
+      "asi": ["ASI01", "ASI06"],
+      "attachment_points": ["organization", "use_case"],
+      "enforcement": "baseline",
+      "policy_ids": ["analyzer-suspicious", "analyzer-malicious"],
+      "attachments": []
+    },
+    {
+      "id": "CTL-AUD-001",
+      "name": "Every decision is a trace",
+      "description": "Each action is recorded with who initiated it, which agent, why, what capability, which resource, which policies and controls decided, and every pipeline stage as a span.",
+      "primitive": "PRM-TRACE",
+      "asi": ["ASI09", "ASI10", "ASI08"],
+      "attachment_points": ["organization"],
+      "enforcement": "baseline",
+      "policy_ids": [],
+      "attachments": []
+    }
+  ]
+}

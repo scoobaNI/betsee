@@ -1,0 +1,52 @@
+{
+	auto_https off
+	admin off
+}
+
+(api) {
+	handle /api/v1/demo/* {
+		reverse_proxy demo-runner:8090 {
+			flush_interval -1
+		}
+	}
+	handle /api/* {
+		reverse_proxy gateway:8080 {
+			flush_interval -1
+		}
+	}
+}
+
+http://betsee.localhost {
+	import api
+	handle {
+		root * /srv/ecosystem
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+http://director.betsee.localhost {
+	import api
+	handle {
+		root * /srv/director
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+http://api.betsee.localhost {
+	import api
+	handle {
+		respond "Not found" 404
+	}
+}
+
+http://auth.betsee.localhost {
+	@private path /admin /admin/* /realms/master /realms/master/*
+	respond @private "Not found" 404
+	reverse_proxy keycloak:8080
+}
+
+http://:80 {
+	respond /healthz "ok" 200
+}

@@ -1,0 +1,456 @@
+# Betsee controls catalog v0 (seed). Owner: security-architect.
+# Decision record: docs/security/adr-0001-policy-engine-cedar.md. Reference decisions: policies/tests/acme-cases.json.
+#
+# A control is a named, explainable guarantee. It is enforced by Cedar policies (policies/*.cedar,
+# matched by their @control annotation) or by a named Gateway mechanism, and it is attached at one or
+# more attachment points. Attachment works in one of three ways:
+#   baseline  - always on for the organization; cannot be detached.
+#   data      - the attachment is an entity attribute the policy reads (the attribute is named in
+#               `parameters`); attaching = setting that attribute on the target entity.
+#   template  - the Gateway links a Cedar template with ?principal = the target team or agent.
+# The ASI coverage view is derived from this file alone: ASI id -> controls -> primitive.
+#
+# Attachment points: organization, team, user, agent, use_case, tool, provider_model, tier.
+# Information tiers: 0 public, 1 internal, 2 confidential, 3 restricted.
+# Outcomes: deny | require_approval | require_step_up (obligations an approval can discharge).
+
+version: 0
+
+primitives:
+  - id: PRM-ID
+    name: Agent identity + delegation (AgentSession)
+    summary: Every agent is its own principal; it acts only inside a session a human created for it, carrying human, use case, delegated capabilities, tier ceiling and budget.
+  - id: PRM-CAP
+    name: Capability intersection + Cedar authorization
+    summary: Effective capability is delegated to the agent intersected with what organization policy permits for the use case, decided by Cedar, default deny, fail closed.
+  - id: PRM-TIER
+    name: Information tiers + taint
+    summary: Resources, sessions, models and agents carry an information tier; a session may not read above its ceiling or write below what it has already read.
+  - id: PRM-TOOL
+    name: Tool integrity + command validation
+    summary: MCP tool descriptors are pinned by hash; shell commands must match a validated template.
+  - id: PRM-A2A
+    name: Mediated agent-to-agent channel
+    summary: Agent messages pass through the Gateway as actions with sender, receiver, use case, requested capability, provenance and trace id; a message never delegates authority.
+  - id: PRM-HITL
+    name: Human approval + step-up
+    summary: High-impact actions wait for a human who sees Gateway-derived facts, and the most sensitive ones require a fresh OTP (acr level 2).
+  - id: PRM-RUN
+    name: Budget, circuit breaker + quarantine
+    summary: Sessions have budgets and rate limits; repeated denials trip a breaker that quarantines the agent; a quarantined agent cannot act.
+  - id: PRM-AI
+    name: AI analysis that only tightens
+    summary: An analyzer (mock model in the demo) can raise allow to require_approval or deny and can never lower a deterministic decision.
+  - id: PRM-TRACE
+    name: Trace + audit
+    summary: Every ActionRequest is a trace whose pipeline stages are spans, ending in an append-only audit row and a security event.
+
+controls:
+  - id: CTL-ID-001
+    name: Session bound to its agent
+    primitive: PRM-ID
+    explanation: An agent can act only inside an AgentSession created for that same agent. A session id copied by another agent is refused.
+    asi: [ASI03, ASI10]
+    attach: [organization]
+    mode: baseline
+    outcome: deny
+    policies: [forbid-session-not-bound-to-agent]
+
+  - id: CTL-ID-002
+    name: Agent lifecycle state
+    primitive: PRM-RUN
+    explanation: Only an active agent can act or be given a new session. Quarantined and suspended agents are refused everywhere at once (the kill switch).
+    asi: [ASI10, ASI08]
+    attach: [organization, agent]
+    mode: data
+    parameters: [Agent.state]
+    outcome: deny
+    policies: [forbid-agent-not-active, forbid-session-for-inactive-agent]
+
+  - id: CTL-ID-003
+    name: Session validity
+    primitive: PRM-ID
+    explanation: A session must be active and unexpired. Closing or revoking a session stops the agent immediately.
+    asi: [ASI03]
+    attach: [organization]
+    mode: baseline
+    outcome: deny
+    policies: [forbid-session-not-active]
+
+  - id: CTL-ID-004
+    name: Human actor still active
+    primitive: PRM-ID
+    explanation: An agent session dies with the human behind it. Deprovisioning a person stops every agent acting on their behalf.
+    asi: [ASI03]
+    attach: [organization, user]
+    mode: data
+    parameters: [Human.active]
+    outcome: deny
+    policies:
+      [forbid-session-human-not-active, forbid-session-create-human-not-active]
+
+  - id: CTL-DEL-001
+    name: Delegation within the human's entitlements
+    primitive: PRM-ID
+    explanation: A human can delegate to an agent only capabilities the human holds and the use case permits. The agent never inherits the human's whole privilege set.
+    asi: [ASI03]
+    attach: [user, use_case]
+    mode: data
+    parameters: [Human.entitlements, UseCase.permitted]
+    outcome: deny
+    policies:
+      [
+        permit-session-delegation-within-entitlements,
+        forbid-session-delegation-exceeds-human-entitlements,
+        forbid-session-delegation-exceeds-use-case,
+      ]
+
+  - id: CTL-DEL-002
+    name: Session tier ceiling
+    primitive: PRM-TIER
+    explanation: A session's tier ceiling is at most the human's clearance, the use case ceiling and the agent's clearance, whichever is lowest.
+    asi: [ASI03]
+    attach: [user, agent, use_case]
+    mode: data
+    parameters: [Human.clearance, Agent.clearance, UseCase.tierCeiling]
+    outcome: deny
+    policies: [forbid-session-tier-above-ceiling]
+
+  - id: CTL-DEL-003
+    name: Agent registered for the use case
+    primitive: PRM-ID
+    explanation: A use case names the agents that may run it. No session starts for any other agent.
+    asi: [ASI03, ASI10]
+    attach: [use_case]
+    mode: data
+    parameters: [UseCase.agents]
+    outcome: deny
+    policies: [forbid-session-agent-not-registered-for-use-case]
+
+  - id: CTL-CAP-001
+    name: Effective capability intersection
+    primitive: PRM-CAP
+    explanation: An agent may use a capability only if it was delegated in this session AND organization policy permits it for the use case. Everything else is denied by default.
+    asi: [ASI02, ASI03, ASI05]
+    attach: [organization, agent, use_case]
+    mode: data
+    parameters: [AgentSession.delegated, UseCase.permitted]
+    outcome: deny
+    policies:
+      [
+        permit-effective-capability,
+        forbid-capability-not-delegated,
+        forbid-capability-not-permitted-for-use-case,
+      ]
+
+  - id: CTL-POL-001
+    name: Fail closed
+    primitive: PRM-CAP
+    explanation: Any error while building or evaluating a decision (unknown entity, schema mismatch, evaluation error) is a deny, never a skipped check.
+    asi: [ASI02, ASI03]
+    attach: [organization]
+    mode: baseline
+    outcome: deny
+    enforced_by: gateway
+    mechanism: Requests and entities are validated against the schema; Cedar diagnostics errors are mapped to deny with this control id.
+
+  - id: CTL-POL-002
+    name: Request integrity
+    primitive: PRM-CAP
+    explanation: The capability the Gateway checks is the action the connector will execute; a request where they disagree is refused.
+    asi: [ASI02]
+    attach: [organization]
+    mode: baseline
+    outcome: deny
+    policies: [forbid-capability-action-mismatch]
+
+  - id: CTL-TIER-001
+    name: Resource tier ceiling
+    primitive: PRM-TIER
+    explanation: An agent cannot touch a resource labelled above its session's tier ceiling, even when the human behind it could.
+    asi: [ASI03, ASI02]
+    attach: [tier, use_case]
+    mode: data
+    parameters: [Resource.tier, AgentSession.tierCeiling]
+    outcome: deny
+    policies: [forbid-resource-above-session-tier]
+
+  - id: CTL-TIER-002
+    name: No write-down
+    primitive: PRM-TIER
+    explanation: Once a session has read data at a tier, it cannot write or send to a destination labelled lower, such as an external mailbox. Hijacked instructions cannot move data out.
+    asi: [ASI01, ASI02, ASI06]
+    attach: [organization, tier]
+    mode: baseline
+    outcome: deny
+    policies: [forbid-write-down]
+
+  - id: CTL-TIER-003
+    name: Model clearance
+    primitive: PRM-TIER
+    explanation: Data goes only to models cleared for its tier. A session holding confidential data cannot call a model cleared for internal.
+    asi: [ASI02, ASI04]
+    attach: [provider_model, tier]
+    mode: data
+    parameters: [Model.maxTier]
+    outcome: deny
+    policies: [forbid-model-below-session-taint]
+
+  - id: CTL-MEM-001
+    name: Labelled memory
+    primitive: PRM-TIER
+    explanation: Every memory entry carries the tier and provenance of the session that wrote it, and is returned to agents as labelled data, never as instructions.
+    asi: [ASI06]
+    attach: [organization, tier]
+    mode: baseline
+    enforced_by: gateway
+    mechanism: memory.write stores tier, writer session, untrusted-input flag and trace id; memory reads raise the reading session's taint and untrusted-input flag accordingly.
+
+  - id: CTL-OUT-001
+    name: Labelled tool output
+    primitive: PRM-TIER
+    explanation: Every tool result comes back labelled with the tier and origin of what it contains. Reading it raises the session's taint, and content from outside the organization marks the session as having untrusted input.
+    asi: [ASI01, ASI06]
+    attach: [organization, tool]
+    mode: baseline
+    enforced_by: gateway
+    mechanism: The output_controls stage sets AgentSession.taint and AgentSession.untrustedInput from the resource tier and origin, refuses to return content above the session tier ceiling, and records both in the trace.
+
+  - id: CTL-PROV-001
+    name: Untrusted input gates high-impact actions
+    primitive: PRM-TIER
+    explanation: After a session has ingested content from outside its trust boundary (an inbound ticket, another agent's message), any high-impact action needs a human approval.
+    asi: [ASI01, ASI06, ASI07]
+    attach: [organization, use_case]
+    mode: baseline
+    outcome: require_approval
+    policies: [approval-high-impact-after-untrusted-input]
+
+  - id: CTL-TOOL-001
+    name: Pinned MCP tool descriptors
+    primitive: PRM-TOOL
+    explanation: Each MCP tool is pinned to the hash of its reviewed descriptor. A changed description or schema blocks the tool before any agent sees it, until an admin reviews and re-pins it.
+    asi: [ASI04, ASI02]
+    attach: [tool]
+    mode: data
+    parameters: [Tool.pinnedDescriptorHash]
+    outcome: deny
+    policies: [forbid-mcp-call-without-tool, forbid-tool-descriptor-drift]
+    mechanism: The Gateway also drops drifted tools from tools/list, so the new description never reaches a model.
+
+  - id: CTL-EXEC-001
+    name: Command templates
+    primitive: PRM-TOOL
+    explanation: shell.exec runs only commands that parse into an approved template with validated arguments. Pipes, substitutions and downloads-to-shell never match.
+    asi: [ASI05, ASI02]
+    attach: [tool, agent]
+    mode: data
+    parameters: [command template registry]
+    outcome: deny
+    policies: [forbid-command-not-validated]
+    mechanism: A deterministic argv parser and template matcher in the Gateway, not a regex over the raw string; the result enters Cedar as context.command.
+
+  - id: CTL-A2A-001
+    name: Mediated agent channel
+    primitive: PRM-A2A
+    explanation: Agents talk only through the Gateway, only to peers their use case names, and only to active agents. Each message records sender, receiver, use case, capability, provenance and trace id.
+    asi: [ASI07, ASI08]
+    attach: [use_case, agent]
+    mode: data
+    parameters: [UseCase.peers, Agent.state]
+    outcome: deny
+    policies: [forbid-a2a-peer-not-allowed, forbid-a2a-receiver-not-active]
+
+  - id: CTL-A2A-002
+    name: Receiver clearance
+    primitive: PRM-TIER
+    explanation: An agent cannot pass data to another agent cleared for a lower tier than the data it holds.
+    asi: [ASI07]
+    attach: [agent, tier]
+    mode: data
+    parameters: [Agent.clearance]
+    outcome: deny
+    policies: [forbid-a2a-receiver-below-session-taint]
+
+  - id: CTL-A2A-003
+    name: A message is not a delegation
+    primitive: PRM-A2A
+    explanation: An agent cannot ask another agent to perform a capability it does not hold itself. Received messages mark the receiver's session as having untrusted input.
+    asi: [ASI07, ASI03]
+    attach: [organization]
+    mode: baseline
+    outcome: deny
+    policies: [forbid-a2a-capability-escalation]
+
+  - id: CTL-APR-001
+    name: Approval required by use case
+    primitive: PRM-HITL
+    explanation: Capabilities the use case lists need a human approval of the exact action before they run.
+    asi: [ASI09, ASI02]
+    attach: [use_case]
+    mode: data
+    parameters: [UseCase.approvalRequired]
+    outcome: require_approval
+    policies: [approval-required-by-use-case]
+
+  - id: CTL-APR-002
+    name: Step-up required by use case
+    primitive: PRM-HITL
+    explanation: Capabilities the use case lists need an approver who has just re-authenticated with OTP (acr level 2).
+    asi: [ASI03, ASI09]
+    attach: [use_case]
+    mode: data
+    parameters: [UseCase.stepUpRequired]
+    outcome: require_step_up
+    policies: [step-up-required-by-use-case]
+
+  - id: CTL-APR-003
+    name: Payment threshold
+    primitive: PRM-HITL
+    explanation: A transfer above the use case threshold needs an approval with step-up. A transfer without an amount is refused.
+    asi: [ASI09, ASI02, ASI03]
+    attach: [use_case]
+    mode: data
+    parameters: [UseCase.approvalThresholdCents]
+    outcome: require_step_up
+    policies:
+      [
+        forbid-payment-without-amount,
+        approval-payment-above-threshold,
+        step-up-payment-above-threshold,
+      ]
+
+  - id: CTL-APR-004
+    name: Approval evidence from the Gateway
+    primitive: PRM-HITL
+    explanation: The approval card shows the exact parameters, resource, tier and provenance as the Gateway resolved them. Text written by the agent is shown only as labelled agent-supplied text.
+    asi: [ASI09]
+    attach: [organization]
+    mode: baseline
+    outcome: require_approval
+    enforced_by: gateway
+    mechanism: An approval binds to a hash of the exact ActionRequest (capability, resource, parameters, session); executing anything else needs a new approval. Approver identity and acr are recorded.
+
+  - id: CTL-RUN-001
+    name: Session budget
+    primitive: PRM-RUN
+    explanation: Each session has a spending budget; an action that would exceed it is refused.
+    asi: [ASI08, ASI10]
+    attach: [use_case, agent]
+    mode: data
+    parameters: [AgentSession.budgetCents]
+    outcome: deny
+    policies: [forbid-budget-exceeded]
+
+  - id: CTL-RUN-002
+    name: Rate limit
+    primitive: PRM-RUN
+    explanation: A use case caps how many actions an agent may take per minute; a burst beyond it is refused.
+    asi: [ASI08, ASI10]
+    attach: [use_case]
+    mode: data
+    parameters: [UseCase.maxActionsPerMinute]
+    outcome: deny
+    policies: [forbid-rate-exceeded]
+
+  - id: CTL-RUN-003
+    name: Circuit breaker
+    primitive: PRM-RUN
+    explanation: Repeated denials from one agent within a short window trip a breaker that quarantines the agent, stopping a cascade before it spreads.
+    asi: [ASI08, ASI10]
+    attach: [organization, agent]
+    mode: baseline
+    outcome: deny
+    enforced_by: gateway
+    mechanism: Counts denials per agent in a sliding window; on trip sets Agent.state = quarantined and emits a security event; release is a human action by org-admin or security-officer.
+
+  - id: CTL-RUN-004
+    name: Suspend high-impact capabilities
+    primitive: PRM-RUN
+    explanation: During an incident, high-impact capabilities (payments, outbound email, shell) can be suspended for a whole team or a single agent in one step.
+    asi: [ASI08, ASI10]
+    attach: [team, agent]
+    mode: template
+    template: tpl-suspend-high-impact
+    outcome: deny
+
+  - id: CTL-AI-001
+    name: AI analysis only tightens
+    primitive: PRM-AI
+    explanation: The analyzer (a mock model in this demo) can turn allow into require_approval or deny. It never sees a deterministic deny as negotiable and can never loosen a decision.
+    asi: [ASI01, ASI06]
+    attach: [organization, use_case]
+    mode: baseline
+    outcome: require_approval
+    policies: [analyzer-suspicious, analyzer-malicious]
+    mechanism: The analyzer runs only after the deterministic decision is not deny; the final decision is the stricter of the two, and no permit policy may read context.analysis.
+
+  - id: CTL-AUD-001
+    name: Every decision is a trace
+    primitive: PRM-TRACE
+    explanation: Each action is recorded with who initiated it, which agent, why, what capability, which resource, which policies and controls decided, and every pipeline stage as a span.
+    asi: [ASI09, ASI10, ASI08]
+    attach: [organization]
+    mode: baseline
+    outcome: deny
+    enforced_by: gateway
+    mechanism: Append-only audit row in PostgreSQL plus a security event on SSE; an action whose audit write fails is not executed.
+
+# Attachments in the Acme Logistics seed (the Gateway seeds these; Policy Studio lists them).
+attachments:
+  - {
+      control: CTL-APR-003,
+      point: use_case,
+      target: invoice-processing,
+      value: { approvalThresholdCents: 1000000 },
+    }
+  - {
+      control: CTL-CAP-001,
+      point: use_case,
+      target: market-research,
+      value: { permitted: [llm.complete, files.read, agent.message] },
+    }
+  - {
+      control: CTL-A2A-001,
+      point: use_case,
+      target: market-research,
+      value: { peers: [] },
+    }
+  - {
+      control: CTL-EXEC-001,
+      point: agent,
+      target: ops-runner,
+      value: { templates: [deploy-service, restart-service, tail-logs] },
+    }
+  - {
+      control: CTL-TOOL-001,
+      point: tool,
+      target: payments,
+      value:
+        { pinnedDescriptorHash: "sha256 of the reviewed payments descriptor" },
+    }
+  - {
+      control: CTL-TIER-003,
+      point: provider_model,
+      target: mock-llm,
+      value: { maxTier: 1 },
+    }
+  - { control: CTL-TIER-001, point: tier, target: files/hr, value: { tier: 3 } }
+  - {
+      control: CTL-RUN-001,
+      point: use_case,
+      target: weekly-reporting,
+      value: { budgetCents: 2000 },
+    }
+  - {
+      control: CTL-RUN-002,
+      point: use_case,
+      target: weekly-reporting,
+      value: { maxActionsPerMinute: 20 },
+    }
+  - {
+      control: CTL-ID-002,
+      point: agent,
+      target: report-bot,
+      value: { state: active },
+    }

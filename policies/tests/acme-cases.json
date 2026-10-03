@@ -1,0 +1,3816 @@
+{
+  "description": "Reference decision cases for the Betsee Cedar policies. Each case is one ActionRequest (or session.create) against the Acme Logistics seed; expect is the Betsee decision after composition (docs/security/adr-0001-policy-engine-cedar.md). Tiers: 0 public, 1 internal, 2 confidential, 3 restricted. Owner: security-architect.",
+  "now": 1791043200,
+  "entities": [
+    {
+      "uid": {
+        "type": "Betsee::Organization",
+        "id": "acme"
+      },
+      "attrs": {},
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Team",
+        "id": "finance"
+      },
+      "attrs": {},
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Team",
+        "id": "support"
+      },
+      "attrs": {},
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Team",
+        "id": "strategy"
+      },
+      "attrs": {},
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Team",
+        "id": "platform"
+      },
+      "attrs": {},
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Capability",
+        "id": "crm.read"
+      },
+      "attrs": {},
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Capability",
+        "id": "tickets.read"
+      },
+      "attrs": {},
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Capability",
+        "id": "files.read"
+      },
+      "attrs": {},
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Capability",
+        "id": "tickets.write"
+      },
+      "attrs": {},
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Capability",
+        "id": "memory.write"
+      },
+      "attrs": {},
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Capability",
+        "id": "email.send"
+      },
+      "attrs": {},
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Capability",
+        "id": "payments.transfer"
+      },
+      "attrs": {},
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Capability",
+        "id": "shell.exec"
+      },
+      "attrs": {},
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Capability",
+        "id": "agent.message"
+      },
+      "attrs": {},
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Capability",
+        "id": "llm.complete"
+      },
+      "attrs": {},
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Connector",
+        "id": "mcp-demo"
+      },
+      "attrs": {
+        "kind": "mcp"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Connector",
+        "id": "betsee-internal"
+      },
+      "attrs": {
+        "kind": "self-hosted"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Connector",
+        "id": "openai-compatible"
+      },
+      "attrs": {
+        "kind": "local-model"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Tool",
+        "id": "crm"
+      },
+      "attrs": {
+        "pinnedDescriptorHash": "sha256:crm-v1"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Connector",
+          "id": "mcp-demo"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Tool",
+        "id": "tickets"
+      },
+      "attrs": {
+        "pinnedDescriptorHash": "sha256:tickets-v1"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Connector",
+          "id": "mcp-demo"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Tool",
+        "id": "files"
+      },
+      "attrs": {
+        "pinnedDescriptorHash": "sha256:files-v1"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Connector",
+          "id": "mcp-demo"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Tool",
+        "id": "payments"
+      },
+      "attrs": {
+        "pinnedDescriptorHash": "sha256:payments-v1"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Connector",
+          "id": "mcp-demo"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Tool",
+        "id": "email"
+      },
+      "attrs": {
+        "pinnedDescriptorHash": "sha256:email-v1"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Connector",
+          "id": "mcp-demo"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Tool",
+        "id": "memory"
+      },
+      "attrs": {
+        "pinnedDescriptorHash": "sha256:memory-v1"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Connector",
+          "id": "betsee-internal"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Tool",
+        "id": "shell"
+      },
+      "attrs": {
+        "pinnedDescriptorHash": "sha256:shell-v1"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Connector",
+          "id": "betsee-internal"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Model",
+        "id": "mock-llm"
+      },
+      "attrs": {
+        "provider": "mock model (demo)",
+        "maxTier": 1
+      },
+      "parents": [
+        {
+          "type": "Betsee::Connector",
+          "id": "openai-compatible"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Human",
+        "id": "maya"
+      },
+      "attrs": {
+        "sub": "kc-maya",
+        "active": true,
+        "clearance": 3,
+        "entitlements": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "crm.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "payments.transfer"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "email.send"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "llm.complete"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "agent.message"
+            }
+          }
+        ]
+      },
+      "parents": [
+        {
+          "type": "Betsee::Team",
+          "id": "finance"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Human",
+        "id": "daniel"
+      },
+      "attrs": {
+        "sub": "kc-daniel",
+        "active": true,
+        "clearance": 3,
+        "entitlements": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "crm.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "tickets.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "tickets.write"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "memory.write"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "email.send"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "payments.transfer"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "shell.exec"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "agent.message"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "llm.complete"
+            }
+          }
+        ]
+      },
+      "parents": [
+        {
+          "type": "Betsee::Team",
+          "id": "platform"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Human",
+        "id": "priya"
+      },
+      "attrs": {
+        "sub": "kc-priya",
+        "active": true,
+        "clearance": 3,
+        "entitlements": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "crm.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "tickets.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "tickets.write"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "memory.write"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "email.send"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "payments.transfer"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "shell.exec"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "agent.message"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "llm.complete"
+            }
+          }
+        ]
+      },
+      "parents": [
+        {
+          "type": "Betsee::Team",
+          "id": "platform"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Agent",
+        "id": "invoice-assistant"
+      },
+      "attrs": {
+        "state": "active",
+        "clearance": 2
+      },
+      "parents": [
+        {
+          "type": "Betsee::Team",
+          "id": "finance"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Agent",
+        "id": "support-triage"
+      },
+      "attrs": {
+        "state": "active",
+        "clearance": 1
+      },
+      "parents": [
+        {
+          "type": "Betsee::Team",
+          "id": "support"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Agent",
+        "id": "research-agent"
+      },
+      "attrs": {
+        "state": "active",
+        "clearance": 1
+      },
+      "parents": [
+        {
+          "type": "Betsee::Team",
+          "id": "strategy"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Agent",
+        "id": "ops-runner"
+      },
+      "attrs": {
+        "state": "active",
+        "clearance": 1
+      },
+      "parents": [
+        {
+          "type": "Betsee::Team",
+          "id": "platform"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Agent",
+        "id": "report-bot"
+      },
+      "attrs": {
+        "state": "active",
+        "clearance": 2
+      },
+      "parents": [
+        {
+          "type": "Betsee::Team",
+          "id": "finance"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::UseCase",
+        "id": "invoice-processing"
+      },
+      "attrs": {
+        "agents": [
+          {
+            "__entity": {
+              "type": "Betsee::Agent",
+              "id": "invoice-assistant"
+            }
+          }
+        ],
+        "permitted": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "crm.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "payments.transfer"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "email.send"
+            }
+          }
+        ],
+        "tierCeiling": 1,
+        "approvalRequired": [],
+        "stepUpRequired": [],
+        "approvalThresholdCents": 1000000,
+        "maxActionsPerMinute": 30,
+        "peers": []
+      },
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::UseCase",
+        "id": "ticket-triage"
+      },
+      "attrs": {
+        "agents": [
+          {
+            "__entity": {
+              "type": "Betsee::Agent",
+              "id": "support-triage"
+            }
+          }
+        ],
+        "permitted": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "tickets.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "tickets.write"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "crm.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "memory.write"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "email.send"
+            }
+          }
+        ],
+        "tierCeiling": 1,
+        "approvalRequired": [],
+        "stepUpRequired": [],
+        "approvalThresholdCents": 1000000,
+        "maxActionsPerMinute": 30,
+        "peers": []
+      },
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::UseCase",
+        "id": "market-research"
+      },
+      "attrs": {
+        "agents": [
+          {
+            "__entity": {
+              "type": "Betsee::Agent",
+              "id": "research-agent"
+            }
+          }
+        ],
+        "permitted": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "llm.complete"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "agent.message"
+            }
+          }
+        ],
+        "tierCeiling": 0,
+        "approvalRequired": [],
+        "stepUpRequired": [],
+        "approvalThresholdCents": 1000000,
+        "maxActionsPerMinute": 30,
+        "peers": []
+      },
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::UseCase",
+        "id": "deployment-helper"
+      },
+      "attrs": {
+        "agents": [
+          {
+            "__entity": {
+              "type": "Betsee::Agent",
+              "id": "ops-runner"
+            }
+          }
+        ],
+        "permitted": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "shell.exec"
+            }
+          }
+        ],
+        "tierCeiling": 1,
+        "approvalRequired": [],
+        "stepUpRequired": [],
+        "approvalThresholdCents": 1000000,
+        "maxActionsPerMinute": 30,
+        "peers": []
+      },
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::UseCase",
+        "id": "weekly-reporting"
+      },
+      "attrs": {
+        "agents": [
+          {
+            "__entity": {
+              "type": "Betsee::Agent",
+              "id": "report-bot"
+            }
+          }
+        ],
+        "permitted": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "crm.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "llm.complete"
+            }
+          }
+        ],
+        "tierCeiling": 1,
+        "approvalRequired": [],
+        "stepUpRequired": [],
+        "approvalThresholdCents": 1000000,
+        "maxActionsPerMinute": 20,
+        "peers": []
+      },
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::AgentSession",
+        "id": "s-invoice"
+      },
+      "attrs": {
+        "human": {
+          "__entity": {
+            "type": "Betsee::Human",
+            "id": "maya"
+          }
+        },
+        "agent": {
+          "__entity": {
+            "type": "Betsee::Agent",
+            "id": "invoice-assistant"
+          }
+        },
+        "useCase": {
+          "__entity": {
+            "type": "Betsee::UseCase",
+            "id": "invoice-processing"
+          }
+        },
+        "delegated": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "crm.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "payments.transfer"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "email.send"
+            }
+          }
+        ],
+        "tierCeiling": 1,
+        "taint": 0,
+        "untrustedInput": false,
+        "status": "active",
+        "expiresAt": 4102444800,
+        "budgetCents": 5000,
+        "spentCents": 0
+      },
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::AgentSession",
+        "id": "s-triage"
+      },
+      "attrs": {
+        "human": {
+          "__entity": {
+            "type": "Betsee::Human",
+            "id": "priya"
+          }
+        },
+        "agent": {
+          "__entity": {
+            "type": "Betsee::Agent",
+            "id": "support-triage"
+          }
+        },
+        "useCase": {
+          "__entity": {
+            "type": "Betsee::UseCase",
+            "id": "ticket-triage"
+          }
+        },
+        "delegated": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "tickets.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "tickets.write"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "crm.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "memory.write"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "email.send"
+            }
+          }
+        ],
+        "tierCeiling": 1,
+        "taint": 0,
+        "untrustedInput": false,
+        "status": "active",
+        "expiresAt": 4102444800,
+        "budgetCents": 5000,
+        "spentCents": 0
+      },
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::AgentSession",
+        "id": "s-research"
+      },
+      "attrs": {
+        "human": {
+          "__entity": {
+            "type": "Betsee::Human",
+            "id": "priya"
+          }
+        },
+        "agent": {
+          "__entity": {
+            "type": "Betsee::Agent",
+            "id": "research-agent"
+          }
+        },
+        "useCase": {
+          "__entity": {
+            "type": "Betsee::UseCase",
+            "id": "market-research"
+          }
+        },
+        "delegated": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "llm.complete"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "agent.message"
+            }
+          }
+        ],
+        "tierCeiling": 0,
+        "taint": 0,
+        "untrustedInput": false,
+        "status": "active",
+        "expiresAt": 4102444800,
+        "budgetCents": 5000,
+        "spentCents": 0
+      },
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::AgentSession",
+        "id": "s-ops"
+      },
+      "attrs": {
+        "human": {
+          "__entity": {
+            "type": "Betsee::Human",
+            "id": "priya"
+          }
+        },
+        "agent": {
+          "__entity": {
+            "type": "Betsee::Agent",
+            "id": "ops-runner"
+          }
+        },
+        "useCase": {
+          "__entity": {
+            "type": "Betsee::UseCase",
+            "id": "deployment-helper"
+          }
+        },
+        "delegated": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "shell.exec"
+            }
+          }
+        ],
+        "tierCeiling": 1,
+        "taint": 0,
+        "untrustedInput": false,
+        "status": "active",
+        "expiresAt": 4102444800,
+        "budgetCents": 5000,
+        "spentCents": 0
+      },
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::AgentSession",
+        "id": "s-report"
+      },
+      "attrs": {
+        "human": {
+          "__entity": {
+            "type": "Betsee::Human",
+            "id": "maya"
+          }
+        },
+        "agent": {
+          "__entity": {
+            "type": "Betsee::Agent",
+            "id": "report-bot"
+          }
+        },
+        "useCase": {
+          "__entity": {
+            "type": "Betsee::UseCase",
+            "id": "weekly-reporting"
+          }
+        },
+        "delegated": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "crm.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "llm.complete"
+            }
+          }
+        ],
+        "tierCeiling": 1,
+        "taint": 0,
+        "untrustedInput": false,
+        "status": "active",
+        "expiresAt": 4102444800,
+        "budgetCents": 2000,
+        "spentCents": 0
+      },
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "crm/customer-1042"
+      },
+      "attrs": {
+        "kind": "crm_record",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "crm"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "files/hr/salaries-2026.xlsx"
+      },
+      "attrs": {
+        "kind": "file",
+        "tier": 3,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "files"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "files/market/outlook-2026.pdf"
+      },
+      "attrs": {
+        "kind": "file",
+        "tier": 0,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "files"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "tickets/T-4711"
+      },
+      "attrs": {
+        "kind": "ticket",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "tickets"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "email/exfil@mailbox.example"
+      },
+      "attrs": {
+        "kind": "recipient",
+        "tier": 0,
+        "external": true
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "email"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "email/ap@acme.example"
+      },
+      "attrs": {
+        "kind": "recipient",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "email"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "payments/nordfreight-supplier"
+      },
+      "attrs": {
+        "kind": "payment_account",
+        "tier": 1,
+        "external": true
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "payments"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "shell/deploy-host-1"
+      },
+      "attrs": {
+        "kind": "host",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "shell"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "memory/support-triage"
+      },
+      "attrs": {
+        "kind": "memory_store",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "memory"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Agent",
+        "id": "research-peer"
+      },
+      "attrs": {
+        "state": "active",
+        "clearance": 1
+      },
+      "parents": [
+        {
+          "type": "Betsee::Team",
+          "id": "strategy"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::UseCase",
+        "id": "regression-a2a-sender"
+      },
+      "attrs": {
+        "agents": [
+          {
+            "__entity": {
+              "type": "Betsee::Agent",
+              "id": "research-agent"
+            }
+          }
+        ],
+        "permitted": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "agent.message"
+            }
+          }
+        ],
+        "tierCeiling": 1,
+        "approvalRequired": [],
+        "stepUpRequired": [],
+        "approvalThresholdCents": 1000000,
+        "maxActionsPerMinute": 30,
+        "peers": [
+          {
+            "__entity": {
+              "type": "Betsee::Agent",
+              "id": "research-peer"
+            }
+          }
+        ]
+      },
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::UseCase",
+        "id": "regression-a2a-receiver"
+      },
+      "attrs": {
+        "agents": [
+          {
+            "__entity": {
+              "type": "Betsee::Agent",
+              "id": "research-peer"
+            }
+          }
+        ],
+        "permitted": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "email.send"
+            }
+          }
+        ],
+        "tierCeiling": 1,
+        "approvalRequired": [],
+        "stepUpRequired": [],
+        "approvalThresholdCents": 1000000,
+        "maxActionsPerMinute": 30,
+        "peers": []
+      },
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "files/regression/internal-brief.pdf"
+      },
+      "attrs": {
+        "kind": "file",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "files"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "crm/customer-9001"
+      },
+      "attrs": {
+        "kind": "crm_record",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "crm"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::AgentSession",
+        "id": "s-reg-sender"
+      },
+      "attrs": {
+        "human": {
+          "__entity": {
+            "type": "Betsee::Human",
+            "id": "priya"
+          }
+        },
+        "agent": {
+          "__entity": {
+            "type": "Betsee::Agent",
+            "id": "research-agent"
+          }
+        },
+        "useCase": {
+          "__entity": {
+            "type": "Betsee::UseCase",
+            "id": "regression-a2a-sender"
+          }
+        },
+        "delegated": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "agent.message"
+            }
+          }
+        ],
+        "tierCeiling": 1,
+        "taint": 0,
+        "untrustedInput": false,
+        "status": "active",
+        "expiresAt": 4102444800,
+        "budgetCents": 5000,
+        "spentCents": 0
+      },
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::AgentSession",
+        "id": "s-reg-receiver"
+      },
+      "attrs": {
+        "human": {
+          "__entity": {
+            "type": "Betsee::Human",
+            "id": "priya"
+          }
+        },
+        "agent": {
+          "__entity": {
+            "type": "Betsee::Agent",
+            "id": "research-peer"
+          }
+        },
+        "useCase": {
+          "__entity": {
+            "type": "Betsee::UseCase",
+            "id": "regression-a2a-receiver"
+          }
+        },
+        "delegated": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "email.send"
+            }
+          }
+        ],
+        "tierCeiling": 1,
+        "taint": 0,
+        "untrustedInput": false,
+        "status": "active",
+        "expiresAt": 4102444800,
+        "budgetCents": 5000,
+        "spentCents": 0
+      },
+      "parents": []
+    }
+  ],
+  "cases": [
+    {
+      "name": "act1 invoice-assistant reads a customer record",
+      "step": "act1.s1",
+      "principal": "Betsee::Agent::\"invoice-assistant\"",
+      "action": "Betsee::Action::\"crm.read\"",
+      "resource": "Betsee::Resource::\"crm/customer-1042\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "crm.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "crm"
+            }
+          },
+          "observedDescriptorHash": "sha256:crm-v1"
+        }
+      },
+      "expect": "allow",
+      "expect_reason": "permit-effective-capability"
+    },
+    {
+      "name": "act2 invoice-assistant reads restricted HR folder",
+      "step": "act2.s1",
+      "principal": "Betsee::Agent::\"invoice-assistant\"",
+      "action": "Betsee::Action::\"files.read\"",
+      "resource": "Betsee::Resource::\"files/hr/salaries-2026.xlsx\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "files.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "files"
+            }
+          },
+          "observedDescriptorHash": "sha256:files-v1"
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-resource-above-session-tier"
+    },
+    {
+      "name": "act2 ops-runner runs curl | sh (no template matches)",
+      "step": "act2.s2",
+      "principal": "Betsee::Agent::\"ops-runner\"",
+      "action": "Betsee::Action::\"shell.exec\"",
+      "resource": "Betsee::Resource::\"shell/deploy-host-1\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-ops"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "shell.exec"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "command": {
+          "template": "",
+          "valid": false
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-command-not-validated"
+    },
+    {
+      "name": "act2 ops-runner runs a validated template",
+      "step": "act2.s0",
+      "principal": "Betsee::Agent::\"ops-runner\"",
+      "action": "Betsee::Action::\"shell.exec\"",
+      "resource": "Betsee::Resource::\"shell/deploy-host-1\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-ops"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "shell.exec"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "command": {
+          "template": "deploy-service",
+          "valid": true
+        }
+      },
+      "expect": "allow"
+    },
+    {
+      "name": "act3 support-triage reads the planted ticket",
+      "step": "act3.s1",
+      "principal": "Betsee::Agent::\"support-triage\"",
+      "action": "Betsee::Action::\"tickets.read\"",
+      "resource": "Betsee::Resource::\"tickets/T-4711\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-triage"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "tickets.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "tickets"
+            }
+          },
+          "observedDescriptorHash": "sha256:tickets-v1"
+        }
+      },
+      "expect": "allow"
+    },
+    {
+      "name": "act3 support-triage emails customer data externally",
+      "step": "act3.s2",
+      "principal": "Betsee::Agent::\"support-triage\"",
+      "action": "Betsee::Action::\"email.send\"",
+      "resource": "Betsee::Resource::\"email/exfil@mailbox.example\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-triage"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "email.send"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "email"
+            }
+          },
+          "observedDescriptorHash": "sha256:email-v1"
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-write-down",
+      "patch": [
+        {
+          "uid": {
+            "type": "Betsee::AgentSession",
+            "id": "s-triage"
+          },
+          "attrs": {
+            "human": {
+              "__entity": {
+                "type": "Betsee::Human",
+                "id": "priya"
+              }
+            },
+            "agent": {
+              "__entity": {
+                "type": "Betsee::Agent",
+                "id": "support-triage"
+              }
+            },
+            "useCase": {
+              "__entity": {
+                "type": "Betsee::UseCase",
+                "id": "ticket-triage"
+              }
+            },
+            "delegated": [
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "tickets.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "tickets.write"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "crm.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "memory.write"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "email.send"
+                }
+              }
+            ],
+            "tierCeiling": 1,
+            "taint": 1,
+            "untrustedInput": true,
+            "status": "active",
+            "expiresAt": 4102444800,
+            "budgetCents": 5000,
+            "spentCents": 0
+          },
+          "parents": []
+        }
+      ]
+    },
+    {
+      "name": "act3 analyzer says clean on that deny: still deny",
+      "step": "act3.s2b",
+      "principal": "Betsee::Agent::\"support-triage\"",
+      "action": "Betsee::Action::\"email.send\"",
+      "resource": "Betsee::Resource::\"email/exfil@mailbox.example\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-triage"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "email.send"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "email"
+            }
+          },
+          "observedDescriptorHash": "sha256:email-v1"
+        },
+        "analysis": {
+          "verdict": "clean",
+          "analyzer": "mock model (demo)"
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-write-down",
+      "patch": [
+        {
+          "uid": {
+            "type": "Betsee::AgentSession",
+            "id": "s-triage"
+          },
+          "attrs": {
+            "human": {
+              "__entity": {
+                "type": "Betsee::Human",
+                "id": "priya"
+              }
+            },
+            "agent": {
+              "__entity": {
+                "type": "Betsee::Agent",
+                "id": "support-triage"
+              }
+            },
+            "useCase": {
+              "__entity": {
+                "type": "Betsee::UseCase",
+                "id": "ticket-triage"
+              }
+            },
+            "delegated": [
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "tickets.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "tickets.write"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "crm.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "memory.write"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "email.send"
+                }
+              }
+            ],
+            "tierCeiling": 1,
+            "taint": 1,
+            "untrustedInput": true,
+            "status": "active",
+            "expiresAt": 4102444800,
+            "budgetCents": 5000,
+            "spentCents": 0
+          },
+          "parents": []
+        }
+      ]
+    },
+    {
+      "name": "act3 memory.write of planted text: deterministic allow",
+      "step": "act3.s3a",
+      "principal": "Betsee::Agent::\"support-triage\"",
+      "action": "Betsee::Action::\"memory.write\"",
+      "resource": "Betsee::Resource::\"memory/support-triage\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-triage"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "memory.write"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        }
+      },
+      "expect": "allow",
+      "patch": [
+        {
+          "uid": {
+            "type": "Betsee::AgentSession",
+            "id": "s-triage"
+          },
+          "attrs": {
+            "human": {
+              "__entity": {
+                "type": "Betsee::Human",
+                "id": "priya"
+              }
+            },
+            "agent": {
+              "__entity": {
+                "type": "Betsee::Agent",
+                "id": "support-triage"
+              }
+            },
+            "useCase": {
+              "__entity": {
+                "type": "Betsee::UseCase",
+                "id": "ticket-triage"
+              }
+            },
+            "delegated": [
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "tickets.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "tickets.write"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "crm.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "memory.write"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "email.send"
+                }
+              }
+            ],
+            "tierCeiling": 1,
+            "taint": 1,
+            "untrustedInput": true,
+            "status": "active",
+            "expiresAt": 4102444800,
+            "budgetCents": 5000,
+            "spentCents": 0
+          },
+          "parents": []
+        }
+      ]
+    },
+    {
+      "name": "act3 memory.write, analyzer suspicious: AI-tightened",
+      "step": "act3.s3",
+      "principal": "Betsee::Agent::\"support-triage\"",
+      "action": "Betsee::Action::\"memory.write\"",
+      "resource": "Betsee::Resource::\"memory/support-triage\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-triage"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "memory.write"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "analysis": {
+          "verdict": "suspicious",
+          "analyzer": "mock model (demo)"
+        }
+      },
+      "expect": "require_approval",
+      "expect_reason": "analyzer-suspicious",
+      "patch": [
+        {
+          "uid": {
+            "type": "Betsee::AgentSession",
+            "id": "s-triage"
+          },
+          "attrs": {
+            "human": {
+              "__entity": {
+                "type": "Betsee::Human",
+                "id": "priya"
+              }
+            },
+            "agent": {
+              "__entity": {
+                "type": "Betsee::Agent",
+                "id": "support-triage"
+              }
+            },
+            "useCase": {
+              "__entity": {
+                "type": "Betsee::UseCase",
+                "id": "ticket-triage"
+              }
+            },
+            "delegated": [
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "tickets.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "tickets.write"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "crm.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "memory.write"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "email.send"
+                }
+              }
+            ],
+            "tierCeiling": 1,
+            "taint": 1,
+            "untrustedInput": true,
+            "status": "active",
+            "expiresAt": 4102444800,
+            "budgetCents": 5000,
+            "spentCents": 0
+          },
+          "parents": []
+        }
+      ]
+    },
+    {
+      "name": "act4 research-agent asks invoice-assistant to pay",
+      "step": "act4.s1",
+      "principal": "Betsee::Agent::\"research-agent\"",
+      "action": "Betsee::Action::\"agent.message\"",
+      "resource": "Betsee::Agent::\"invoice-assistant\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-research"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "agent.message"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "requestedCapability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "payments.transfer"
+          }
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-a2a-capability-escalation"
+    },
+    {
+      "name": "act4 same message also fails the peer allowlist",
+      "step": "act4.s1b",
+      "principal": "Betsee::Agent::\"research-agent\"",
+      "action": "Betsee::Action::\"agent.message\"",
+      "resource": "Betsee::Agent::\"invoice-assistant\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-research"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "agent.message"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "requestedCapability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "payments.transfer"
+          }
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-a2a-peer-not-allowed"
+    },
+    {
+      "name": "act4 retry storm hits the rate limit",
+      "step": "act4.s2",
+      "principal": "Betsee::Agent::\"research-agent\"",
+      "action": "Betsee::Action::\"files.read\"",
+      "resource": "Betsee::Resource::\"files/market/outlook-2026.pdf\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-research"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "files.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 31,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "files"
+            }
+          },
+          "observedDescriptorHash": "sha256:files-v1"
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-rate-exceeded"
+    },
+    {
+      "name": "act5 48,000 EUR supplier transfer",
+      "step": "act5.s1",
+      "principal": "Betsee::Agent::\"invoice-assistant\"",
+      "action": "Betsee::Action::\"payments.transfer\"",
+      "resource": "Betsee::Resource::\"payments/nordfreight-supplier\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "payments.transfer"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "payments"
+            }
+          },
+          "observedDescriptorHash": "sha256:payments-v1"
+        },
+        "amountCents": 4800000
+      },
+      "expect": "require_approval+step_up",
+      "expect_reason": "approval-payment-above-threshold"
+    },
+    {
+      "name": "act5 approved without OTP: step-up still owed",
+      "step": "act5.s2",
+      "principal": "Betsee::Agent::\"invoice-assistant\"",
+      "action": "Betsee::Action::\"payments.transfer\"",
+      "resource": "Betsee::Resource::\"payments/nordfreight-supplier\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "payments.transfer"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": true,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "payments"
+            }
+          },
+          "observedDescriptorHash": "sha256:payments-v1"
+        },
+        "amountCents": 4800000
+      },
+      "expect": "require_step_up",
+      "expect_reason": "step-up-payment-above-threshold"
+    },
+    {
+      "name": "act5 approved by Daniel at acr 2: executes",
+      "step": "act5.s3",
+      "principal": "Betsee::Agent::\"invoice-assistant\"",
+      "action": "Betsee::Action::\"payments.transfer\"",
+      "resource": "Betsee::Resource::\"payments/nordfreight-supplier\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "payments.transfer"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": true,
+          "stepUp": true
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "payments"
+            }
+          },
+          "observedDescriptorHash": "sha256:payments-v1"
+        },
+        "amountCents": 4800000
+      },
+      "expect": "allow"
+    },
+    {
+      "name": "act5 small transfer below threshold",
+      "step": "act5.s0",
+      "principal": "Betsee::Agent::\"invoice-assistant\"",
+      "action": "Betsee::Action::\"payments.transfer\"",
+      "resource": "Betsee::Resource::\"payments/nordfreight-supplier\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "payments.transfer"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "payments"
+            }
+          },
+          "observedDescriptorHash": "sha256:payments-v1"
+        },
+        "amountCents": 50000
+      },
+      "expect": "allow"
+    },
+    {
+      "name": "act6 payments tool descriptor drifted",
+      "step": "act6.s1",
+      "principal": "Betsee::Agent::\"invoice-assistant\"",
+      "action": "Betsee::Action::\"payments.transfer\"",
+      "resource": "Betsee::Resource::\"payments/nordfreight-supplier\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "payments.transfer"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "payments"
+            }
+          },
+          "observedDescriptorHash": "sha256:payments-v2-hidden-instruction"
+        },
+        "amountCents": 50000
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-tool-descriptor-drift"
+    },
+    {
+      "name": "act6 report-bot burst exceeds session budget",
+      "step": "act6.s2",
+      "principal": "Betsee::Agent::\"report-bot\"",
+      "action": "Betsee::Action::\"crm.read\"",
+      "resource": "Betsee::Resource::\"crm/customer-1042\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-report"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "crm.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "crm"
+            }
+          },
+          "observedDescriptorHash": "sha256:crm-v1"
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-budget-exceeded",
+      "patch": [
+        {
+          "uid": {
+            "type": "Betsee::AgentSession",
+            "id": "s-report"
+          },
+          "attrs": {
+            "human": {
+              "__entity": {
+                "type": "Betsee::Human",
+                "id": "maya"
+              }
+            },
+            "agent": {
+              "__entity": {
+                "type": "Betsee::Agent",
+                "id": "report-bot"
+              }
+            },
+            "useCase": {
+              "__entity": {
+                "type": "Betsee::UseCase",
+                "id": "weekly-reporting"
+              }
+            },
+            "delegated": [
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "crm.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "llm.complete"
+                }
+              }
+            ],
+            "tierCeiling": 1,
+            "taint": 0,
+            "untrustedInput": false,
+            "status": "active",
+            "expiresAt": 4102444800,
+            "budgetCents": 2000,
+            "spentCents": 1995
+          },
+          "parents": []
+        }
+      ]
+    },
+    {
+      "name": "act6 report-bot quarantined: every action denies",
+      "step": "act6.s3",
+      "principal": "Betsee::Agent::\"report-bot\"",
+      "action": "Betsee::Action::\"crm.read\"",
+      "resource": "Betsee::Resource::\"crm/customer-1042\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-report"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "crm.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "crm"
+            }
+          },
+          "observedDescriptorHash": "sha256:crm-v1"
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-agent-not-active",
+      "patch": [
+        {
+          "uid": {
+            "type": "Betsee::Agent",
+            "id": "report-bot"
+          },
+          "attrs": {
+            "state": "quarantined",
+            "clearance": 2
+          },
+          "parents": [
+            {
+              "type": "Betsee::Team",
+              "id": "finance"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "neg agent uses another agent's session id",
+      "step": "neg.1",
+      "principal": "Betsee::Agent::\"report-bot\"",
+      "action": "Betsee::Action::\"crm.read\"",
+      "resource": "Betsee::Resource::\"crm/customer-1042\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "crm.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "crm"
+            }
+          },
+          "observedDescriptorHash": "sha256:crm-v1"
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-session-not-bound-to-agent"
+    },
+    {
+      "name": "neg capability delegated by nobody",
+      "step": "neg.2",
+      "principal": "Betsee::Agent::\"report-bot\"",
+      "action": "Betsee::Action::\"email.send\"",
+      "resource": "Betsee::Resource::\"email/ap@acme.example\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-report"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "email.send"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "email"
+            }
+          },
+          "observedDescriptorHash": "sha256:email-v1"
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-capability-not-delegated"
+    },
+    {
+      "name": "neg expired session",
+      "step": "neg.3",
+      "principal": "Betsee::Agent::\"invoice-assistant\"",
+      "action": "Betsee::Action::\"crm.read\"",
+      "resource": "Betsee::Resource::\"crm/customer-1042\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "crm.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "crm"
+            }
+          },
+          "observedDescriptorHash": "sha256:crm-v1"
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-session-not-active",
+      "patch": [
+        {
+          "uid": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          },
+          "attrs": {
+            "human": {
+              "__entity": {
+                "type": "Betsee::Human",
+                "id": "maya"
+              }
+            },
+            "agent": {
+              "__entity": {
+                "type": "Betsee::Agent",
+                "id": "invoice-assistant"
+              }
+            },
+            "useCase": {
+              "__entity": {
+                "type": "Betsee::UseCase",
+                "id": "invoice-processing"
+              }
+            },
+            "delegated": [
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "crm.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "files.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "payments.transfer"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "email.send"
+                }
+              }
+            ],
+            "tierCeiling": 1,
+            "taint": 0,
+            "untrustedInput": false,
+            "status": "active",
+            "expiresAt": 1791043199,
+            "budgetCents": 5000,
+            "spentCents": 0
+          },
+          "parents": []
+        }
+      ]
+    },
+    {
+      "name": "neg human deprovisioned",
+      "step": "neg.4",
+      "principal": "Betsee::Agent::\"invoice-assistant\"",
+      "action": "Betsee::Action::\"crm.read\"",
+      "resource": "Betsee::Resource::\"crm/customer-1042\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "crm.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "crm"
+            }
+          },
+          "observedDescriptorHash": "sha256:crm-v1"
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-session-human-not-active",
+      "patch": [
+        {
+          "uid": {
+            "type": "Betsee::Human",
+            "id": "maya"
+          },
+          "attrs": {
+            "sub": "kc-maya",
+            "active": false,
+            "clearance": 3,
+            "entitlements": [
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "crm.read"
+                }
+              }
+            ]
+          },
+          "parents": [
+            {
+              "type": "Betsee::Team",
+              "id": "finance"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "neg action and capability disagree",
+      "step": "neg.5",
+      "principal": "Betsee::Agent::\"invoice-assistant\"",
+      "action": "Betsee::Action::\"crm.read\"",
+      "resource": "Betsee::Resource::\"crm/customer-1042\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "payments.transfer"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "crm"
+            }
+          },
+          "observedDescriptorHash": "sha256:crm-v1"
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-capability-action-mismatch"
+    },
+    {
+      "name": "neg MCP call without a pinned tool reference",
+      "step": "neg.6",
+      "principal": "Betsee::Agent::\"invoice-assistant\"",
+      "action": "Betsee::Action::\"crm.read\"",
+      "resource": "Betsee::Resource::\"crm/customer-1042\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "crm.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-mcp-call-without-tool"
+    },
+    {
+      "name": "neg payment without amount",
+      "step": "neg.7",
+      "principal": "Betsee::Agent::\"invoice-assistant\"",
+      "action": "Betsee::Action::\"payments.transfer\"",
+      "resource": "Betsee::Resource::\"payments/nordfreight-supplier\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "payments.transfer"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "payments"
+            }
+          },
+          "observedDescriptorHash": "sha256:payments-v1"
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-payment-without-amount"
+    },
+    {
+      "name": "neg analyzer malicious on an allowed read",
+      "step": "neg.8",
+      "principal": "Betsee::Agent::\"invoice-assistant\"",
+      "action": "Betsee::Action::\"crm.read\"",
+      "resource": "Betsee::Resource::\"crm/customer-1042\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "crm.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "crm"
+            }
+          },
+          "observedDescriptorHash": "sha256:crm-v1"
+        },
+        "analysis": {
+          "verdict": "malicious",
+          "analyzer": "mock model (demo)"
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "analyzer-malicious"
+    },
+    {
+      "name": "neg high-impact after untrusted input needs a human",
+      "step": "neg.9",
+      "principal": "Betsee::Agent::\"invoice-assistant\"",
+      "action": "Betsee::Action::\"payments.transfer\"",
+      "resource": "Betsee::Resource::\"payments/nordfreight-supplier\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "payments.transfer"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "payments"
+            }
+          },
+          "observedDescriptorHash": "sha256:payments-v1"
+        },
+        "amountCents": 50000
+      },
+      "expect": "require_approval",
+      "expect_reason": "approval-high-impact-after-untrusted-input",
+      "patch": [
+        {
+          "uid": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          },
+          "attrs": {
+            "human": {
+              "__entity": {
+                "type": "Betsee::Human",
+                "id": "maya"
+              }
+            },
+            "agent": {
+              "__entity": {
+                "type": "Betsee::Agent",
+                "id": "invoice-assistant"
+              }
+            },
+            "useCase": {
+              "__entity": {
+                "type": "Betsee::UseCase",
+                "id": "invoice-processing"
+              }
+            },
+            "delegated": [
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "crm.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "files.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "payments.transfer"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "email.send"
+                }
+              }
+            ],
+            "tierCeiling": 1,
+            "taint": 0,
+            "untrustedInput": true,
+            "status": "active",
+            "expiresAt": 4102444800,
+            "budgetCents": 5000,
+            "spentCents": 0
+          },
+          "parents": []
+        }
+      ]
+    },
+    {
+      "name": "neg confidential-tainted session to an internal-only model",
+      "step": "neg.10",
+      "principal": "Betsee::Agent::\"report-bot\"",
+      "action": "Betsee::Action::\"llm.complete\"",
+      "resource": "Betsee::Model::\"mock-llm\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-report"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "llm.complete"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-model-below-session-taint",
+      "patch": [
+        {
+          "uid": {
+            "type": "Betsee::AgentSession",
+            "id": "s-report"
+          },
+          "attrs": {
+            "human": {
+              "__entity": {
+                "type": "Betsee::Human",
+                "id": "maya"
+              }
+            },
+            "agent": {
+              "__entity": {
+                "type": "Betsee::Agent",
+                "id": "report-bot"
+              }
+            },
+            "useCase": {
+              "__entity": {
+                "type": "Betsee::UseCase",
+                "id": "weekly-reporting"
+              }
+            },
+            "delegated": [
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "crm.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "llm.complete"
+                }
+              }
+            ],
+            "tierCeiling": 2,
+            "taint": 2,
+            "untrustedInput": false,
+            "status": "active",
+            "expiresAt": 4102444800,
+            "budgetCents": 2000,
+            "spentCents": 0
+          },
+          "parents": []
+        }
+      ]
+    },
+    {
+      "name": "pos report-bot summarizes via mock model",
+      "step": "pos.1",
+      "principal": "Betsee::Agent::\"report-bot\"",
+      "action": "Betsee::Action::\"llm.complete\"",
+      "resource": "Betsee::Model::\"mock-llm\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-report"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "llm.complete"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        }
+      },
+      "expect": "allow"
+    },
+    {
+      "name": "del Maya delegates within her entitlements",
+      "step": "del.1",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"session.create\"",
+      "resource": "Betsee::Agent::\"invoice-assistant\"",
+      "context": {
+        "useCase": {
+          "__entity": {
+            "type": "Betsee::UseCase",
+            "id": "invoice-processing"
+          }
+        },
+        "delegated": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "crm.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "payments.transfer"
+            }
+          }
+        ],
+        "tierCeiling": 1
+      },
+      "expect": "allow"
+    },
+    {
+      "name": "del Maya delegates shell.exec she does not hold",
+      "step": "del.2",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"session.create\"",
+      "resource": "Betsee::Agent::\"invoice-assistant\"",
+      "context": {
+        "useCase": {
+          "__entity": {
+            "type": "Betsee::UseCase",
+            "id": "invoice-processing"
+          }
+        },
+        "delegated": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "crm.read"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "shell.exec"
+            }
+          }
+        ],
+        "tierCeiling": 1
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-session-delegation-exceeds-human-entitlements"
+    },
+    {
+      "name": "del Maya delegates her restricted clearance",
+      "step": "del.3",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"session.create\"",
+      "resource": "Betsee::Agent::\"invoice-assistant\"",
+      "context": {
+        "useCase": {
+          "__entity": {
+            "type": "Betsee::UseCase",
+            "id": "invoice-processing"
+          }
+        },
+        "delegated": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "files.read"
+            }
+          }
+        ],
+        "tierCeiling": 3
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-session-tier-above-ceiling"
+    },
+    {
+      "name": "del session for a quarantined agent",
+      "step": "del.4",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"session.create\"",
+      "resource": "Betsee::Agent::\"report-bot\"",
+      "context": {
+        "useCase": {
+          "__entity": {
+            "type": "Betsee::UseCase",
+            "id": "weekly-reporting"
+          }
+        },
+        "delegated": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "crm.read"
+            }
+          }
+        ],
+        "tierCeiling": 1
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-session-for-inactive-agent",
+      "patch": [
+        {
+          "uid": {
+            "type": "Betsee::Agent",
+            "id": "report-bot"
+          },
+          "attrs": {
+            "state": "quarantined",
+            "clearance": 2
+          },
+          "parents": [
+            {
+              "type": "Betsee::Team",
+              "id": "finance"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "del agent not registered for the use case",
+      "step": "del.5",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"session.create\"",
+      "resource": "Betsee::Agent::\"report-bot\"",
+      "context": {
+        "useCase": {
+          "__entity": {
+            "type": "Betsee::UseCase",
+            "id": "invoice-processing"
+          }
+        },
+        "delegated": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "crm.read"
+            }
+          }
+        ],
+        "tierCeiling": 1
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-session-agent-not-registered-for-use-case"
+    },
+    {
+      "name": "att finance team high-impact suspended (template link)",
+      "step": "att.1",
+      "principal": "Betsee::Agent::\"invoice-assistant\"",
+      "action": "Betsee::Action::\"payments.transfer\"",
+      "resource": "Betsee::Resource::\"payments/nordfreight-supplier\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "payments.transfer"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "payments"
+            }
+          },
+          "observedDescriptorHash": "sha256:payments-v1"
+        },
+        "amountCents": 50000
+      },
+      "expect": "deny",
+      "links": [
+        {
+          "template": "tpl-suspend-high-impact",
+          "id": "att-finance-suspend",
+          "principal": "Betsee::Team::\"finance\""
+        }
+      ],
+      "expect_reason": "att-finance-suspend"
+    },
+    {
+      "name": "att suspension linked to another team does not apply",
+      "step": "att.2",
+      "principal": "Betsee::Agent::\"invoice-assistant\"",
+      "action": "Betsee::Action::\"payments.transfer\"",
+      "resource": "Betsee::Resource::\"payments/nordfreight-supplier\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-invoice"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "payments.transfer"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "payments"
+            }
+          },
+          "observedDescriptorHash": "sha256:payments-v1"
+        },
+        "amountCents": 50000
+      },
+      "expect": "allow",
+      "links": [
+        {
+          "template": "tpl-suspend-high-impact",
+          "id": "att-platform-suspend",
+          "principal": "Betsee::Team::\"platform\""
+        }
+      ]
+    },
+    {
+      "name": "reg sender reads an internal brief (test-only)",
+      "step": "reg.a2a.1",
+      "principal": "Betsee::Agent::\"research-agent\"",
+      "action": "Betsee::Action::\"files.read\"",
+      "resource": "Betsee::Resource::\"files/regression/internal-brief.pdf\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-reg-sender"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "files.read"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "files"
+            }
+          },
+          "observedDescriptorHash": "sha256:files-v1"
+        }
+      },
+      "expect": "allow"
+    },
+    {
+      "name": "reg allowed A2A message from a tainted sender",
+      "step": "reg.a2a.2",
+      "principal": "Betsee::Agent::\"research-agent\"",
+      "action": "Betsee::Action::\"agent.message\"",
+      "resource": "Betsee::Agent::\"research-peer\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-reg-sender"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "agent.message"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "requestedCapability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "files.read"
+          }
+        }
+      },
+      "expect": "allow",
+      "patch": [
+        {
+          "uid": {
+            "type": "Betsee::AgentSession",
+            "id": "s-reg-sender"
+          },
+          "attrs": {
+            "human": {
+              "__entity": {
+                "type": "Betsee::Human",
+                "id": "priya"
+              }
+            },
+            "agent": {
+              "__entity": {
+                "type": "Betsee::Agent",
+                "id": "research-agent"
+              }
+            },
+            "useCase": {
+              "__entity": {
+                "type": "Betsee::UseCase",
+                "id": "regression-a2a-sender"
+              }
+            },
+            "delegated": [
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "files.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "agent.message"
+                }
+              }
+            ],
+            "tierCeiling": 1,
+            "taint": 1,
+            "untrustedInput": false,
+            "status": "active",
+            "expiresAt": 4102444800,
+            "budgetCents": 5000,
+            "spentCents": 0
+          },
+          "parents": []
+        }
+      ]
+    },
+    {
+      "name": "reg receiver before any message: external email allowed",
+      "step": "reg.a2a.3",
+      "principal": "Betsee::Agent::\"research-peer\"",
+      "action": "Betsee::Action::\"email.send\"",
+      "resource": "Betsee::Resource::\"email/exfil@mailbox.example\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-reg-receiver"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "email.send"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "email"
+            }
+          },
+          "observedDescriptorHash": "sha256:email-v1"
+        }
+      },
+      "expect": "allow"
+    },
+    {
+      "name": "reg receiver after the message (taint 1, untrusted): denied",
+      "step": "reg.a2a.4",
+      "principal": "Betsee::Agent::\"research-peer\"",
+      "action": "Betsee::Action::\"email.send\"",
+      "resource": "Betsee::Resource::\"email/exfil@mailbox.example\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-reg-receiver"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "email.send"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "email"
+            }
+          },
+          "observedDescriptorHash": "sha256:email-v1"
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-write-down",
+      "patch": [
+        {
+          "uid": {
+            "type": "Betsee::AgentSession",
+            "id": "s-reg-receiver"
+          },
+          "attrs": {
+            "human": {
+              "__entity": {
+                "type": "Betsee::Human",
+                "id": "priya"
+              }
+            },
+            "agent": {
+              "__entity": {
+                "type": "Betsee::Agent",
+                "id": "research-peer"
+              }
+            },
+            "useCase": {
+              "__entity": {
+                "type": "Betsee::UseCase",
+                "id": "regression-a2a-receiver"
+              }
+            },
+            "delegated": [
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "files.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "email.send"
+                }
+              }
+            ],
+            "tierCeiling": 1,
+            "taint": 1,
+            "untrustedInput": true,
+            "status": "active",
+            "expiresAt": 4102444800,
+            "budgetCents": 5000,
+            "spentCents": 0
+          },
+          "parents": []
+        }
+      ]
+    },
+    {
+      "name": "reg catalog-internal record read raises taint: external email denied",
+      "step": "reg.taint.1",
+      "principal": "Betsee::Agent::\"support-triage\"",
+      "action": "Betsee::Action::\"email.send\"",
+      "resource": "Betsee::Resource::\"email/exfil@mailbox.example\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-triage"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "email.send"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "email"
+            }
+          },
+          "observedDescriptorHash": "sha256:email-v1"
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-write-down",
+      "patch": [
+        {
+          "uid": {
+            "type": "Betsee::AgentSession",
+            "id": "s-triage"
+          },
+          "attrs": {
+            "human": {
+              "__entity": {
+                "type": "Betsee::Human",
+                "id": "priya"
+              }
+            },
+            "agent": {
+              "__entity": {
+                "type": "Betsee::Agent",
+                "id": "support-triage"
+              }
+            },
+            "useCase": {
+              "__entity": {
+                "type": "Betsee::UseCase",
+                "id": "ticket-triage"
+              }
+            },
+            "delegated": [
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "tickets.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "tickets.write"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "crm.read"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "memory.write"
+                }
+              },
+              {
+                "__entity": {
+                  "type": "Betsee::Capability",
+                  "id": "email.send"
+                }
+              }
+            ],
+            "tierCeiling": 1,
+            "taint": 1,
+            "untrustedInput": false,
+            "status": "active",
+            "expiresAt": 4102444800,
+            "budgetCents": 5000,
+            "spentCents": 0
+          },
+          "parents": []
+        }
+      ]
+    },
+    {
+      "name": "reg same egress if taint had followed the connector's 'public'",
+      "step": "reg.taint.0",
+      "principal": "Betsee::Agent::\"support-triage\"",
+      "action": "Betsee::Action::\"email.send\"",
+      "resource": "Betsee::Resource::\"email/exfil@mailbox.example\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-triage"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "email.send"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 10,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "toolCall": {
+          "tool": {
+            "__entity": {
+              "type": "Betsee::Tool",
+              "id": "email"
+            }
+          },
+          "observedDescriptorHash": "sha256:email-v1"
+        }
+      },
+      "expect": "allow"
+    }
+  ]
+}

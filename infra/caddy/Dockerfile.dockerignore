@@ -1,0 +1,13 @@
+**
+!web/
+!web/**
+!infra/
+!infra/caddy/
+!infra/caddy/Caddyfile
+!docs/
+!docs/design/
+!docs/design/**
+web/node_modules/
+web/**/node_modules/
+web/**/dist/
+web/**/.env*

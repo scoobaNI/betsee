@@ -1,0 +1,32 @@
+{
+  "name": "betsee-web",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:ecosystem": "npm run dev -w @betsee/ecosystem",
+    "dev:director": "npm run dev -w @betsee/director",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:ecosystem": "playwright test --config playwright.ecosystem.config.ts",
+    "check:icons": "node packages/ui/generate-icons.mjs --check",
+    "check:tokens": "python3 ../docs/design/build-tokens.py --check",
+    "format:check": "prettier --check '**/*.{json,md,yaml,yml}' --ignore-path .prettierignore"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@tailwindcss/vite": "^4.1.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "prettier": "^3.5.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.1.0"
+  }
+}

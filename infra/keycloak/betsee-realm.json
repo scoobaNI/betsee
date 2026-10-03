@@ -1,0 +1,705 @@
+{
+  "realm": "betsee",
+  "displayName": "Betsee",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "otpPolicyLookAheadWindow": 1,
+  "attributes": {
+    "acr.loa.map": "{\"1\": 1, \"2\": 2}",
+    "betsee.demo-notes": "Betsee hackathon demo. Plain HTTP (sslRequired none), static demo identities and disabled brute-force lockout are demo-only. Production uses TLS, managed secrets and lockout policy. Password grant on betsee-demo-runner is demo-only for seeded demo-initiator users, never approvals/admin writes; production humans use PKCE."
+  },
+  "roles": {
+    "realm": [
+      {
+        "name": "org-admin"
+      },
+      {
+        "name": "security-officer"
+      },
+      {
+        "name": "approver"
+      },
+      {
+        "name": "employee"
+      },
+      {
+        "name": "demo-initiator"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "betsee-ecosystem",
+      "name": "Betsee Ecosystem",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://betsee.localhost/*"],
+      "webOrigins": ["http://betsee.localhost"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://betsee.localhost/*",
+        "default.acr.values": "1"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "protocolMappers": [
+        {
+          "name": "gateway-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "betsee-gateway",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "betsee-director",
+      "name": "Betsee Director",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://director.betsee.localhost/*"],
+      "webOrigins": ["http://director.betsee.localhost"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://director.betsee.localhost/*",
+        "default.acr.values": "1"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "protocolMappers": [
+        {
+          "name": "gateway-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "betsee-gateway",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "betsee-gateway",
+      "enabled": true,
+      "bearerOnly": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false
+    },
+    {
+      "clientId": "invoice-assistant",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${AGENT_CLIENT_SECRET_INVOICE_ASSISTANT}",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "defaultClientScopes": ["basic", "roles"],
+      "protocolMappers": [
+        {
+          "name": "gateway-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "betsee-gateway",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "agent-id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "agent_id",
+            "claim.value": "invoice-assistant",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "support-triage",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${AGENT_CLIENT_SECRET_SUPPORT_TRIAGE}",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "defaultClientScopes": ["basic", "roles"],
+      "protocolMappers": [
+        {
+          "name": "gateway-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "betsee-gateway",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "agent-id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "agent_id",
+            "claim.value": "support-triage",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "research-agent",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${AGENT_CLIENT_SECRET_RESEARCH_AGENT}",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "defaultClientScopes": ["basic", "roles"],
+      "protocolMappers": [
+        {
+          "name": "gateway-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "betsee-gateway",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "agent-id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "agent_id",
+            "claim.value": "research-agent",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "ops-runner",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${AGENT_CLIENT_SECRET_OPS_RUNNER}",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "defaultClientScopes": ["basic", "roles"],
+      "protocolMappers": [
+        {
+          "name": "gateway-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "betsee-gateway",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "agent-id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "agent_id",
+            "claim.value": "ops-runner",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "report-bot",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${AGENT_CLIENT_SECRET_REPORT_BOT}",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "defaultClientScopes": ["basic", "roles"],
+      "protocolMappers": [
+        {
+          "name": "gateway-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "betsee-gateway",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "agent-id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "agent_id",
+            "claim.value": "report-bot",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "betsee-demo-runner",
+      "description": "Demo-only password grant for seeded demo-initiator users. Production humans create sessions through browser PKCE; OAuth 2.1 deprecates password grants. Never accepted for approvals or admin writes.",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${DEMO_RUNNER_CLIENT_SECRET}",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "authenticationFlowBindingOverrides": {
+        "direct_grant": "eba991db-d00e-54b5-bfb0-fac138bf9551"
+      },
+      "defaultClientScopes": ["basic", "profile", "roles", "email"],
+      "protocolMappers": [
+        {
+          "name": "gateway-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "betsee-gateway",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "fixture-wrong-audience",
+      "description": "Demo-only security test negative token fixture; never a registered Betsee agent.",
+      "enabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${FIXTURE_WRONG_AUDIENCE_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "defaultClientScopes": ["basic"],
+      "protocolMappers": [
+        {
+          "name": "fixture-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "betsee-negative",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "fixture-expired",
+      "description": "Demo-only security test negative token fixture; never a registered Betsee agent.",
+      "enabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${FIXTURE_EXPIRED_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "access.token.lifespan": "1"
+      },
+      "defaultClientScopes": ["basic"],
+      "protocolMappers": [
+        {
+          "name": "fixture-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "betsee-gateway",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "research-peer",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${AGENT_CLIENT_SECRET_RESEARCH_PEER}",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "defaultClientScopes": ["basic", "roles"],
+      "protocolMappers": [
+        {
+          "name": "gateway-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "betsee-gateway",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "agent-id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "agent_id",
+            "claim.value": "research-peer",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ],
+      "description": "Regression receiver (test-only), not part of the stage population."
+    }
+  ],
+  "users": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "username": "maya",
+      "firstName": "Maya",
+      "lastName": "Chen",
+      "email": "maya@acme.example",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": ["employee", "demo-initiator"],
+      "attributes": {
+        "organization": ["acme"],
+        "team": ["finance"]
+      },
+      "requiredActions": [],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_PASSWORD_MAYA}",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "username": "daniel",
+      "firstName": "Daniel",
+      "lastName": "Ortiz",
+      "email": "daniel@acme.example",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": ["security-officer", "approver"],
+      "attributes": {
+        "organization": ["acme"],
+        "team": ["security"]
+      },
+      "requiredActions": [],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_PASSWORD_DANIEL}",
+          "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "Betsee stage OTP",
+          "secretData": "{\"value\": \"${BETSEE_TOTP_SECRET}\"}",
+          "credentialData": "{\"subType\": \"totp\", \"digits\": 6, \"counter\": 0, \"period\": 30, \"algorithm\": \"HmacSHA1\", \"secretEncoding\": \"BASE32\"}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "username": "priya",
+      "firstName": "Priya",
+      "lastName": "Raman",
+      "email": "priya@acme.example",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": ["org-admin", "demo-initiator"],
+      "attributes": {
+        "organization": ["acme"],
+        "team": ["platform"]
+      },
+      "requiredActions": [],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${DEMO_PASSWORD_PRIYA}",
+          "temporary": false
+        }
+      ]
+    }
+  ],
+  "browserFlow": "betsee-step-up",
+  "authenticationFlows": [
+    {
+      "alias": "betsee-step-up",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "ALTERNATIVE",
+          "priority": 0,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false,
+          "authenticator": "auth-cookie"
+        },
+        {
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "authenticatorFlow": true,
+          "userSetupAllowed": false,
+          "flowAlias": "betsee-authentication"
+        }
+      ],
+      "id": "a71a2cfe-af8b-5d28-b2d5-885aa7796dfe"
+    },
+    {
+      "alias": "betsee-authentication",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "CONDITIONAL",
+          "priority": 0,
+          "authenticatorFlow": true,
+          "userSetupAllowed": false,
+          "flowAlias": "betsee-level-1"
+        },
+        {
+          "requirement": "CONDITIONAL",
+          "priority": 10,
+          "authenticatorFlow": true,
+          "userSetupAllowed": false,
+          "flowAlias": "betsee-level-2"
+        }
+      ],
+      "id": "8b22f8a1-88d7-5384-9e49-9ec9316d13de"
+    },
+    {
+      "alias": "betsee-level-1",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "REQUIRED",
+          "priority": 0,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false,
+          "authenticator": "conditional-level-of-authentication",
+          "authenticatorConfig": "betsee-loa-1"
+        },
+        {
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false,
+          "authenticator": "auth-username-password-form"
+        }
+      ],
+      "id": "2688ed94-f10b-5679-92cb-4cb2d06db630"
+    },
+    {
+      "alias": "betsee-level-2",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "REQUIRED",
+          "priority": 0,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false,
+          "authenticator": "conditional-level-of-authentication",
+          "authenticatorConfig": "betsee-loa-2"
+        },
+        {
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false,
+          "authenticator": "auth-otp-form"
+        }
+      ],
+      "id": "c74aacf4-b435-5703-bd95-b03bbd4e3505"
+    },
+    {
+      "alias": "betsee-demo-direct-grant",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "REQUIRED",
+          "priority": 0,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false,
+          "authenticator": "direct-grant-validate-username"
+        },
+        {
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false,
+          "authenticator": "direct-grant-validate-password"
+        },
+        {
+          "requirement": "CONDITIONAL",
+          "priority": 20,
+          "authenticatorFlow": true,
+          "userSetupAllowed": false,
+          "flowAlias": "betsee-demo-deny-other-users"
+        }
+      ],
+      "id": "eba991db-d00e-54b5-bfb0-fac138bf9551"
+    },
+    {
+      "alias": "betsee-demo-deny-other-users",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "REQUIRED",
+          "priority": 0,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false,
+          "authenticator": "conditional-user-role",
+          "authenticatorConfig": "betsee-demo-role"
+        },
+        {
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false,
+          "authenticator": "deny-access-authenticator"
+        }
+      ],
+      "id": "03fba999-9f07-56da-8996-f5741a9365c9"
+    }
+  ],
+  "authenticatorConfig": [
+    {
+      "alias": "betsee-loa-1",
+      "config": {
+        "loa-condition-level": "1",
+        "loa-max-age": "36000"
+      }
+    },
+    {
+      "alias": "betsee-loa-2",
+      "config": {
+        "loa-condition-level": "2",
+        "loa-max-age": "0"
+      }
+    },
+    {
+      "alias": "betsee-demo-role",
+      "config": {
+        "condUserRole": "demo-initiator",
+        "negate": "true"
+      }
+    }
+  ],
+  "bruteForceProtected": false
+}

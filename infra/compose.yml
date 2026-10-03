@@ -1,0 +1,216 @@
+x-rust: &rust
+  image: betsee-runtime:local
+  build:
+    context: .
+    dockerfile: infra/gateway.Dockerfile
+  restart: unless-stopped
+
+services:
+  init-env:
+    image: alpine:3.20
+    user: "1000:1000"
+    volumes:
+      - .:/workspace
+    command:
+      [
+        "sh",
+        "-ec",
+        "if [ ! -e /workspace/.env ]; then cp /workspace/.env.example /workspace/.env; fi",
+      ]
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: betsee
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: betsee
+    depends_on:
+      init-env:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/01-keycloak.sql:/docker-entrypoint-initdb.d/01-keycloak.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U betsee -d betsee"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  keycloak:
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.2.5}
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: betsee
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DEMO_RUNNER_CLIENT_SECRET: ${DEMO_RUNNER_CLIENT_SECRET}
+      DEMO_PASSWORD_MAYA: ${DEMO_PASSWORD_MAYA}
+      DEMO_PASSWORD_DANIEL: ${DEMO_PASSWORD_DANIEL}
+      DEMO_PASSWORD_PRIYA: ${DEMO_PASSWORD_PRIYA}
+      BETSEE_TOTP_SECRET: ${BETSEE_TOTP_SECRET}
+      FIXTURE_WRONG_AUDIENCE_CLIENT_SECRET: ${FIXTURE_WRONG_AUDIENCE_CLIENT_SECRET}
+      FIXTURE_EXPIRED_CLIENT_SECRET: ${FIXTURE_EXPIRED_CLIENT_SECRET}
+      AGENT_CLIENT_SECRET_INVOICE_ASSISTANT: ${AGENT_CLIENT_SECRET_INVOICE_ASSISTANT}
+      AGENT_CLIENT_SECRET_SUPPORT_TRIAGE: ${AGENT_CLIENT_SECRET_SUPPORT_TRIAGE}
+      AGENT_CLIENT_SECRET_RESEARCH_AGENT: ${AGENT_CLIENT_SECRET_RESEARCH_AGENT}
+      AGENT_CLIENT_SECRET_RESEARCH_PEER: ${AGENT_CLIENT_SECRET_RESEARCH_PEER}
+      AGENT_CLIENT_SECRET_OPS_RUNNER: ${AGENT_CLIENT_SECRET_OPS_RUNNER}
+      AGENT_CLIENT_SECRET_REPORT_BOT: ${AGENT_CLIENT_SECRET_REPORT_BOT}
+      KC_HOSTNAME: http://auth.betsee.localhost
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./infra/keycloak/betsee-realm.json:/opt/keycloak/data/import/betsee-realm.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/9000; printf \"GET /health/ready HTTP/1.0\\r\\n\\r\\n\" >&3; cat <&3 | grep -q \"200 OK\"'"
+      interval: 5s
+      timeout: 5s
+      start_period: 60s
+      retries: 30
+    restart: unless-stopped
+
+  mcp:
+    <<: *rust
+    command: ["betsee-mcp"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      MCP_ADMIN_TOKEN: ${MCP_ADMIN_TOKEN}
+    networks:
+      default:
+        aliases: ["betsee-mcp"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  mock-llm:
+    <<: *rust
+    command: ["mock-llm"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8082/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  gateway:
+    <<: *rust
+    command: ["betsee-gateway"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      OIDC_ISSUER: ${OIDC_ISSUER}
+      OIDC_JWKS_URL: ${OIDC_JWKS_URL}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE}
+      MCP_URL: ${MCP_URL}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL}
+      CONNECTOR_HTTP_ALLOWED_HOSTS: ${CONNECTOR_HTTP_ALLOWED_HOSTS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      mcp:
+        condition: service_healthy
+      mock-llm:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  bootstrap:
+    build:
+      context: .
+      dockerfile: infra/bootstrap/Dockerfile
+    environment:
+      KEYCLOAK_ADMIN_URL: http://keycloak:8080
+      DATABASE_URL: ${DATABASE_URL}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      DEMO_PASSWORD_MAYA: ${DEMO_PASSWORD_MAYA}
+      DEMO_PASSWORD_DANIEL: ${DEMO_PASSWORD_DANIEL}
+      DEMO_PASSWORD_PRIYA: ${DEMO_PASSWORD_PRIYA}
+    depends_on:
+      gateway:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    restart: on-failure:3
+
+  demo-runner:
+    build:
+      context: ./demo
+    environment:
+      GATEWAY_URL: http://gateway:8080
+      KEYCLOAK_TOKEN_URL: http://keycloak:8080/realms/betsee/protocol/openid-connect/token
+      MCP_ADMIN_URL: http://betsee-mcp:8081/admin
+      MCP_ADMIN_TOKEN: ${MCP_ADMIN_TOKEN}
+      DEMO_RUNNER_CLIENT_SECRET: ${DEMO_RUNNER_CLIENT_SECRET}
+      DEMO_PASSWORD_MAYA: ${DEMO_PASSWORD_MAYA}
+      DEMO_PASSWORD_PRIYA: ${DEMO_PASSWORD_PRIYA}
+      AGENT_CLIENT_SECRET_INVOICE_ASSISTANT: ${AGENT_CLIENT_SECRET_INVOICE_ASSISTANT}
+      AGENT_CLIENT_SECRET_SUPPORT_TRIAGE: ${AGENT_CLIENT_SECRET_SUPPORT_TRIAGE}
+      AGENT_CLIENT_SECRET_RESEARCH_AGENT: ${AGENT_CLIENT_SECRET_RESEARCH_AGENT}
+      AGENT_CLIENT_SECRET_OPS_RUNNER: ${AGENT_CLIENT_SECRET_OPS_RUNNER}
+      AGENT_CLIENT_SECRET_REPORT_BOT: ${AGENT_CLIENT_SECRET_REPORT_BOT}
+    depends_on:
+      gateway:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  caddy:
+    image: betsee-web:local
+    build:
+      context: .
+      dockerfile: infra/caddy/Dockerfile
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+      demo-runner:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

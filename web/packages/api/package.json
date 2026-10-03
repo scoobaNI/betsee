@@ -1,0 +1,25 @@
+{
+  "name": "@betsee/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "gen": "openapi-typescript ../../../contracts/openapi.yaml -o src/schema.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --experimental-strip-types --no-warnings --test 'src/**/*.test.ts'"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.90.0",
+    "openapi-fetch": "^0.14.1"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0"
+  }
+}

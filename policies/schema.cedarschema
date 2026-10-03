@@ -1,0 +1,195 @@
+// Betsee policy schema v0. Owner: security-architect. Decision record: docs/security/adr-0001-policy-engine-cedar.md
+//
+// Conventions the Gateway must uphold when it builds a request:
+// - InformationTier is a rank: 0 public, 1 internal, 2 confidential, 3 restricted.
+// - Every agent capability is a Cedar action whose id is the capability verb (Action::"crm.read"), and
+//   context.capability is Capability::"<the same verb>". Policy "forbid-capability-action-mismatch"
+//   denies a request where the two disagree.
+// - Entity attributes are facts the Gateway loads per request (session taint, spend, agent state);
+//   policies never trust a value the agent supplied unless the Gateway computed or verified it.
+// - The single permit of the agent pipeline is the effective-capability intersection:
+//   effective = AgentSession.delegated ∩ UseCase.permitted. Everything else is a forbid.
+
+namespace Betsee {
+  type Tier = Long;
+
+  // Approval state of this exact ActionRequest. stepUp: the approving human authenticated at
+  // acr level 2 (OTP) within the freshness window. Both are computed by the Gateway.
+  type Approval = {
+    granted: Bool,
+    stepUp: Bool,
+  };
+
+  // AI security analysis (mock model in the demo). Only forbid policies may read it.
+  // verdict: clean | suspicious | malicious.
+  type Analysis = {
+    verdict: String,
+    analyzer: String,
+  };
+
+  // The MCP tool the call goes through and the descriptor hash the Gateway observed for it now.
+  type ToolCall = {
+    tool: Tool,
+    observedDescriptorHash: String,
+  };
+
+  // Result of the Gateway's deterministic command validator for shell.exec.
+  type CommandCheck = {
+    template: String,
+    valid: Bool,
+  };
+
+  type ActionContext = {
+    session: AgentSession,
+    capability: Capability,
+    now: Long,
+    costCents: Long,
+    actionsLastMinute: Long,
+    approval: Approval,
+    analysis?: Analysis,
+    toolCall?: ToolCall,
+    command?: CommandCheck,
+    amountCents?: Long,
+    requestedCapability?: Capability,
+  };
+
+  type SessionRequest = {
+    useCase: UseCase,
+    delegated: Set<Capability>,
+    tierCeiling: Tier,
+  };
+
+  entity Organization;
+  entity Team in [Organization];
+
+  // Id is the dotted verb: Capability::"payments.transfer".
+  entity Capability;
+
+  entity Connector in [Organization] {
+    kind: String,
+  };
+
+  entity Tool in [Connector] {
+    pinnedDescriptorHash: String,
+  };
+
+  // provider/model attachment point: maxTier is the highest InformationTier this model may receive.
+  entity Model in [Connector] {
+    provider: String,
+    maxTier: Tier,
+  };
+
+  entity Human in [Team] {
+    sub: String,
+    active: Bool,
+    clearance: Tier,
+    entitlements: Set<Capability>,
+  };
+
+  // state: active | quarantined | suspended. clearance: highest tier the agent may ever hold.
+  entity Agent in [Team] {
+    state: String,
+    clearance: Tier,
+  };
+
+  // permitted is the organization's capability ceiling for this use case.
+  entity UseCase in [Organization] {
+    agents: Set<Agent>,
+    permitted: Set<Capability>,
+    tierCeiling: Tier,
+    approvalRequired: Set<Capability>,
+    stepUpRequired: Set<Capability>,
+    approvalThresholdCents: Long,
+    maxActionsPerMinute: Long,
+    peers: Set<Agent>,
+  };
+
+  // One run. delegated was checked at creation against the human's entitlements and the use case
+  // (action "session.create"). taint: highest tier the session has read so far. untrustedInput: the
+  // session has ingested content from outside its trust boundary (an inbound ticket, another
+  // agent's message). status: active | closed | revoked. expiresAt: epoch seconds.
+  entity AgentSession {
+    human: Human,
+    agent: Agent,
+    useCase: UseCase,
+    delegated: Set<Capability>,
+    tierCeiling: Tier,
+    taint: Tier,
+    untrustedInput: Bool,
+    status: String,
+    expiresAt: Long,
+    budgetCents: Long,
+    spentCents: Long,
+  };
+
+  // A data resource reached through a tool: customer record, ticket, file, mailbox recipient,
+  // payment account, host, memory store. external: outside the organization's trust boundary.
+  entity Resource in [Tool] {
+    kind: String,
+    tier: Tier,
+    external: Bool,
+  };
+
+  // Action groups. Policies attach to groups, never to a list of verbs.
+  action "agent_action";
+  action "read" in ["agent_action"];
+  action "write" in ["agent_action"];
+  action "egress" in ["agent_action"];
+  action "high_impact" in ["agent_action"];
+  action "mcp" in ["agent_action"];
+
+  action "crm.read", "tickets.read", "files.read" in ["read", "mcp"] appliesTo {
+    principal: [Agent],
+    resource: [Resource],
+    context: ActionContext,
+  };
+
+  action "tickets.write" in ["write", "mcp"] appliesTo {
+    principal: [Agent],
+    resource: [Resource],
+    context: ActionContext,
+  };
+
+  action "memory.write" in ["write"] appliesTo {
+    principal: [Agent],
+    resource: [Resource],
+    context: ActionContext,
+  };
+
+  action "email.send" in ["egress", "high_impact", "mcp"] appliesTo {
+    principal: [Agent],
+    resource: [Resource],
+    context: ActionContext,
+  };
+
+  action "payments.transfer" in ["high_impact", "mcp"] appliesTo {
+    principal: [Agent],
+    resource: [Resource],
+    context: ActionContext,
+  };
+
+  action "shell.exec" in ["high_impact"] appliesTo {
+    principal: [Agent],
+    resource: [Resource],
+    context: ActionContext,
+  };
+
+  action "agent.message" in ["egress"] appliesTo {
+    principal: [Agent],
+    resource: [Agent],
+    context: ActionContext,
+  };
+
+  action "llm.complete" in ["egress"] appliesTo {
+    principal: [Agent],
+    resource: [Model],
+    context: ActionContext,
+  };
+
+  // A logged-in human creates an AgentSession for an agent (decision D1).
+  action "session.create" appliesTo {
+    principal: [Human],
+    resource: [Agent],
+    context: SessionRequest,
+  };
+}

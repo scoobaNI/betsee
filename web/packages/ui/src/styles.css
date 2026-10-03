@@ -1,0 +1,58 @@
+@import "tailwindcss";
+@import "../../../../docs/design/tokens.css";
+@import "../../../../docs/design/tailwind-theme.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/urbanist";
+@import "@fontsource-variable/jetbrains-mono";
+@source "./";
+@source "../../../apps";
+
+body {
+  margin: 0;
+  background: var(--bs-color-bg-void);
+  color: var(--bs-color-text-primary);
+  font-family: var(--bs-font-family-ui);
+}
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+:focus-visible {
+  outline: 2px solid var(--bs-color-border-focus);
+  outline-offset: 2px;
+}
+::selection {
+  background: var(--bs-color-accent-tint);
+}
+.bs-feature {
+  background: var(--bs-gradient-feature);
+}
+.bs-quarantine {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 6px,
+    var(--bs-color-lifecycle-quarantined-hatch) 6px 7px
+  );
+}
+.bs-live-pulse {
+  animation: bs-pulse var(--bs-motion-duration-pulse) ease-in-out infinite;
+}
+@keyframes bs-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bs-live-pulse {
+    animation: none;
+  }
+}

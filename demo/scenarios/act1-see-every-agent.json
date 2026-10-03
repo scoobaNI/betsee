@@ -1,0 +1,166 @@
+{
+  "format": "betsee-scenario/v0",
+  "id": "act1-see-every-agent",
+  "act": 1,
+  "title": "See every agent",
+  "asi": [],
+  "summary": "Normal work across four agents: every action is a small, observable, allowed request.",
+  "sessions": {
+    "maya-invoice": {
+      "human": "maya",
+      "agent": "invoice-assistant",
+      "use_case": "invoice-processing",
+      "delegated": [
+        "crm.read",
+        "files.read",
+        "payments.transfer",
+        "email.send"
+      ],
+      "tier_ceiling": "internal",
+      "budget_cents": 5000
+    },
+    "maya-report": {
+      "human": "maya",
+      "agent": "report-bot",
+      "use_case": "weekly-reporting",
+      "delegated": ["crm.read", "llm.complete"],
+      "tier_ceiling": "internal",
+      "budget_cents": 2000
+    },
+    "priya-research": {
+      "human": "priya",
+      "agent": "research-agent",
+      "use_case": "market-research",
+      "delegated": ["llm.complete", "files.read", "agent.message"],
+      "tier_ceiling": "public",
+      "budget_cents": 5000
+    },
+    "priya-ops": {
+      "human": "priya",
+      "agent": "ops-runner",
+      "use_case": "deployment-helper",
+      "delegated": ["shell.exec"],
+      "tier_ceiling": "internal",
+      "budget_cents": 5000
+    }
+  },
+  "steps": [
+    {
+      "step_id": "act1.s1",
+      "kind": "action",
+      "session": "maya-invoice",
+      "capability": "crm.read",
+      "resource": {
+        "type": "crm_record",
+        "id": "crm/customer-1042",
+        "tier": "internal"
+      },
+      "parameters": {
+        "fields": ["name", "open_invoices"]
+      },
+      "expect": {
+        "decision": "allow",
+        "policies": ["permit-effective-capability"],
+        "executed": true
+      },
+      "narration": "invoice-assistant reads a customer record for Maya. Click this row: the trace answers who, which agent, why, what, which resource, which policy, what decision.",
+      "pace_ms": 1200
+    },
+    {
+      "step_id": "act1.s2",
+      "kind": "action",
+      "session": "priya-research",
+      "capability": "files.read",
+      "resource": {
+        "type": "file",
+        "id": "files/market/outlook-2026.pdf",
+        "tier": "public"
+      },
+      "parameters": {},
+      "expect": {
+        "decision": "allow",
+        "executed": true
+      },
+      "narration": "research-agent reads a public market report.",
+      "pace_ms": 1200
+    },
+    {
+      "step_id": "act1.s3",
+      "kind": "action",
+      "session": "priya-research",
+      "capability": "llm.complete",
+      "resource": {
+        "type": "model",
+        "id": "mock-llm",
+        "tier": "internal"
+      },
+      "parameters": {
+        "prompt": "Summarize the 2026 freight market outlook in three bullet points."
+      },
+      "expect": {
+        "decision": "allow",
+        "executed": true
+      },
+      "narration": "research-agent summarizes it through the OpenAI-compatible connector (mock model, demo).",
+      "pace_ms": 1200
+    },
+    {
+      "step_id": "act1.s4",
+      "kind": "action",
+      "session": "priya-ops",
+      "capability": "shell.exec",
+      "resource": {
+        "type": "host",
+        "id": "shell/deploy-host-1",
+        "tier": "internal"
+      },
+      "parameters": {
+        "command": "tail-logs billing-api --lines 50"
+      },
+      "expect": {
+        "decision": "allow",
+        "executed": true
+      },
+      "narration": "ops-runner runs a validated command template.",
+      "pace_ms": 1200
+    },
+    {
+      "step_id": "act1.s5",
+      "kind": "action",
+      "session": "maya-report",
+      "capability": "crm.read",
+      "resource": {
+        "type": "crm_record",
+        "id": "crm/customer-1001",
+        "tier": "internal"
+      },
+      "parameters": {},
+      "expect": {
+        "decision": "allow",
+        "executed": true
+      },
+      "narration": "report-bot reads a customer record for the weekly report.",
+      "pace_ms": 1200
+    },
+    {
+      "step_id": "act1.s6",
+      "kind": "action",
+      "session": "maya-report",
+      "capability": "llm.complete",
+      "resource": {
+        "type": "model",
+        "id": "mock-llm",
+        "tier": "internal"
+      },
+      "parameters": {
+        "prompt": "Draft the weekly finance summary."
+      },
+      "expect": {
+        "decision": "allow",
+        "executed": true
+      },
+      "narration": "report-bot drafts the weekly summary.",
+      "pace_ms": 1200
+    }
+  ]
+}
