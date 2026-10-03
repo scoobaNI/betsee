@@ -68,7 +68,7 @@ export function buildRail(spans: readonly Span[], decision: Decision, stepUpRequ
   const origin = starts.length ? Math.min(...starts) : 0;
   const end = spans.reduce((max, s) => {
     const start = Date.parse(s.started_at);
-    return Number.isNaN(start) ? max : Math.max(max, start + s.duration_ms);
+    return Number.isNaN(start) ? max : Math.max(max, start + (spanDuration(s) ?? 0));
   }, origin);
 
   // The trace's own step_up_required / obligations is authoritative (contract v0.1); the Gateway's
@@ -77,12 +77,18 @@ export function buildRail(spans: readonly Span[], decision: Decision, stepUpRequ
   const stepUpExpected =
     decision === 'require_step_up' || (decision === 'require_approval' && stepUpRequired && approval?.status !== 'denied');
 
-  const stages = STAGES.map((stage): RailStage => {
+  // A deny ends the rail: every later stage reads "not reached" even when the Gateway still records a
+  // skipped span for it; decision and audit always run (components.md, PipelineRail).
+  const denyIndex = STAGES.findIndex((s) => s.id !== 'decision' && byStage.get(s.id)?.status === 'denied');
+  const humanExpected = { approval: decision === 'require_approval', step_up: stepUpExpected } as const;
+
+  const stages = STAGES.map((stage, index): RailStage => {
     const span = byStage.get(stage.id);
     let status: RailStatus;
-    if (span) status = span.status;
-    else if (stage.id === 'approval') status = decision === 'require_approval' ? 'not_reached' : 'not_required';
-    else if (stage.id === 'step_up') status = stepUpExpected ? 'not_reached' : 'not_required';
+    if (denyIndex >= 0 && index > denyIndex && stage.id !== 'decision' && stage.id !== 'audit') status = 'not_reached';
+    else if ((stage.id === 'approval' || stage.id === 'step_up') && (!span || span.status === 'skipped')) {
+      status = humanExpected[stage.id] ? 'not_reached' : 'not_required';
+    } else if (span) status = span.status;
     else status = 'not_reached';
     const start = span ? Date.parse(span.started_at) : Number.NaN;
     return { ...stage, status, span, offsetMs: Number.isNaN(start) ? undefined : start - origin };
@@ -100,7 +106,22 @@ export function decidingStage(rail: Rail): RailStage | undefined {
   );
 }
 
+/**
+ * D11: stages decided inside one Cedar evaluation (identity, capability, information tier) carry no
+ * duration of their own; they render nested under Cedar authz without a bar.
+ */
+export function spanDuration(span: Pick<Span, 'duration_ms'>): number | null {
+  const value = (span as { duration_ms: number | null }).duration_ms;
+  return typeof value === 'number' ? value : null;
+}
+
+export function parentStage(span: Span | undefined): string | undefined {
+  const parent = (span as (Span & { parent_stage?: string | null }) | undefined)?.parent_stage;
+  return typeof parent === 'string' ? parent : undefined;
+}
+
 export function formatDuration(ms: number): string {
+  if (ms < 0.1) return '<0.1 ms';
   if (ms >= 60_000) return `${Math.floor(ms / 60_000)} min ${Math.round((ms % 60_000) / 1000)} s`;
   if (ms >= 1_000) return `${(ms / 1000).toFixed(1)} s`;
   if (ms >= 10) return `${Math.round(ms)} ms`;

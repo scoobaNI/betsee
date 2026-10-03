@@ -8,6 +8,7 @@ import {
 } from "@betsee/api/resources/ecosystem";
 import { PageHeader, Tabs } from "../layout";
 import { ResourceState } from "../resource-state";
+import { centsLabel } from "../money";
 
 const tabs = ["controls", "policies", "use-cases"].map((section) => ({
   href: `/policy-studio/${section}`,
@@ -179,6 +180,14 @@ function Controls({ selectedId }: { selectedId?: string }) {
 
 function Policies({ selectedId }: { selectedId?: string }) {
   const query = usePolicies();
+  const controls = useControlCatalog();
+  const title = (policy: NonNullable<typeof query.data>[number]) =>
+    policy.control_ids
+      .map((id) => {
+        const control = controls.data?.find((item) => item.id === id);
+        return control ? `${id} ${control.name}` : id;
+      })
+      .join(" · ") || policy.name;
   const selected =
     query.data?.find((policy) => policy.id === selectedId) ?? query.data?.[0];
   return (
@@ -192,13 +201,13 @@ function Policies({ selectedId }: { selectedId?: string }) {
               className={`block rounded-lg border border-line-subtle p-4 ${selected?.id === policy.id ? "bg-surface-2 shadow-selected" : "bg-surface-1 hover:bg-surface-2"}`}
             >
               <IdToken copy={false}>{policy.id}</IdToken>
-              <p className="mt-2 text-sm text-fg-secondary">{policy.name}</p>
+              <p className="mt-2 text-sm text-fg-secondary">{title(policy)}</p>
             </Link>
           ))}
         </div>
         {selected && (
           <article className="eco-detail-panel rounded-lg border border-line-subtle bg-surface-1 p-5">
-            <h2 className="text-lg font-semibold">{selected.name}</h2>
+            <h2 className="text-lg font-semibold">{title(selected)}</h2>
             <div className="mt-3 flex flex-wrap gap-2">
               {selected.control_ids.map((control) => (
                 <IdToken
@@ -259,16 +268,24 @@ function UseCases({ selectedId }: { selectedId?: string }) {
               ))}
             </div>
             <h3 className="mt-5 text-sm font-semibold">Approval rules</h3>
+            {useCase.permitted.includes("payments.transfer") &&
+              useCase.approval_threshold_cents > 0 && (
+                <p className="mt-2 text-sm text-fg-secondary">
+                  payments.transfer above{" "}
+                  {centsLabel(useCase.approval_threshold_cents)} requires
+                  approval and a one-time code.
+                </p>
+              )}
             <p className="mt-2 text-sm text-fg-secondary">
               {useCase.approval_required.length
                 ? `${useCase.approval_required.join(", ")} requires a human decision.`
-                : "No additional approval obligation."}
+                : "No unconditional capability obligations."}
             </p>
             {useCase.step_up_required.length > 0 && (
               <p className="mt-2 text-sm text-fg-secondary">
                 {useCase.step_up_required.join(", ")} requires step-up
                 {useCase.approval_threshold_cents > 0
-                  ? ` above ${(useCase.approval_threshold_cents / 100).toLocaleString("en-US")} EUR`
+                  ? ` above ${centsLabel(useCase.approval_threshold_cents)}`
                   : ""}
                 .
               </p>
@@ -276,7 +293,7 @@ function UseCases({ selectedId }: { selectedId?: string }) {
             <p className="mt-5 border-t border-line-subtle pt-4 text-sm text-fg-secondary">
               Budget ceiling{" "}
               <span className="font-mono text-fg-primary">
-                {(useCase.budget.limit / 100).toLocaleString("en-US")} EUR
+                {centsLabel(useCase.budget.limit)}
               </span>
             </p>
           </article>

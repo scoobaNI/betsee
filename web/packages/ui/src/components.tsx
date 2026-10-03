@@ -1,6 +1,11 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { Icon } from "./icon";
 import { capabilityIntersection } from "./capabilities";
+import {
+  gatewayField,
+  paymentAmount,
+  unverifiedParameters,
+} from "./approval-facts";
 import {
   DecisionChip,
   IdToken,
@@ -63,44 +68,46 @@ export function CapabilityIntersection({
               const isPermitted = permitted.includes(capability);
               const isEffective = effective.includes(capability);
               return (
-                <tr
-                  key={capability}
-                  className={`border-b border-line-subtle ${requested === capability ? `border-l-2 ${isEffective ? "border-l-allow-fg" : "border-l-deny-fg"} bg-surface-2` : ""}`}
-                >
-                  <th className="py-3 pr-4 font-mono text-xs font-medium">
-                    {capability}
-                    {requested === capability && !isEffective && (
-                      <p className="mt-1 font-sans text-xs text-deny-fg">
-                        {hasDelegation
-                          ? `Not permitted for ${useCase}`
-                          : "Not delegated"}
-                      </p>
-                    )}
-                  </th>
-                  <td>{mark(hasDelegation)}</td>
-                  <td>
-                    <div className="flex items-center gap-2">
-                      {mark(isPermitted)}
-                      {qualifiers[capability] && (
-                        <span className="text-xs text-fg-secondary">
-                          {qualifiers[capability]}
-                        </span>
+                <Fragment key={capability}>
+                  <tr
+                    className={`border-b border-line-subtle ${requested === capability ? `border-l-2 ${isEffective ? "border-l-allow-fg" : "border-l-deny-fg"} bg-surface-2` : ""}`}
+                  >
+                    <th className="py-3 pr-4 font-mono text-xs font-medium">
+                      {capability}
+                      {requested === capability && !isEffective && (
+                        <p className="mt-1 font-sans text-xs text-deny-fg">
+                          {hasDelegation
+                            ? `Not permitted for ${useCase}`
+                            : "Not delegated"}
+                        </p>
                       )}
-                    </div>
-                  </td>
-                  <td>
-                    {isEffective ? (
-                      <IdToken
-                        copy={false}
-                        className="bg-accent-tint text-accent-text"
+                    </th>
+                    <td>{mark(hasDelegation)}</td>
+                    <td>{mark(isPermitted)}</td>
+                    <td>
+                      {isEffective ? (
+                        <IdToken
+                          copy={false}
+                          className="bg-accent-tint text-accent-text"
+                        >
+                          {capability}
+                        </IdToken>
+                      ) : (
+                        mark(false)
+                      )}
+                    </td>
+                  </tr>
+                  {qualifiers[capability] && (
+                    <tr className="border-b border-line-subtle">
+                      <td
+                        colSpan={4}
+                        className="pb-3 text-xs text-fg-secondary"
                       >
-                        {capability}
-                      </IdToken>
-                    ) : (
-                      mark(false)
-                    )}
-                  </td>
-                </tr>
+                        {qualifiers[capability]}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               );
             })}
           </tbody>
@@ -193,16 +200,22 @@ export interface ApprovalCardData {
   state: "none" | "pending" | "approved" | "rejected";
   action: {
     agent: { id: string };
-    human: { display_name: string };
-    use_case: { name: string };
+    human?: { display_name: string };
+    use_case?: { name: string };
+    session_id?: string;
     capability: string;
-    resource: { tier: Tier };
+    resource: { tier: Tier; id: string; type: string };
     control_ids: string[];
-    reasons: string[];
+    policy_ids?: string[];
+    reasons: unknown[];
     analyzer: { model_label: string; rationale: string; verdict: string };
     ai_tightened: boolean;
   };
   parameters: Record<string, unknown>;
+  gateway_facts?: Record<string, unknown>;
+  requested_reasons?: unknown[];
+  requested_control_ids?: string[];
+  approver_acr?: string | null;
   provenance: Record<string, unknown>;
   action_hash: string;
   requires_step_up: boolean;
@@ -211,12 +224,56 @@ export interface ApprovalCardData {
   approver: { display_name: string } | null;
 }
 
+const POLICY_ID = /^[a-z0-9]+(?:-[a-z0-9]+)+$/;
+
+function reasonSentences(
+  reasons: unknown[],
+  policyIds: string[] = [],
+): string[] {
+  return reasons
+    .map((r) =>
+      typeof r === "string" ? r : ((r as { text?: unknown })?.text ?? ""),
+    )
+    .filter(
+      (r): r is string =>
+        typeof r === "string" &&
+        r.trim() !== "" &&
+        !policyIds.includes(r) &&
+        !POLICY_ID.test(r.trim()),
+    );
+}
+
+function Fact({
+  label,
+  children,
+  verified = false,
+}: {
+  label: string;
+  children: ReactNode;
+  verified?: boolean;
+}) {
+  return (
+    <div className="grid gap-1 sm:grid-cols-[150px_1fr]">
+      <dt className="text-sm text-fg-secondary">{label}</dt>
+      <dd className="min-w-0 text-md">
+        {children}
+        {verified && (
+          <p className="mt-1 font-sans text-xs text-fg-tertiary">
+            Source: Gateway
+          </p>
+        )}
+      </dd>
+    </div>
+  );
+}
+
 export function ApprovalCard({
   approval,
   onApprove,
   onReject,
   busy = false,
   awaitingStepUp = false,
+  submittingDecision = "approve",
   error,
   children,
 }: {
@@ -225,10 +282,25 @@ export function ApprovalCard({
   onReject: () => void;
   busy?: boolean;
   awaitingStepUp?: boolean;
+  submittingDecision?: "approve" | "reject";
   error?: string | null;
   children?: ReactNode;
 }) {
   const pending = approval.state === "pending";
+  const { action } = approval;
+  const amount = paymentAmount(
+    approval.parameters,
+    approval.provenance,
+    approval.gateway_facts,
+  );
+  const agentKeys = unverifiedParameters(approval.parameters, amount !== null);
+  const reasons = reasonSentences(
+    approval.requested_reasons ?? (pending ? action.reasons : []),
+    pending ? action.policy_ids : [],
+  );
+  const controlIds =
+    approval.requested_control_ids ?? (pending ? action.control_ids : []);
+  const payment = action.capability.startsWith("payments.");
   return (
     <article
       className={`rounded-lg border bg-surface-1 p-5 ${pending ? (awaitingStepUp ? "border-stepup-border" : "border-approval-border") : "border-line-subtle"}`}
@@ -240,11 +312,11 @@ export function ApprovalCard({
           </span>
           <div>
             <IdToken
-              id={approval.action.agent.id}
-              href={`/identity/agents/${encodeURIComponent(approval.action.agent.id)}`}
+              id={action.agent.id}
+              href={`/identity/agents/${encodeURIComponent(action.agent.id)}`}
             />
             <p className="mt-1 text-sm text-fg-secondary">
-              for {approval.action.use_case.name}
+              for {action.use_case?.name ?? "Use case not recorded"}
             </p>
           </div>
         </div>
@@ -258,14 +330,8 @@ export function ApprovalCard({
           })}
         </time>
       </header>
-      <p className="mt-4 text-sm text-fg-secondary">
-        Initiated by{" "}
-        <span className="text-fg-primary">
-          {approval.action.human.display_name}
-        </span>
-      </p>
-      <div className="mt-5 flex flex-wrap items-center gap-3">
-        <IdToken>{approval.action.capability}</IdToken>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <DecisionChip
           decision={
             approval.requires_step_up && awaitingStepUp
@@ -279,81 +345,192 @@ export function ApprovalCard({
                 ? "rejected"
                 : null
           }
-          aiTightened={approval.action.ai_tightened}
-          modelLabel={approval.action.analyzer.model_label}
-          controlIds={approval.action.control_ids}
+          aiTightened={action.ai_tightened}
+          modelLabel={action.analyzer.model_label}
+          controlIds={action.control_ids}
         />
+        {approval.requires_step_up && pending && (
+          <span className="inline-flex h-6 items-center gap-1.5 rounded-pill border border-dashed border-stepup-border bg-stepup-bg px-2.5 text-xs font-semibold text-stepup-fg">
+            <Icon name="streamline-flex:fingerprint-1" size={14} />
+            Step-up required
+          </span>
+        )}
       </div>
-      <h3 className="mb-2 mt-5 text-md font-semibold">
-        Parameters as received by the Gateway
-      </h3>
-      <dl className="space-y-3 rounded-sm bg-surface-inset p-4 font-mono text-sm">
-        {Object.entries(approval.parameters).map(([key, value]) => (
-          <div key={key} className="grid gap-1 sm:grid-cols-[160px_1fr]">
-            <dt className="text-fg-secondary">{key}</dt>
-            <dd className="break-all">
-              {typeof value === "string" ? value : JSON.stringify(value)}
-              {key in approval.provenance && (
-                <p className="mt-1 text-xs text-fg-secondary">
-                  Source:{" "}
-                  {typeof approval.provenance[key] === "string"
-                    ? approval.provenance[key]
-                    : JSON.stringify(approval.provenance[key])}
-                </p>
-              )}
-            </dd>
-          </div>
-        ))}
-      </dl>
-      {Object.keys(approval.parameters).length === 0 && (
-        <p className="rounded-sm bg-surface-inset p-4 font-mono text-sm">
-          {"{}"}
+
+      <section aria-label="Action recorded by the Gateway" className="mt-5">
+        <h3 className="flex items-center gap-2 text-md font-semibold">
+          <Icon
+            name="streamline-flex:shield-2"
+            size={16}
+            className="text-accent-text"
+          />
+          The action, as the Gateway recorded it
+        </h3>
+        <p className="mt-1 text-xs text-fg-secondary">
+          Approval applies to exactly this action. The Gateway re-checks every
+          control before it executes.
+        </p>
+        <dl className="mt-3 space-y-2.5 rounded-sm bg-surface-inset p-4">
+          {payment && (
+            <Fact label="Amount" verified={amount !== null}>
+              <span
+                className={
+                  amount
+                    ? "font-display text-3xl font-semibold tabular-nums"
+                    : "text-sm text-fg-tertiary"
+                }
+              >
+                {amount ?? "Not provided by the Gateway"}
+              </span>
+            </Fact>
+          )}
+          <Fact label={payment ? "Payee" : "Resource"}>
+            <span className="break-words font-mono text-md">
+              {action.resource.id}
+            </span>
+            <span className="ml-2 font-mono text-xs text-fg-secondary">
+              {action.resource.type}
+            </span>
+          </Fact>
+          <Fact
+            label="Capability"
+            verified={gatewayField(approval.provenance, "capability")}
+          >
+            <IdToken copy={false}>{action.capability}</IdToken>
+          </Fact>
+          <Fact label="Information tier">
+            <TierBadge tier={action.resource.tier} />
+          </Fact>
+          <Fact label="Agent">
+            <span className="font-mono">{action.agent.id}</span>
+          </Fact>
+          <Fact label="Session created by">
+            {action.human?.display_name ?? "Not recorded"}
+          </Fact>
+          <Fact label="Use case">
+            {action.use_case?.name ?? "Not recorded"}
+          </Fact>
+          {action.session_id && (
+            <Fact
+              label="Session"
+              verified={gatewayField(approval.provenance, "session_id")}
+            >
+              <IdToken id={action.session_id} />
+            </Fact>
+          )}
+          <Fact label="Trace">
+            <IdToken
+              id={approval.trace_id}
+              href={`http://director.betsee.localhost/traces/${encodeURIComponent(approval.trace_id)}`}
+            />
+          </Fact>
+          <Fact label="Action hash">
+            <IdToken id={approval.action_hash} className="max-w-72" />
+          </Fact>
+        </dl>
+      </section>
+
+      {agentKeys.length > 0 && (
+        <section
+          aria-label="Agent-supplied, unverified"
+          className="mt-4 rounded-sm border border-dashed border-line-strong p-4"
+        >
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-fg-secondary">
+            <Icon name="streamline-flex:information-circle" size={14} />
+            Agent-supplied, unverified
+          </h3>
+          <p className="mt-1 text-xs text-fg-tertiary">
+            These are agent-supplied values. Review them separately from the
+            Gateway facts above.
+          </p>
+          <dl className="mt-3 space-y-1.5 text-sm">
+            {agentKeys.map((key) => {
+              const value = approval.parameters[key];
+              return (
+                <div key={key} className="grid gap-1 sm:grid-cols-[150px_1fr]">
+                  <dt className="text-xs text-fg-tertiary">{key}</dt>
+                  <dd className="whitespace-pre-wrap break-words text-fg-secondary">
+                    {typeof value === "string" ? value : JSON.stringify(value)}
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
+        </section>
+      )}
+
+      {reasons.length > 0 || pending ? (
+        <>
+          <h3 className="mt-5 text-md font-semibold">Why a human</h3>
+          {reasons.length > 0 && (
+            <div className="mt-2 text-sm text-fg-secondary">
+              <p>
+                {pending
+                  ? "Awaiting approval because:"
+                  : "Human review was required because:"}
+              </p>
+              <ul className="mt-2 space-y-2">
+                {reasons.map((reason, index) => (
+                  <li key={index}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {controlIds.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {controlIds.map((id) => (
+                <IdToken
+                  key={id}
+                  id={id}
+                  href={`/policy-studio/controls/${encodeURIComponent(id)}`}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <p className="mt-5 text-sm text-fg-secondary">
+          The original approval reason is recorded in the{" "}
+          <a
+            className="underline hover:text-fg-primary"
+            href={`http://director.betsee.localhost/traces/${encodeURIComponent(approval.trace_id)}`}
+          >
+            full trace
+          </a>
+          , which keeps the require-approval and step-up decision.
         </p>
       )}
-      <details className="mt-3 text-sm text-fg-secondary">
+      {!["skipped", "clean"].includes(action.analyzer.verdict) && (
+        <div className="mt-4">
+          <p className="mb-2 text-sm text-fg-secondary">
+            AI analysis: {action.analyzer.rationale}
+          </p>
+          <MockBadge modelLabel={action.analyzer.model_label} />
+        </div>
+      )}
+      <details className="mt-4 text-xs text-fg-secondary">
         <summary className="cursor-pointer">
-          Provenance recorded by the Gateway
+          Raw provenance record from the Gateway
         </summary>
-        <pre className="mt-2 overflow-x-auto rounded-sm bg-surface-inset p-4 font-mono text-xs">
+        <pre className="mt-2 overflow-x-auto rounded-sm bg-surface-inset p-3 font-mono text-xs">
           {JSON.stringify(approval.provenance, null, 2)}
         </pre>
       </details>
-      <p className="mt-3 break-all font-mono text-xs text-fg-secondary">
-        Action hash: {approval.action_hash}
-      </p>
-      <h3 className="mt-5 text-md font-semibold">Why a human</h3>
-      <p className="mt-2 text-sm text-fg-secondary">
-        {approval.action.reasons.join(" ")}
-      </p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {approval.action.control_ids.map((id) => (
-          <IdToken
-            key={id}
-            id={id}
-            href={`/policy-studio/controls/${encodeURIComponent(id)}`}
-          />
-        ))}
-        <TierBadge tier={approval.action.resource.tier} />
-      </div>
-      {!["skipped", "clean"].includes(approval.action.analyzer.verdict) && (
-        <div className="mt-4">
-          <p className="mb-2 text-sm text-fg-secondary">
-            AI analysis: {approval.action.analyzer.rationale}
-          </p>
-          <MockBadge modelLabel={approval.action.analyzer.model_label} />
-        </div>
-      )}
       {approval.approver && (
         <p className="mt-4 text-sm">
           {approval.state === "approved" ? "Approved" : "Rejected"} by{" "}
           {approval.approver.display_name}
+          {approval.state === "approved" &&
+            approval.requires_step_up &&
+            approval.approver_acr &&
+            ` with step-up (acr ${approval.approver_acr})`}
           {approval.decided_at &&
             ` at ${new Date(approval.decided_at).toLocaleTimeString([], { hour12: false })}`}
         </p>
       )}
       {awaitingStepUp && (
         <p role="status" className="mt-4 text-sm text-stepup-fg">
-          Waiting for the one-time code in Keycloak
+          The Gateway requires step-up. Opening Keycloak for your one-time code.
         </p>
       )}
       {error && (
@@ -366,14 +543,27 @@ export function ApprovalCard({
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              disabled={busy || awaitingStepUp}
+              disabled={
+                busy ||
+                awaitingStepUp ||
+                (payment && amount === null) ||
+                !action.human ||
+                !action.use_case
+              }
               onClick={onApprove}
-              className="inline-flex h-11 items-center gap-2 rounded-md bg-accent px-5 text-md font-semibold text-fg-on-accent hover:bg-accent-hover"
+              className="inline-flex h-11 items-center gap-2 rounded-md bg-accent px-5 text-md font-semibold text-fg-on-accent hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-fg-disabled disabled:hover:bg-surface-3"
             >
-              {approval.requires_step_up && (
-                <Icon name="streamline-flex:fingerprint-1" />
+              {busy && submittingDecision === "approve" ? (
+                <span
+                  aria-hidden="true"
+                  className="h-4 w-4 animate-spin rounded-pill border-2 border-current border-r-transparent motion-reduce:animate-none"
+                />
+              ) : (
+                approval.requires_step_up && (
+                  <Icon name="streamline-flex:fingerprint-1" />
+                )
               )}
-              {busy
+              {busy && submittingDecision === "approve"
                 ? "Submitting…"
                 : approval.requires_step_up
                   ? "Approve with step-up"
@@ -383,26 +573,33 @@ export function ApprovalCard({
               type="button"
               disabled={busy || awaitingStepUp}
               onClick={onReject}
-              className="h-11 rounded-md border border-deny-border px-5 text-md font-semibold text-deny-fg hover:bg-deny-bg"
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-deny-border px-5 text-md font-semibold text-deny-fg hover:bg-deny-bg"
             >
-              Reject
+              {busy && submittingDecision === "reject" && (
+                <span
+                  aria-hidden="true"
+                  className="h-4 w-4 animate-spin rounded-pill border-2 border-current border-r-transparent motion-reduce:animate-none"
+                />
+              )}
+              {busy && submittingDecision === "reject"
+                ? "Submitting…"
+                : "Reject"}
             </button>
           </div>
-          {approval.requires_step_up && (
+          {approval.requires_step_up && !(payment && amount === null) && (
             <p className="mt-2 text-xs text-fg-secondary">
               Keycloak will ask for a one-time code. Approval applies only to
-              these exact parameters.
+              the action recorded above.
+            </p>
+          )}
+          {payment && amount === null && (
+            <p className="mt-2 text-sm text-fg-secondary">
+              This cannot be approved here: the Gateway did not bind the amount.
+              You can still reject it.
             </p>
           )}
         </div>
       )}
-      <a
-        href={`http://director.betsee.localhost/traces/${encodeURIComponent(approval.trace_id)}`}
-        className="mt-5 inline-flex items-center gap-2 text-sm text-accent-text"
-      >
-        Open trace
-        <Icon name="streamline-flex:arrow-expand" size={14} />
-      </a>
       {children}
     </article>
   );

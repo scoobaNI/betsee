@@ -21,8 +21,10 @@ docker compose up
 
 That one command builds and starts the whole stack. On first start it creates `.env` from
 `.env.example` (demo values only), imports the Keycloak realm, migrates PostgreSQL and seeds the
-Acme Logistics demo organization. The first build compiles the Rust Gateway and takes a few minutes;
-later starts reuse the cache.
+Acme Logistics demo organization. The first build compiles the Rust Gateway: on a machine that has
+never built it, downloading and compiling the dependencies takes several minutes, and it can look
+idle while it does. A rebuild of the Gateway image without Docker's layer cache, with the Cargo cache
+kept, measured 97 seconds. Later starts reuse everything.
 
 | Open                               | What                                                    |
 | ---------------------------------- | ------------------------------------------------------- |
@@ -33,6 +35,8 @@ later starts reuse the cache.
 
 Sign in as **Daniel Ortiz** (`daniel`, security officer and approver); the demo passwords are in
 `.env.example`. Step-up asks for a one-time code: `scripts/otp.sh` prints Daniel's current code.
+
+Before presenting, `./scripts/stage-check.sh` runs a read-only preflight and prints GO or NO-GO.
 
 The seven-act stage demo is in [`docs/demo-script.md`](docs/demo-script.md). Each act launches from
 the Director's scenario dock; `demo/` holds the scenarios and the runner that drives them through the
@@ -182,6 +186,11 @@ Stated plainly, because a control plane that hides its shortcuts would be a poor
 - **Demo secrets and a pre-provisioned one-time-code secret** live in `.env.example` so the demo is
   reproducible. Real deployments generate their own.
 - **Plain HTTP on `*.localhost`**, which browsers treat as a secure context.
+- **The audit trail is append-only against bugs, not against a compromised Gateway.** Database
+  triggers reject UPDATE, DELETE and TRUNCATE on audit and security-event rows, but the Gateway's
+  database role owns those tables. A least-privilege insert-only role, hash-chained or signed rows and
+  an external sink are the production path.
+- **Control attachments can be added but not yet detached** through the API.
 
 Paths to scale, documented and not built: RFC 8693 token exchange for session-bound agent tokens,
 OpenTelemetry export of the audit and span model, a monitor mode for rolling out new controls, and

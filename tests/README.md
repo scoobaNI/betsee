@@ -43,10 +43,32 @@ grants on browser clients. It inspects issued JWT claims; Gateway signature vali
 by the action suite. `--self-test` checks the harness locally and does not verify the Betsee stack.
 
 `security/live_fixtures.py` contains requests for the Acme cast and catalog resource IDs from
-`policies/tests/acme-cases.json`. Cases requiring Daniel's browser step-up, tool mutation, isolated
-quarantine, exhausted budget, signed expired tokens, or a valid wrong-audience token remain pending
-until their fixtures land. Shared agents must not be quarantined or shared tool descriptors changed
-without a scenario reset. A regular run creates fresh sessions; it does not reset the shared stack.
+`policies/tests/acme-cases.json`. Cases requiring Daniel's browser step-up, a signed expired token,
+or a valid wrong-audience token remain pending until their fixtures land. Shared agents must not be
+quarantined or shared tool descriptors changed without a scenario reset. A regular run creates fresh
+sessions; it does not reset the shared stack.
+
+Four ASI08/ASI10 cases run on isolated principals so the demo cast is left exactly as found:
+
+- `cascade_breaker` (CTL-RUN-002): the test-only `research-peer` reads up to its use case's
+  `maxActionsPerMinute`, then one more action exceeds the rate. The denial-cascade breaker
+  (quarantine at five denials) stays untouched, since the measured action is the only denial.
+- `quarantined_agent` (CTL-ID-002): five tier denials quarantine `research-peer`, then a normally
+  allowed read is refused because the agent is no longer active.
+- `budget_exceeded` (CTL-RUN-001): a one-cent `research-peer` session cannot cover a ten-cent
+  action, so the first read is denied on budget.
+- `descriptor_drift` (CTL-TOOL-001): the payments MCP descriptor is drifted, a below-threshold
+  transfer is denied before execution, and the pinned descriptor is restored afterwards.
+
+Each of these releases its agent (and `descriptor_drift` restores the descriptor) in a `cleanup`
+step that always runs, so a fresh breaker window, active agent state and the pinned descriptor are
+all restored even if a step fails. `research-peer` is released with Daniel's real acr-1 browser
+token (`scripts/oidc-login.py`; no OTP, no step-up).
+
+The MCP admin descriptor route is in-network only, so `descriptor_drift` reaches it through the
+`demo-runner` container with a `shell` setup/cleanup step (`docker compose exec`), run from the
+repository root. That step needs a local Docker Compose stack; set `shell_timeout_seconds` to adjust
+its timeout. A fixture `shell` step is `{"shell": [argv...]}` and must exit zero.
 
 For a request-fixture override, pass `--fixtures <path>` or set `BETSEE_SECURITY_FIXTURES`. The JSON
 has `version: 1`, an optional common `setup` list, and a `cases` mapping keyed by catalog case ID.

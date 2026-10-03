@@ -5,6 +5,7 @@ import {
   useConnectors,
   useEcosystemSummary,
   useSecurityEvents,
+  useEcosystemMe,
 } from "@betsee/api/resources/ecosystem";
 import { ResourceState } from "../resource-state";
 
@@ -31,6 +32,7 @@ export function Home() {
   const controls = useControlCatalog();
   const connectors = useConnectors();
   const events = useSecurityEvents();
+  const me = useEcosystemMe();
   useEffect(() => {
     document.title = "Home - Betsee";
   }, []);
@@ -212,7 +214,14 @@ export function Home() {
                         })}
                       </time>
                     </div>
-                    <p className="mt-2 text-sm">{event.message}</p>
+                    <p className="mt-2 text-sm">
+                      {event.message === "Agent released by authorized human" &&
+                      typeof event.attributes.agent_id === "string" &&
+                      me.data &&
+                      event.attributes.human_sub === me.data.human.sub
+                        ? `${event.attributes.agent_id} released by ${me.data.human.display_name}`
+                        : event.message}
+                    </p>
                     {event.trace_id && (
                       <div className="mt-2">
                         <IdToken

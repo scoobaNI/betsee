@@ -134,28 +134,58 @@ impl Store {
         Ok(())
     }
 
+    pub async fn approval_requested_reasons(&self, trace_id: &str) -> Result<Option<Value>> {
+        Ok(sqlx::query_scalar(
+            "SELECT payload->'reasons' FROM audit_records WHERE trace_id=$1 AND phase='pending' ORDER BY id LIMIT 1",
+        )
+        .bind(trace_id)
+        .fetch_optional(&self.pool)
+        .await?)
+    }
+
     pub async fn event(
         &self,
         event_type: &str,
         trace_id: Option<&str>,
         data: &Value,
     ) -> Result<i64> {
-        let mut tx=self.pool.begin().await?;
-        sqlx::query("SELECT pg_advisory_xact_lock(782341)").execute(&mut *tx).await?;
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("SELECT pg_advisory_xact_lock(782341)")
+            .execute(&mut *tx)
+            .await?;
         let id=sqlx::query_scalar("INSERT INTO security_events(organization_id,event_type,trace_id,data) VALUES('acme',$1,$2,$3) RETURNING id")
             .bind(event_type).bind(trace_id).bind(data).fetch_one(&mut *tx).await?;
         tx.commit().await?;
         Ok(id)
     }
 
-    pub async fn audit(&self, trace: &Value, phase: &str, event_type: Option<&str>) -> Result<()> {
+    pub async fn audit(
+        &self,
+        trace: &Value,
+        phase: &str,
+        event_type: Option<&str>,
+    ) -> Result<Value> {
+        let started_at = now();
+        let started = std::time::Instant::now();
         let mut transaction = self.pool.begin().await?;
-        sqlx::query("SELECT pg_advisory_xact_lock(782341)").execute(&mut *transaction).await?;
+        sqlx::query("SELECT pg_advisory_xact_lock(782341)")
+            .execute(&mut *transaction)
+            .await?;
         sqlx::query("INSERT INTO audit_records(trace_id,span_id,organization_id,human_sub,agent_id,use_case_id,session_id,capability,resource_id,policy_ids,control_ids,decision,phase,payload) VALUES($1,$2,'acme',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)")
             .bind(text(trace,"trace_id")).bind(uuid::Uuid::new_v4().simple().to_string()).bind(trace["human"]["sub"].as_str().unwrap_or("unknown"))
             .bind(trace["agent"]["id"].as_str().unwrap_or("unknown")).bind(trace["use_case"]["id"].as_str().unwrap_or("unknown"))
             .bind(text(trace,"session_id")).bind(text(trace,"capability")).bind(trace["resource"]["id"].as_str().unwrap_or("unknown"))
             .bind(&trace["policy_ids"]).bind(&trace["control_ids"]).bind(text(trace,"decision")).bind(phase).bind(trace).execute(&mut *transaction).await?;
+        let mut recorded = trace.clone();
+        if let Some(spans) = recorded["spans"].as_array_mut()
+            && let Some(span) = spans.iter_mut().rev().find(|span| span["stage"] == "audit")
+        {
+            span["started_at"] = json!(started_at);
+            span["duration_ms"] = json!(started.elapsed().as_secs_f64() * 1000.0);
+            span["attributes"]["timing_boundary"] =
+                json!("transaction begin, event-order lock and append-only audit INSERT");
+        }
+        let trace = &recorded;
         if let Some(event_type) = event_type {
             let mut summary = trace.clone();
             if let Some(map) = summary.as_object_mut() {
@@ -173,7 +203,7 @@ impl Store {
             phase,
             "action audit persisted"
         );
-        Ok(())
+        Ok(recorded)
     }
 
     pub async fn human(&self, sub: &str) -> Result<Option<Value>> {
@@ -190,7 +220,9 @@ impl Store {
         security: Option<&Value>,
     ) -> Result<bool> {
         let mut tx = self.pool.begin().await?;
-        sqlx::query("SELECT pg_advisory_xact_lock(782341)").execute(&mut *tx).await?;
+        sqlx::query("SELECT pg_advisory_xact_lock(782341)")
+            .execute(&mut *tx)
+            .await?;
         let changed=sqlx::query("INSERT INTO gateway_objects(kind,id,data) VALUES('tool_status',$1,$2) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data,updated_at=now() WHERE gateway_objects.data->>'observed_hash' IS DISTINCT FROM excluded.data->>'observed_hash'")
             .bind(name).bind(status).execute(&mut *tx).await?.rows_affected()>0;
         if changed && trace.is_some() {

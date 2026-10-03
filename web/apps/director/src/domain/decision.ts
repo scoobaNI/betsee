@@ -48,17 +48,50 @@ export const analyzerVerdictLabel: Record<AnalyzerVerdict, string> = {
   skipped: 'Not run',
 };
 
+// Gateway reasons sometimes carry policy ids ("forbid-resource-above-session-tier"); those belong in
+// the policy cell, not in the sentence the presenter reads aloud.
+const POLICY_ID = /^[a-z0-9]+(?:-[a-z0-9]+)+$/;
+
+/**
+ * The human reason for a decision: the analyzer's finding when AI analysis tightened it, else the
+ * Gateway's sentence reasons, else the deciding control's catalogue explanation.
+ */
+export function humanReason(
+  action: Pick<ActionSummary, 'ai_tightened' | 'analyzer' | 'reasons' | 'policy_ids' | 'control_ids'>,
+  controlDescription: (id: string) => string | undefined,
+): string {
+  // D12 / contract v0.2: analyzer.finding (alias analysis.finding) and reasons[] as {policy_id, control_id, text}.
+  const finding =
+    (action.analyzer as { finding?: string }).finding ?? (action as { analysis?: { finding?: string } }).analysis?.finding;
+  if (action.ai_tightened) {
+    const found = finding || action.analyzer.rationale;
+    if (found) return found;
+  }
+  const texts = (action.reasons as unknown[]).map((r) => (typeof r === 'string' ? r : ((r as { text?: string })?.text ?? '')));
+  const sentences = texts.filter((r) => r && !action.policy_ids.includes(r) && !POLICY_ID.test(r.trim()));
+  if (sentences.length) return sentences.join(' ');
+  const [first] = action.control_ids;
+  return (first && controlDescription(first)) || '';
+}
+
+/** Where the decision's reason text comes from; an analyzer finding always shows with its MockBadge. */
+export function reasonFromAnalyzer(action: Pick<ActionSummary, 'ai_tightened' | 'analyzer'>): boolean {
+  const finding =
+    (action.analyzer as { finding?: string }).finding ?? (action as { analysis?: { finding?: string } }).analysis?.finding;
+  return action.ai_tightened && Boolean(finding || action.analyzer.rationale);
+}
+
 /** "Denied because CTL-TIER-001 Resource tier ceiling: ..." (contract section 14, copy). */
 export function becauseSentence(
-  action: Pick<ActionSummary, 'decision' | 'approval_state' | 'control_ids' | 'reasons'>,
-  controlName: (id: string) => string | undefined,
+  action: Pick<ActionSummary, 'decision' | 'approval_state' | 'control_ids' | 'reasons' | 'policy_ids' | 'ai_tightened' | 'analyzer'>,
+  control: (id: string) => { name?: string; description?: string } | undefined,
 ): string {
-  const reason = action.reasons.join(' ').trim();
+  const reason = humanReason(action, (id) => control(id)?.description);
   if (action.decision === 'allow') return reason || 'Every deterministic control passed.';
   const resolution = resolutionOf(action);
   const verdict = resolution ? `${resolution[0]!.toUpperCase()}${resolution.slice(1)}` : decisionLabel[action.decision];
   const [first] = action.control_ids;
   if (!first) return `${verdict}: ${reason || 'see the deciding stage below.'}`;
-  const name = controlName(first);
+  const name = control(first)?.name;
   return `${verdict} because ${first}${name ? ` ${name}` : ''}: ${reason || 'see the deciding stage below.'}`;
 }

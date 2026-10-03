@@ -1,6 +1,7 @@
 import { useParams } from "react-router";
 import { Icon, IdToken, MockBadge } from "@betsee/ui";
 import { useConnectors } from "@betsee/api/resources/ecosystem";
+import { useToolDrift } from "@betsee/api";
 import { PageHeader, Tabs } from "../layout";
 import { ResourceState } from "../resource-state";
 
@@ -22,10 +23,15 @@ const kindCopy: Record<string, string> = {
 export function Connect() {
   const { section, id } = useParams();
   const query = useConnectors();
+  const drift = useToolDrift();
   const connectors = id ? query.data?.filter((c) => c.id === id) : query.data;
   const tools: Array<Record<string, unknown> & { connector: string }> =
     query.data?.flatMap((c) =>
-      c.tools.map((t) => ({ ...t, connector: c.id })),
+      c.tools.map((t) => ({
+        ...t,
+        ...drift.get(`${c.id}/${String(t.name)}`),
+        connector: c.id,
+      })),
     ) ?? [];
   const models = query.data?.filter((c) => c.model_label !== null) ?? [];
   return (
@@ -101,7 +107,7 @@ export function Connect() {
             tools.map((tool, index) => (
               <article
                 key={`${tool.connector}-${index}`}
-                className="rounded-lg border border-line-subtle bg-surface-1 p-5"
+                className={`rounded-lg border bg-surface-1 p-5 ${tool.status === "blocked" ? "border-deny-border" : "border-line-subtle"}`}
               >
                 <Icon name="streamline-flex:wrench-hand" size={28} />
                 <h2 className="mt-4 font-mono text-lg">
@@ -114,16 +120,29 @@ export function Connect() {
                     href={`/connect/connectors/${encodeURIComponent(tool.connector)}`}
                   />
                 </p>
-                <p className="mt-3 break-all font-mono text-xs">
-                  Pinned:{" "}
-                  {String(
+                <p
+                  className="mt-3 break-all font-mono text-xs"
+                  title={String(
                     tool.pinned_hash ??
                       tool.pinned_descriptor_hash ??
                       "Not reported",
                   )}
+                >
+                  Pinned:{" "}
+                  {shortHash(
+                    String(
+                      tool.pinned_hash ??
+                        tool.pinned_descriptor_hash ??
+                        "Not reported",
+                    ),
+                  )}
                 </p>
-                <p className="mt-3 text-sm text-fg-secondary">
-                  Status: {String(tool.status ?? "Not reported")}
+                <p
+                  className={`mt-3 text-sm ${tool.status === "blocked" ? "text-deny-fg" : "text-fg-secondary"}`}
+                >
+                  {tool.status === "blocked"
+                    ? "Descriptor changed - blocked"
+                    : `Status: ${String(tool.status ?? "Not reported")}`}
                 </p>
               </article>
             ))
@@ -172,4 +191,10 @@ export function Connect() {
       </ResourceState>
     </>
   );
+}
+
+function shortHash(hash: string): string {
+  return hash.length > 24
+    ? `${hash.startsWith("sha256:") ? "sha256 " : ""}${hash.replace(/^sha256:/, "").slice(0, 6)}…${hash.slice(-4)}`
+    : hash;
 }

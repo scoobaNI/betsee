@@ -37,7 +37,8 @@ export const ASI_TITLES: Record<string, string> = {
   ASI10: 'Rogue agents',
 };
 
-const ZERO_BUDGET = { limit: 0, used: 0, unit: 'cents' as const };
+// Use-case budget ceilings as the live Gateway seeds them (p-419): 50.00 EUR, weekly reporting 20.00 EUR.
+const USE_CASE_BUDGET = { limit: 5_000, used: 0, unit: 'cents' as const };
 
 function useCase(
   id: string,
@@ -54,7 +55,7 @@ function useCase(
     approval_required: [],
     step_up_required: [],
     approval_threshold_cents: 0,
-    budget: ZERO_BUDGET,
+    budget: USE_CASE_BUDGET,
     agent_ids: [],
     peer_ids: [],
     ...extra,
@@ -79,6 +80,7 @@ export const USE_CASES = {
   }),
   reporting: useCase('weekly-reporting', 'Weekly reporting', ['crm.read', 'llm.complete'], 'internal', {
     agent_ids: ['report-bot'],
+    budget: { limit: 2_000, used: 0, unit: 'cents' },
   }),
 };
 
@@ -106,7 +108,7 @@ export const AGENTS: AgentSeed[] = [
     useCase: USE_CASES.invoice,
     delegated: ['crm.read', 'files.read', 'payments.transfer', 'email.send'],
     tierCeiling: 'internal',
-    budgetCents: 2_000,
+    budgetCents: 1_000,
   },
   {
     id: 'report-bot',
@@ -117,7 +119,7 @@ export const AGENTS: AgentSeed[] = [
     useCase: USE_CASES.reporting,
     delegated: ['crm.read', 'llm.complete'],
     tierCeiling: 'internal',
-    budgetCents: 400,
+    budgetCents: 1_000,
   },
   {
     id: 'support-triage',
@@ -128,7 +130,7 @@ export const AGENTS: AgentSeed[] = [
     useCase: USE_CASES.triage,
     delegated: ['tickets.read', 'tickets.write', 'crm.read', 'memory.write'],
     tierCeiling: 'internal',
-    budgetCents: 1_500,
+    budgetCents: 5_000,
   },
   {
     id: 'research-agent',
@@ -139,7 +141,7 @@ export const AGENTS: AgentSeed[] = [
     useCase: USE_CASES.research,
     delegated: ['llm.complete', 'files.read', 'agent.message'],
     tierCeiling: 'public',
-    budgetCents: 1_200,
+    budgetCents: 1_000,
   },
   {
     id: 'ops-runner',
@@ -150,19 +152,19 @@ export const AGENTS: AgentSeed[] = [
     useCase: USE_CASES.deploy,
     delegated: ['shell.exec'],
     tierCeiling: 'internal',
-    budgetCents: 600,
+    budgetCents: 5_000,
   },
 ];
 
 export const TOOLS = {
-  crm: { name: 'crm', connector: 'mcp' },
-  tickets: { name: 'tickets', connector: 'mcp' },
-  files: { name: 'files', connector: 'mcp' },
-  payments: { name: 'payments', connector: 'mcp' },
-  email: { name: 'email-outbox', connector: 'mcp' },
-  shell: { name: 'shell-templates', connector: 'mcp' },
-  llm: { name: 'chat-completions', connector: 'company-ai-gateway' },
-  memory: { name: 'agent-memory', connector: 'mcp' },
+  crm: { name: 'crm', connector: 'mcp-demo' },
+  tickets: { name: 'tickets', connector: 'mcp-demo' },
+  files: { name: 'files', connector: 'mcp-demo' },
+  payments: { name: 'payments', connector: 'mcp-demo' },
+  email: { name: 'email-outbox', connector: 'mcp-demo' },
+  shell: { name: 'shell-templates', connector: 'mcp-demo' },
+  llm: { name: 'chat-completions', connector: 'openai-compatible' },
+  memory: { name: 'agent-memory', connector: 'mcp-demo' },
 } as const;
 
 /** Spend per action in cents, so budget meters move like the Gateway's. */

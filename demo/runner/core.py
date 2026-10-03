@@ -2,6 +2,7 @@
 
 import base64
 import datetime
+import itertools
 import json
 import os
 import secrets
@@ -308,22 +309,22 @@ def find_step(run, step_id):
     return None
 
 
-def pending_approval_trace(match):
-    """Trace id of the newest pending approval for an agent and capability, asked of the Gateway.
+def latest_approval_trace(match):
+    """Trace id of the newest approval, in any state, for an agent and capability, asked of the Gateway.
 
-    Lets a step wait on an act played by another runner process (each terminal run is one).
+    Any state, because the presenter may already have decided it (act 5 rejects act 3's memory write
+    as soon as the payment is approved). Lets a step wait on an act played by another runner process.
     """
     status, payload = http("GET", f"{GATEWAY_URL}/api/v1/approvals", TOKENS.human(READER))
     if status != 200 or not isinstance(payload, dict):
         return None
-    pending = [
+    matching = [
         a for a in payload.get("items", [])
-        if a.get("state") == "pending"
-        and (a.get("action") or {}).get("agent", {}).get("id") == match["agent"]
+        if (a.get("action") or {}).get("agent", {}).get("id") == match["agent"]
         and (a.get("action") or {}).get("capability") == match["capability"]
     ]
-    pending.sort(key=lambda a: a.get("created_at", ""), reverse=True)
-    return pending[0]["trace_id"] if pending else None
+    matching.sort(key=lambda a: a.get("created_at", ""), reverse=True)
+    return matching[0]["trace_id"] if matching else None
 
 
 def approval_for(trace_id):
@@ -333,14 +334,29 @@ def approval_for(trace_id):
     return next((a for a in payload.get("items", []) if a.get("trace_id") == trace_id), {})
 
 
+def parse_ts(value):
+    """RFC 3339 timestamp to aware datetime; the Gateway emits nanoseconds, Python parses microseconds."""
+    if not value:
+        return None
+    head, _, tail = value.partition(".")
+    if tail:
+        digits = "".join(itertools.takewhile(str.isdigit, tail))
+        zone = tail[len(digits):]
+        value = f"{head}.{digits[:6]}{zone}"
+    try:
+        return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
 def await_human(step, run):
     record = {"step_id": step["step_id"], "n": 1, "kind": "await_human"}
     target = find_step(run, step["waits_for"])
     trace_id = target["trace_id"] if target else None
     if trace_id is None and "waits_for_match" in step:
-        trace_id = pending_approval_trace(step["waits_for_match"])
+        trace_id = latest_approval_trace(step["waits_for_match"])
     if trace_id is None:
-        record.update(ok=False, trace_id=None, error=f"no pending approval found for {step['waits_for']}")
+        record.update(ok=False, trace_id=None, error=f"no approval found for {step['waits_for']}")
         return record
     expect = step.get("expect", {})
     want = expect.get("approval_state", "approved")
@@ -354,7 +370,9 @@ def await_human(step, run):
         if status == 200 and (state == "rejected" or (state == "approved" and trace.get("executed"))):
             break
         time.sleep(AWAIT_POLL_S)
-    approver = approval_for(trace_id).get("approver") or {}
+    approval = approval_for(trace_id)
+    approver = approval.get("approver") or {}
+    decided_at = parse_ts(approval.get("decided_at"))
     acr = next(
         (str(s.get("attributes", {}).get("acr")) for s in trace.get("spans", []) if s.get("stage") == "step_up"),
         None,
@@ -375,6 +393,10 @@ def await_human(step, run):
     # that the human decided.
     if "approver_sub" in expect and approver.get("sub") != expect["approver_sub"]:
         problems.append(f"approver {approver.get('sub')} != {expect['approver_sub']}")
+    # An approval decided before this run began belongs to an earlier rehearsal.
+    started = parse_ts(run.started_at)
+    if want in ("approved", "rejected") and decided_at and started and decided_at < started:
+        problems.append(f"decided at {approval.get('decided_at')}, before this run started")
     if "acr" in expect and acr != expect["acr"]:
         problems.append(f"acr {acr} != {expect['acr']}")
     record["ok"] = not problems

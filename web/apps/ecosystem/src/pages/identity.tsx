@@ -13,11 +13,14 @@ import {
 } from "@betsee/api/resources/ecosystem";
 import { PageHeader, Tabs } from "../layout";
 import { ResourceState } from "../resource-state";
+import { centsLabel } from "../money";
 
 const tabs = ["agents", "humans", "teams"].map((section) => ({
   href: `/identity/${section}`,
   label: section[0].toUpperCase() + section.slice(1),
 }));
+const teamName = (team: string) =>
+  team ? team[0].toUpperCase() + team.slice(1) : team;
 export function Identity() {
   const { section, id } = useParams();
   const agents = useEcosystemAgents();
@@ -77,7 +80,7 @@ export function Identity() {
                     <LifecycleBadge state={agent.state} />
                   </div>
                   <p className="ml-11 mt-2 text-sm text-fg-secondary">
-                    {agent.team} · {agent.provider}
+                    {teamName(agent.team)} · {agent.provider}
                   </p>
                   <div className="ml-11 mt-3 flex flex-wrap gap-1">
                     {agent.current_session?.effective.slice(0, 4).map((c) => (
@@ -96,8 +99,8 @@ export function Identity() {
                   <LifecycleBadge state={selected.state} />
                 </div>
                 <p className="mt-3 text-md text-fg-secondary">
-                  {selected.team} · confidential Keycloak client · client
-                  credentials
+                  {teamName(selected.team)} · confidential Keycloak client ·
+                  client credentials
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <IdToken>{selected.provider}</IdToken>
@@ -107,7 +110,9 @@ export function Identity() {
                   )}
                 </div>
                 {selected.state_reason && (
-                  <p className="mt-4 text-sm text-quarantined-fg">
+                  <p
+                    className={`mt-4 text-sm ${selected.state === "quarantined" ? "text-quarantined-fg" : "text-fg-secondary"}`}
+                  >
                     {selected.state_reason}
                   </p>
                 )}
@@ -124,14 +129,8 @@ export function Identity() {
                     </div>
                     <p className="mt-4 text-sm text-fg-secondary">
                       Budget used{" "}
-                      {(
-                        selected.current_session.budget.used / 100
-                      ).toLocaleString("en-US")}{" "}
-                      /{" "}
-                      {(
-                        selected.current_session.budget.limit / 100
-                      ).toLocaleString("en-US")}{" "}
-                      EUR
+                      {centsLabel(selected.current_session.budget.used)} /{" "}
+                      {centsLabel(selected.current_session.budget.limit)}
                     </p>
                     <h3 className="mb-4 mt-6 text-md font-semibold">
                       What this agent can do
@@ -213,7 +212,7 @@ export function Identity() {
                 className="rounded-lg border border-line-subtle bg-surface-1 p-5"
               >
                 <Icon name="streamline-flex:user-collaborate-group" size={28} />
-                <h2 className="mt-4 font-display text-xl">{team}</h2>
+                <h2 className="mt-4 font-display text-xl">{teamName(team)}</h2>
                 <div className="mt-4 space-y-2">
                   {agents.data
                     ?.filter((a) => a.team === team)

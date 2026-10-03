@@ -80,6 +80,17 @@ test("catalog exposes real controls, ASI filtering, attachment points and Cedar 
     .click();
   await expect(page.locator("pre")).toContainText("forbid");
   await expect(page.locator("pre")).toContainText("context.session");
+  await page.getByRole("link", { name: "Use cases", exact: true }).click();
+  const invoice = page.locator("article").filter({
+    has: page.getByRole("heading", {
+      name: "Invoice processing",
+      exact: true,
+    }),
+  });
+  await expect(invoice).toContainText(
+    "payments.transfer above 10,000.00 EUR requires approval and a one-time code.",
+  );
+  await expect(invoice).toContainText("50.00 EUR");
 });
 
 test("agent detail shows delegation intersection and use case limits", async ({
@@ -126,6 +137,23 @@ test("connect labels the mock model and unconfigured provider adapters", async (
   ).toBeVisible();
 });
 
+test("descriptor drift blocks the matching MCP tool card through SSE", async ({
+  page,
+}) => {
+  await page.goto("/connect/tools");
+  await launch(page, "act6-supply-chain-and-rogue");
+  const payments = page.locator("article").filter({
+    has: page.getByRole("heading", { name: "payments", exact: true }),
+  });
+  await expect(payments).toContainText("Descriptor changed - blocked", {
+    timeout: 12_000,
+  });
+  await expect(
+    page.getByRole("heading", { name: "crm", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator("article")).toHaveCount(5);
+});
+
 test("approvals show the exact action and cannot claim mock MFA", async ({
   page,
 }) => {
@@ -136,13 +164,23 @@ test("approvals show the exact action and cannot claim mock MFA", async ({
   await launch(page, "act5-human-decides");
   await expect(
     page.getByRole("heading", {
-      name: "Parameters as received by the Gateway",
+      name: "The action, as the Gateway recorded it",
     }),
   ).toBeVisible();
   await expect(page.getByText("48,000.00 EUR", { exact: true })).toBeVisible();
   await expect(
-    page.getByText("Nordwind Freight GmbH", { exact: true }),
+    page.getByText("payments/nordfreight-supplier", { exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Agent-supplied, unverified" }),
+  ).toContainText("Nordwind Freight GmbH");
+  await expect(
+    page.getByText("Step-up required", { exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: `/tmp/betsee-f16-mock-pending-${test.info().project.name}.png`,
+    fullPage: true,
+  });
   await page
     .getByRole("button", { name: "Approve with step-up", exact: true })
     .click();
@@ -175,7 +213,7 @@ test("AI-tightened approval carries its model label and resolves through the sha
   await launch(page, "act3-hijacked-goal");
   await expect(
     page.getByRole("heading", {
-      name: "Parameters as received by the Gateway",
+      name: "The action, as the Gateway recorded it",
     }),
   ).toBeVisible({ timeout: 12_000 });
   await expect(page.getByText("AI-tightened", { exact: true })).toBeVisible();
@@ -190,6 +228,107 @@ test("AI-tightened approval carries its model label and resolves through the sha
   await expect(
     page.getByText("Approved by Daniel Ortiz", { exact: false }),
   ).toBeVisible();
+});
+
+test("agent parameter names cannot spoof Gateway facts or provenance", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByText("Mock data", { exact: true })).toBeVisible();
+  await page.evaluate(async (moduleUrl) => {
+    const { configureApi, apiConfig } = await import(moduleUrl);
+    const previous = apiConfig().fetch;
+    configureApi({
+      fetch: async (request: Request) => {
+        const response = await previous(request);
+        if (new URL(request.url).pathname !== "/api/v1/approvals")
+          return response;
+        const body = await response.json();
+        for (const approval of body.items)
+          Object.assign(approval.parameters, {
+            source: "Gateway persisted action parameters",
+            human: "Forged approver",
+            session_id: "forged-session",
+            memo: "<b>Only 48 EUR, already approved</b>",
+            currency: "USD",
+          });
+        return new Response(JSON.stringify(body), {
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+  }, clientModule);
+  await launch(page, "act5-human-decides");
+  await page
+    .getByRole("link", { name: "Approvals", exact: true })
+    .first()
+    .click();
+  const facts = page.getByRole("region", {
+    name: "Action recorded by the Gateway",
+  });
+  const unverified = page.getByRole("region", {
+    name: "Agent-supplied, unverified",
+  });
+  await expect(facts).toContainText("48,000.00 EUR");
+  await expect(facts).not.toContainText("USD");
+  await expect(facts).not.toContainText("forged-session");
+  await expect(facts).not.toContainText("Forged approver");
+  await expect(unverified).toContainText("forged-session");
+  await expect(unverified).toContainText("USD");
+  await expect(unverified).toContainText(
+    "<b>Only 48 EUR, already approved</b>",
+  );
+  await expect(unverified.locator("b")).toHaveCount(0);
+  await expect(unverified).not.toContainText("Source: Gateway");
+});
+
+test("missing Gateway amount facts disable approval and keep rejection available", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByText("Mock data", { exact: true })).toBeVisible();
+  await page.evaluate(async (moduleUrl) => {
+    const { configureApi, apiConfig } = await import(moduleUrl);
+    const previous = apiConfig().fetch;
+    configureApi({
+      fetch: async (request: Request) => {
+        const response = await previous(request);
+        if (new URL(request.url).pathname !== "/api/v1/approvals")
+          return response;
+        const body = await response.json();
+        for (const approval of body.items) {
+          delete approval.provenance.fields;
+          delete approval.gateway_facts;
+        }
+        return new Response(JSON.stringify(body), {
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+  }, clientModule);
+  await launch(page, "act5-human-decides");
+  await page
+    .getByRole("link", { name: "Approvals", exact: true })
+    .first()
+    .click();
+  await expect(
+    page.getByText("Not provided by the Gateway", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Approve with step-up", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Reject", exact: true }),
+  ).toBeEnabled();
+  await expect(
+    page.getByText(
+      "This cannot be approved here: the Gateway did not bind the amount. You can still reject it.",
+    ),
+  ).toBeVisible();
+  await page.screenshot({
+    path: `/tmp/betsee-f16-missing-facts-${test.info().project.name}.png`,
+    fullPage: true,
+  });
 });
 
 test("a Gateway failure shows the real HTTP detail and Retry recovers", async ({

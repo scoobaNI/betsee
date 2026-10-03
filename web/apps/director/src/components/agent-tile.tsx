@@ -67,30 +67,26 @@ export function AgentTile({ agent, recent, selected }: { agent: Agent; recent: A
         {agent.state === 'active' && <LifecycleBadge state="active" className="ml-auto" />}
       </div>
       {agent.state !== 'active' && (
-        // The wide Quarantined/Suspended badge leads the state line, so the agent id never truncates.
-        <div className="mt-2 flex items-start gap-2">
-          <LifecycleBadge state={agent.state} className="shrink-0" />
-          <p
-            title={agent.state_reason ?? undefined}
-            className={`line-clamp-2 text-xs ${agent.state === 'quarantined' ? 'text-quarantined-fg' : 'text-suspended-fg'}`}
-          >
-            {agent.state_changed_at ? formatTime(agent.state_changed_at) : ''}
-            {agent.state_reason && (
-              <>
-                {' - '}
-                <ReasonText text={agent.state_reason} linked={false} />
-              </>
-            )}
-          </p>
+        // The reason carries the act 4 versus act 6 difference: its own full-width row, never clamped.
+        <div className="mt-2 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <LifecycleBadge state={agent.state} className="shrink-0" />
+            {agent.state_changed_at && <span className="font-mono text-2xs tabular-nums text-fg-tertiary">{formatTime(agent.state_changed_at)}</span>}
+          </div>
+          {agent.state_reason && (
+            <p className={`text-xs ${agent.state === 'quarantined' ? 'text-quarantined-fg' : 'text-suspended-fg'}`}>
+              <ReasonText text={agent.state_reason} linked={false} />
+            </p>
+          )}
         </div>
       )}
       <div className={dimmed}>
         {agent.state === 'active' ? (
-          <p className="mt-2 text-xs text-fg-secondary">
-            {teamName(agent.team)} - {agent.provider} <span className="font-mono">{agent.model}</span>
+          <p className="mt-2 truncate text-xs text-fg-secondary" title={`${teamName(agent.team)} - ${agent.provider} ${agent.model}`}>
+            {teamName(agent.team)} - {agent.provider} <span className="whitespace-nowrap font-mono">{agent.model}</span>
           </p>
         ) : null}
-        <p className="mt-2.5 flex min-w-0 items-center gap-2 text-sm">
+        <p className="mt-2 flex min-w-0 items-center gap-2 text-sm">
           {session ? (
             <>
               <HumanAvatar name={session.human.display_name} size="xs" />
@@ -101,7 +97,7 @@ export function AgentTile({ agent, recent, selected }: { agent: Agent; recent: A
             <span className="text-fg-tertiary">No active session</span>
           )}
         </p>
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {shown.map((capability) => (
             <IdToken key={capability} copy={false} className="text-2xs">
               {capability}
@@ -114,10 +110,10 @@ export function AgentTile({ agent, recent, selected }: { agent: Agent; recent: A
           )}
           {session && effective.length === 0 && <span className="text-xs text-fg-tertiary">No effective capability</span>}
         </div>
-        <div className="mt-2.5">
+        <div className="mt-2">
           <BudgetMeter used={agent.budget.used} limit={agent.budget.limit} />
         </div>
-        <div className="mt-2.5 flex h-3.5 items-end gap-0.75" aria-label={`Last ${recent.length} decisions`}>
+        <div className="mt-2 flex h-3.5 items-end gap-0.75" aria-label={`Last ${recent.length} decisions`}>
           {recent.map((action) => (
             <DecisionChip
               key={action.trace_id}

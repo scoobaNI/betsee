@@ -701,5 +701,6 @@
       }
     }
   ],
-  "bruteForceProtected": false
+  "bruteForceProtected": false,
+  "loginTheme": "betsee"
 }

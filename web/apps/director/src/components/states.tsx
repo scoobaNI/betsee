@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { formatTime } from '../domain/format.ts';
 
 export function Skeleton({ className = '' }: { className?: string }) {
-  return <div aria-hidden="true" className={`animate-pulse rounded-lg bg-surface-2 [animation-delay:150ms] ${className}`} />;
+  return <div aria-hidden="true" className={`dir-skeleton rounded-lg ${className}`} />;
 }
 
 export function EmptyState({ icon, title, body, children }: { icon: string; title: string; body: string; children?: ReactNode }) {

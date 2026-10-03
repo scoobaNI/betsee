@@ -1,9 +1,11 @@
 import json
 import os
 import re
+import subprocess
 import time
 import unittest
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
@@ -199,6 +201,14 @@ class LiveCase(unittest.TestCase):
                 wait = max(0, claims(token)["exp"] + 1 - time.time())
                 self.assertLessEqual(wait, 10, "Expiry fixture must have a short token lifespan")
                 time.sleep(wait)
+                continue
+            elif "shell" in request:
+                # The MCP admin descriptor route is in-network only, so a fixture reaches it through
+                # the demo-runner container. Run from the repository root (the compose project dir).
+                argv = resolve(request["shell"], variables)
+                root = Path(__file__).resolve().parents[2]
+                completed = subprocess.run(argv, cwd=str(root), capture_output=True, text=True, timeout=self.config.get("shell_timeout_seconds", 60))
+                self.assertEqual(completed.returncode, 0, f"Fixture shell step failed: {(completed.stderr or completed.stdout).strip()[:300]}")
                 continue
             else:
                 response = self.client.request(request, variables)

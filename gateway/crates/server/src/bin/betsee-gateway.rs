@@ -61,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
             std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "mock-model-demo".into()),
             std::env::var("OPENAI_API_KEY").ok(),
         )?,
-        mcp: McpConnector { url: mcp_url },
+        mcp: McpConnector::new(mcp_url, std::env::var("MCP_GATEWAY_TOKEN")?)?,
         action_gate: Arc::new(Mutex::new(())),
     });
     gateway.seed_runtime(&policies).await?;

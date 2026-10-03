@@ -150,6 +150,12 @@ ASI, then controls, then primitive.
    - `controls` (their `@control`), and for each control its `name` and `explanation` from
      `controls.yaml`;
    - `analysis {verdict, analyzer: "mock model (demo)", skipped}` and `tightened_by_ai`;
+   - `reasons`: one `{policy_id, control_id, text}` per deciding policy (D12). `text` is that policy's
+     `@reason` annotation rendered from Gateway facts. The placeholders are `{resource.tier}`,
+     `{session.tierCeiling}`, `{session.taint}`, `{recipient.tier}`, `{capability}`, `{useCase}`,
+     `{amount}`, `{threshold}`, `{tool}` and `{receiver}`. If any placeholder cannot be resolved, the
+     whole text falls back to the control's explanation, so a raw brace never reaches the screen.
+     The reference checker fails on a policy without `@reason` or with an unknown placeholder;
    - `trace_id`.
 6. **State the Gateway maintains after execution.** These become entity attributes on the next
    request:

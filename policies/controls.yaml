@@ -260,6 +260,7 @@ controls:
     parameters: [UseCase.peers, Agent.state]
     outcome: deny
     policies: [forbid-a2a-peer-not-allowed, forbid-a2a-receiver-not-active]
+    mechanism: An agent.message submitted anywhere but POST /api/v1/agent-messages is denied by the Gateway itself (deny reason with policy_id null), so a bypass attempt is audited and visible in the Director.
 
   - id: CTL-A2A-002
     name: Receiver clearance
@@ -319,6 +320,7 @@ controls:
         approval-payment-above-threshold,
         step-up-payment-above-threshold,
       ]
+    mechanism: Payments settle in EUR only. The Gateway denies a transfer whose currency is not EUR, and the payments tool refuses one as well.
 
   - id: CTL-APR-004
     name: Approval evidence from the Gateway

@@ -8,6 +8,20 @@ const CONTROL_ID = /(CTL-[A-Z]+-\d+)/g;
  * Gateway text shown exactly as sent, with every control id rendered as an IdToken. Inside an
  * element that is already a link (an agent tile), pass linked={false} to avoid nesting anchors.
  */
+/** Lets a long identifier wrap only after '/' or ':' (never mid-word). */
+export function Breakable({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/(?<=[/:])/).map((part, i) => (
+        <Fragment key={i}>
+          {i > 0 && <wbr />}
+          {part}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
 export function ReasonText({ text, linked = true }: { text: string; linked?: boolean }) {
   return (
     <>
@@ -18,7 +32,7 @@ export function ReasonText({ text, linked = true }: { text: string; linked?: boo
             id={part}
             copy={false}
             href={linked ? `${ECOSYSTEM_URL}/policy-studio/controls/${encodeURIComponent(part)}` : undefined}
-            className="mx-0.5 align-baseline"
+            className="align-baseline"
           />
         ) : (
           <Fragment key={i}>{part}</Fragment>

@@ -2,217 +2,217 @@
   {
     "id": "permit-effective-capability",
     "name": "permit effective capability",
-    "cedar": "@id(\"permit-effective-capability\")\n@control(\"CTL-CAP-001\")\npermit (\n  principal is Betsee::Agent,\n  action in Betsee::Action::\"agent_action\",\n  resource\n)\nwhen {\n  context.session.delegated.contains(context.capability) &&\n  context.session.useCase.permitted.contains(context.capability)\n};",
+    "cedar": "@id(\"permit-effective-capability\")\n@reason(\"{capability} is delegated in this session and permitted for {useCase}\")\n@control(\"CTL-CAP-001\")\npermit (\n  principal is Betsee::Agent,\n  action in Betsee::Action::\"agent_action\",\n  resource\n)\nwhen {\n  context.session.delegated.contains(context.capability) &&\n  context.session.useCase.permitted.contains(context.capability)\n};",
     "control_ids": ["CTL-CAP-001"]
   },
   {
     "id": "forbid-capability-not-delegated",
     "name": "forbid capability not delegated",
-    "cedar": "@id(\"forbid-capability-not-delegated\")\n@control(\"CTL-CAP-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nunless { context.session.delegated.contains(context.capability) };",
+    "cedar": "@id(\"forbid-capability-not-delegated\")\n@reason(\"{capability} was not delegated to the agent in this session\")\n@control(\"CTL-CAP-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nunless { context.session.delegated.contains(context.capability) };",
     "control_ids": ["CTL-CAP-001"]
   },
   {
     "id": "forbid-capability-not-permitted-for-use-case",
     "name": "forbid capability not permitted for use case",
-    "cedar": "@id(\"forbid-capability-not-permitted-for-use-case\")\n@control(\"CTL-CAP-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nunless { context.session.useCase.permitted.contains(context.capability) };\n\n// Fails closed if the Gateway ever builds a request whose action and capability disagree.",
+    "cedar": "@id(\"forbid-capability-not-permitted-for-use-case\")\n@reason(\"organization policy does not permit {capability} for {useCase}\")\n@control(\"CTL-CAP-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nunless { context.session.useCase.permitted.contains(context.capability) };\n\n// Fails closed if the Gateway ever builds a request whose action and capability disagree.",
     "control_ids": ["CTL-CAP-001"]
   },
   {
     "id": "forbid-capability-action-mismatch",
     "name": "forbid capability action mismatch",
-    "cedar": "@id(\"forbid-capability-action-mismatch\")\n@control(\"CTL-POL-002\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nunless {\n  (action == Betsee::Action::\"crm.read\" && context.capability == Betsee::Capability::\"crm.read\") ||\n  (action == Betsee::Action::\"tickets.read\" && context.capability == Betsee::Capability::\"tickets.read\") ||\n  (action == Betsee::Action::\"files.read\" && context.capability == Betsee::Capability::\"files.read\") ||\n  (action == Betsee::Action::\"tickets.write\" && context.capability == Betsee::Capability::\"tickets.write\") ||\n  (action == Betsee::Action::\"memory.write\" && context.capability == Betsee::Capability::\"memory.write\") ||\n  (action == Betsee::Action::\"email.send\" && context.capability == Betsee::Capability::\"email.send\") ||\n  (action == Betsee::Action::\"payments.transfer\" && context.capability == Betsee::Capability::\"payments.transfer\") ||\n  (action == Betsee::Action::\"shell.exec\" && context.capability == Betsee::Capability::\"shell.exec\") ||\n  (action == Betsee::Action::\"agent.message\" && context.capability == Betsee::Capability::\"agent.message\") ||\n  (action == Betsee::Action::\"llm.complete\" && context.capability == Betsee::Capability::\"llm.complete\")\n};",
+    "cedar": "@id(\"forbid-capability-action-mismatch\")\n@reason(\"the requested action does not match the capability being checked\")\n@control(\"CTL-POL-002\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nunless {\n  (action == Betsee::Action::\"crm.read\" && context.capability == Betsee::Capability::\"crm.read\") ||\n  (action == Betsee::Action::\"tickets.read\" && context.capability == Betsee::Capability::\"tickets.read\") ||\n  (action == Betsee::Action::\"files.read\" && context.capability == Betsee::Capability::\"files.read\") ||\n  (action == Betsee::Action::\"tickets.write\" && context.capability == Betsee::Capability::\"tickets.write\") ||\n  (action == Betsee::Action::\"memory.write\" && context.capability == Betsee::Capability::\"memory.write\") ||\n  (action == Betsee::Action::\"email.send\" && context.capability == Betsee::Capability::\"email.send\") ||\n  (action == Betsee::Action::\"payments.transfer\" && context.capability == Betsee::Capability::\"payments.transfer\") ||\n  (action == Betsee::Action::\"shell.exec\" && context.capability == Betsee::Capability::\"shell.exec\") ||\n  (action == Betsee::Action::\"agent.message\" && context.capability == Betsee::Capability::\"agent.message\") ||\n  (action == Betsee::Action::\"llm.complete\" && context.capability == Betsee::Capability::\"llm.complete\")\n};",
     "control_ids": ["CTL-POL-002"]
   },
   {
     "id": "forbid-session-not-bound-to-agent",
     "name": "forbid session not bound to agent",
-    "cedar": "@id(\"forbid-session-not-bound-to-agent\")\n@control(\"CTL-ID-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nunless { context.session.agent == principal };",
+    "cedar": "@id(\"forbid-session-not-bound-to-agent\")\n@reason(\"the session does not belong to the calling agent\")\n@control(\"CTL-ID-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nunless { context.session.agent == principal };",
     "control_ids": ["CTL-ID-001"]
   },
   {
     "id": "forbid-agent-not-active",
     "name": "forbid agent not active",
-    "cedar": "@id(\"forbid-agent-not-active\")\n@control(\"CTL-ID-002\")\nforbid (principal is Betsee::Agent, action in Betsee::Action::\"agent_action\", resource)\nunless { principal.state == \"active\" };",
+    "cedar": "@id(\"forbid-agent-not-active\")\n@reason(\"the agent is quarantined or suspended\")\n@control(\"CTL-ID-002\")\nforbid (principal is Betsee::Agent, action in Betsee::Action::\"agent_action\", resource)\nunless { principal.state == \"active\" };",
     "control_ids": ["CTL-ID-002"]
   },
   {
     "id": "forbid-session-not-active",
     "name": "forbid session not active",
-    "cedar": "@id(\"forbid-session-not-active\")\n@control(\"CTL-ID-003\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nunless {\n  context.session.status == \"active\" &&\n  context.now < context.session.expiresAt\n};",
+    "cedar": "@id(\"forbid-session-not-active\")\n@reason(\"the session is closed, revoked or expired\")\n@control(\"CTL-ID-003\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nunless {\n  context.session.status == \"active\" &&\n  context.now < context.session.expiresAt\n};",
     "control_ids": ["CTL-ID-003"]
   },
   {
     "id": "forbid-session-human-not-active",
     "name": "forbid session human not active",
-    "cedar": "@id(\"forbid-session-human-not-active\")\n@control(\"CTL-ID-004\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nunless { context.session.human.active };",
+    "cedar": "@id(\"forbid-session-human-not-active\")\n@reason(\"the human behind the session is no longer active\")\n@control(\"CTL-ID-004\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nunless { context.session.human.active };",
     "control_ids": ["CTL-ID-004"]
   },
   {
     "id": "forbid-resource-above-session-tier",
     "name": "forbid resource above session tier",
-    "cedar": "@id(\"forbid-resource-above-session-tier\")\n@control(\"CTL-TIER-001\")\nforbid (\n  principal,\n  action in Betsee::Action::\"agent_action\",\n  resource is Betsee::Resource\n)\nwhen { resource.tier > context.session.tierCeiling };\n\n// No write-down: once a session has read data at tier T, it may not write or send to a\n// destination labelled below T. session.taint is the highest tier read so far.",
+    "cedar": "@id(\"forbid-resource-above-session-tier\")\n@reason(\"the resource is {resource.tier}, the session ceiling is {session.tierCeiling}\")\n@control(\"CTL-TIER-001\")\nforbid (\n  principal,\n  action in Betsee::Action::\"agent_action\",\n  resource is Betsee::Resource\n)\nwhen { resource.tier > context.session.tierCeiling };\n\n// No write-down: once a session has read data at tier T, it may not write or send to a\n// destination labelled below T. session.taint is the highest tier read so far.",
     "control_ids": ["CTL-TIER-001"]
   },
   {
     "id": "forbid-write-down",
     "name": "forbid write down",
-    "cedar": "@id(\"forbid-write-down\")\n@control(\"CTL-TIER-002\")\nforbid (\n  principal,\n  action in [Betsee::Action::\"write\", Betsee::Action::\"egress\"],\n  resource is Betsee::Resource\n)\nwhen { resource.tier < context.session.taint };",
+    "cedar": "@id(\"forbid-write-down\")\n@reason(\"the session has read {session.taint} data and the destination is {recipient.tier}\")\n@control(\"CTL-TIER-002\")\nforbid (\n  principal,\n  action in [Betsee::Action::\"write\", Betsee::Action::\"egress\"],\n  resource is Betsee::Resource\n)\nwhen { resource.tier < context.session.taint };",
     "control_ids": ["CTL-TIER-002"]
   },
   {
     "id": "forbid-model-below-session-taint",
     "name": "forbid model below session taint",
-    "cedar": "@id(\"forbid-model-below-session-taint\")\n@control(\"CTL-TIER-003\")\nforbid (\n  principal,\n  action == Betsee::Action::\"llm.complete\",\n  resource is Betsee::Model\n)\nwhen { resource.maxTier < context.session.taint };",
+    "cedar": "@id(\"forbid-model-below-session-taint\")\n@reason(\"the session holds {session.taint} data, above this model's clearance\")\n@control(\"CTL-TIER-003\")\nforbid (\n  principal,\n  action == Betsee::Action::\"llm.complete\",\n  resource is Betsee::Model\n)\nwhen { resource.maxTier < context.session.taint };",
     "control_ids": ["CTL-TIER-003"]
   },
   {
     "id": "forbid-mcp-call-without-tool",
     "name": "forbid mcp call without tool",
-    "cedar": "@id(\"forbid-mcp-call-without-tool\")\n@control(\"CTL-TOOL-001\")\nforbid (principal, action in Betsee::Action::\"mcp\", resource)\nunless { context has toolCall };",
+    "cedar": "@id(\"forbid-mcp-call-without-tool\")\n@reason(\"the call does not name a pinned MCP tool\")\n@control(\"CTL-TOOL-001\")\nforbid (principal, action in Betsee::Action::\"mcp\", resource)\nunless { context has toolCall };",
     "control_ids": ["CTL-TOOL-001"]
   },
   {
     "id": "forbid-tool-descriptor-drift",
     "name": "forbid tool descriptor drift",
-    "cedar": "@id(\"forbid-tool-descriptor-drift\")\n@control(\"CTL-TOOL-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen {\n  context has toolCall &&\n  context.toolCall.tool.pinnedDescriptorHash != context.toolCall.observedDescriptorHash\n};",
+    "cedar": "@id(\"forbid-tool-descriptor-drift\")\n@reason(\"the descriptor of {tool} no longer matches its reviewed pin\")\n@control(\"CTL-TOOL-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen {\n  context has toolCall &&\n  context.toolCall.tool.pinnedDescriptorHash != context.toolCall.observedDescriptorHash\n};",
     "control_ids": ["CTL-TOOL-001"]
   },
   {
     "id": "forbid-command-not-validated",
     "name": "forbid command not validated",
-    "cedar": "@id(\"forbid-command-not-validated\")\n@control(\"CTL-EXEC-001\")\nforbid (principal, action == Betsee::Action::\"shell.exec\", resource)\nunless { context has command && context.command.valid };",
+    "cedar": "@id(\"forbid-command-not-validated\")\n@reason(\"the command matches no validated template\")\n@control(\"CTL-EXEC-001\")\nforbid (principal, action == Betsee::Action::\"shell.exec\", resource)\nunless { context has command && context.command.valid };",
     "control_ids": ["CTL-EXEC-001"]
   },
   {
     "id": "forbid-a2a-peer-not-allowed",
     "name": "forbid a2a peer not allowed",
-    "cedar": "@id(\"forbid-a2a-peer-not-allowed\")\n@control(\"CTL-A2A-001\")\nforbid (\n  principal,\n  action == Betsee::Action::\"agent.message\",\n  resource is Betsee::Agent\n)\nunless { context.session.useCase.peers.contains(resource) };",
+    "cedar": "@id(\"forbid-a2a-peer-not-allowed\")\n@reason(\"messages to {receiver} are not allowed in {useCase}\")\n@control(\"CTL-A2A-001\")\nforbid (\n  principal,\n  action == Betsee::Action::\"agent.message\",\n  resource is Betsee::Agent\n)\nunless { context.session.useCase.peers.contains(resource) };",
     "control_ids": ["CTL-A2A-001"]
   },
   {
     "id": "forbid-a2a-receiver-not-active",
     "name": "forbid a2a receiver not active",
-    "cedar": "@id(\"forbid-a2a-receiver-not-active\")\n@control(\"CTL-A2A-001\")\nforbid (\n  principal,\n  action == Betsee::Action::\"agent.message\",\n  resource is Betsee::Agent\n)\nunless { resource.state == \"active\" };",
+    "cedar": "@id(\"forbid-a2a-receiver-not-active\")\n@reason(\"{receiver} is quarantined or suspended\")\n@control(\"CTL-A2A-001\")\nforbid (\n  principal,\n  action == Betsee::Action::\"agent.message\",\n  resource is Betsee::Agent\n)\nunless { resource.state == \"active\" };",
     "control_ids": ["CTL-A2A-001"]
   },
   {
     "id": "forbid-a2a-receiver-below-session-taint",
     "name": "forbid a2a receiver below session taint",
-    "cedar": "@id(\"forbid-a2a-receiver-below-session-taint\")\n@control(\"CTL-A2A-002\")\nforbid (\n  principal,\n  action == Betsee::Action::\"agent.message\",\n  resource is Betsee::Agent\n)\nwhen { resource.clearance < context.session.taint };\n\n// A message is not a delegation: the sender cannot ask for a capability outside its own\n// effective capability set.",
+    "cedar": "@id(\"forbid-a2a-receiver-below-session-taint\")\n@reason(\"{receiver} is cleared below the {session.taint} data this session holds\")\n@control(\"CTL-A2A-002\")\nforbid (\n  principal,\n  action == Betsee::Action::\"agent.message\",\n  resource is Betsee::Agent\n)\nwhen { resource.clearance < context.session.taint };\n\n// A message is not a delegation: the sender cannot ask for a capability outside its own\n// effective capability set.",
     "control_ids": ["CTL-A2A-002"]
   },
   {
     "id": "forbid-a2a-capability-escalation",
     "name": "forbid a2a capability escalation",
-    "cedar": "@id(\"forbid-a2a-capability-escalation\")\n@control(\"CTL-A2A-003\")\nforbid (principal, action == Betsee::Action::\"agent.message\", resource)\nunless {\n  context has requestedCapability &&\n  context.session.delegated.contains(context.requestedCapability) &&\n  context.session.useCase.permitted.contains(context.requestedCapability)\n};",
+    "cedar": "@id(\"forbid-a2a-capability-escalation\")\n@reason(\"the message asks for a capability the sender does not hold, and a message is not a delegation\")\n@control(\"CTL-A2A-003\")\nforbid (principal, action == Betsee::Action::\"agent.message\", resource)\nunless {\n  context has requestedCapability &&\n  context.session.delegated.contains(context.requestedCapability) &&\n  context.session.useCase.permitted.contains(context.requestedCapability)\n};",
     "control_ids": ["CTL-A2A-003"]
   },
   {
     "id": "forbid-budget-exceeded",
     "name": "forbid budget exceeded",
-    "cedar": "@id(\"forbid-budget-exceeded\")\n@control(\"CTL-RUN-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context.session.spentCents + context.costCents > context.session.budgetCents };",
+    "cedar": "@id(\"forbid-budget-exceeded\")\n@reason(\"this action would exceed the session budget\")\n@control(\"CTL-RUN-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context.session.spentCents + context.costCents > context.session.budgetCents };",
     "control_ids": ["CTL-RUN-001"]
   },
   {
     "id": "forbid-rate-exceeded",
     "name": "forbid rate exceeded",
-    "cedar": "@id(\"forbid-rate-exceeded\")\n@control(\"CTL-RUN-002\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context.actionsLastMinute > context.session.useCase.maxActionsPerMinute };",
+    "cedar": "@id(\"forbid-rate-exceeded\")\n@reason(\"the agent exceeded the action rate allowed for {useCase}\")\n@control(\"CTL-RUN-002\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context.actionsLastMinute > context.session.useCase.maxActionsPerMinute };",
     "control_ids": ["CTL-RUN-002"]
   },
   {
     "id": "approval-required-by-use-case",
     "name": "approval required by use case",
-    "cedar": "@id(\"approval-required-by-use-case\")\n@control(\"CTL-APR-001\")\n@outcome(\"require_approval\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context.session.useCase.approvalRequired.contains(context.capability) }\nunless { context.approval.granted };",
+    "cedar": "@id(\"approval-required-by-use-case\")\n@reason(\"approval is required for {capability} in {useCase}\")\n@control(\"CTL-APR-001\")\n@outcome(\"require_approval\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context.session.useCase.approvalRequired.contains(context.capability) }\nunless { context.approval.granted };",
     "control_ids": ["CTL-APR-001"]
   },
   {
     "id": "step-up-required-by-use-case",
     "name": "step up required by use case",
-    "cedar": "@id(\"step-up-required-by-use-case\")\n@control(\"CTL-APR-002\")\n@outcome(\"require_step_up\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context.session.useCase.stepUpRequired.contains(context.capability) }\nunless { context.approval.stepUp };",
+    "cedar": "@id(\"step-up-required-by-use-case\")\n@reason(\"{capability} in {useCase} needs an approver with a fresh OTP\")\n@control(\"CTL-APR-002\")\n@outcome(\"require_step_up\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context.session.useCase.stepUpRequired.contains(context.capability) }\nunless { context.approval.stepUp };",
     "control_ids": ["CTL-APR-002"]
   },
   {
     "id": "forbid-payment-without-amount",
     "name": "forbid payment without amount",
-    "cedar": "@id(\"forbid-payment-without-amount\")\n@control(\"CTL-APR-003\")\nforbid (principal, action == Betsee::Action::\"payments.transfer\", resource)\nunless { context has amountCents && context.amountCents > 0 };",
+    "cedar": "@id(\"forbid-payment-without-amount\")\n@reason(\"the transfer request carries no valid amount\")\n@control(\"CTL-APR-003\")\nforbid (principal, action == Betsee::Action::\"payments.transfer\", resource)\nunless { context has amountCents && context.amountCents > 0 };",
     "control_ids": ["CTL-APR-003"]
   },
   {
     "id": "approval-payment-above-threshold",
     "name": "approval payment above threshold",
-    "cedar": "@id(\"approval-payment-above-threshold\")\n@control(\"CTL-APR-003\")\n@outcome(\"require_approval\")\nforbid (principal, action == Betsee::Action::\"payments.transfer\", resource)\nwhen {\n  context has amountCents &&\n  context.amountCents > context.session.useCase.approvalThresholdCents\n}\nunless { context.approval.granted };",
+    "cedar": "@id(\"approval-payment-above-threshold\")\n@reason(\"the transfer of {amount} is above the {threshold} approval threshold\")\n@control(\"CTL-APR-003\")\n@outcome(\"require_approval\")\nforbid (principal, action == Betsee::Action::\"payments.transfer\", resource)\nwhen {\n  context has amountCents &&\n  context.amountCents > context.session.useCase.approvalThresholdCents\n}\nunless { context.approval.granted };",
     "control_ids": ["CTL-APR-003"]
   },
   {
     "id": "step-up-payment-above-threshold",
     "name": "step up payment above threshold",
-    "cedar": "@id(\"step-up-payment-above-threshold\")\n@control(\"CTL-APR-003\")\n@outcome(\"require_step_up\")\nforbid (principal, action == Betsee::Action::\"payments.transfer\", resource)\nwhen {\n  context has amountCents &&\n  context.amountCents > context.session.useCase.approvalThresholdCents\n}\nunless { context.approval.stepUp };\n\n// After a session ingested untrusted content (an inbound ticket, another agent's message), a\n// high-impact action needs a human.",
+    "cedar": "@id(\"step-up-payment-above-threshold\")\n@reason(\"a transfer above {threshold} needs an approver with a fresh OTP\")\n@control(\"CTL-APR-003\")\n@outcome(\"require_step_up\")\nforbid (principal, action == Betsee::Action::\"payments.transfer\", resource)\nwhen {\n  context has amountCents &&\n  context.amountCents > context.session.useCase.approvalThresholdCents\n}\nunless { context.approval.stepUp };\n\n// After a session ingested untrusted content (an inbound ticket, another agent's message), a\n// high-impact action needs a human.",
     "control_ids": ["CTL-APR-003"]
   },
   {
     "id": "approval-high-impact-after-untrusted-input",
     "name": "approval high impact after untrusted input",
-    "cedar": "@id(\"approval-high-impact-after-untrusted-input\")\n@control(\"CTL-PROV-001\")\n@outcome(\"require_approval\")\nforbid (principal, action in Betsee::Action::\"high_impact\", resource)\nwhen { context.session.untrustedInput }\nunless { context.approval.granted };",
+    "cedar": "@id(\"approval-high-impact-after-untrusted-input\")\n@reason(\"the session has read untrusted input, so {capability} needs a human\")\n@control(\"CTL-PROV-001\")\n@outcome(\"require_approval\")\nforbid (principal, action in Betsee::Action::\"high_impact\", resource)\nwhen { context.session.untrustedInput }\nunless { context.approval.granted };",
     "control_ids": ["CTL-PROV-001"]
   },
   {
     "id": "analyzer-malicious",
     "name": "analyzer malicious",
-    "cedar": "@id(\"analyzer-malicious\")\n@control(\"CTL-AI-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context has analysis && context.analysis.verdict == \"malicious\" };",
+    "cedar": "@id(\"analyzer-malicious\")\n@reason(\"the analyzer (mock model, demo) judged the request malicious\")\n@control(\"CTL-AI-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context has analysis && context.analysis.verdict == \"malicious\" };",
     "control_ids": ["CTL-AI-001"]
   },
   {
     "id": "analyzer-suspicious",
     "name": "analyzer suspicious",
-    "cedar": "@id(\"analyzer-suspicious\")\n@control(\"CTL-AI-001\")\n@outcome(\"require_approval\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context has analysis && context.analysis.verdict == \"suspicious\" }\nunless { context.approval.granted };",
+    "cedar": "@id(\"analyzer-suspicious\")\n@reason(\"the analyzer (mock model, demo) flagged instructions inside the request\")\n@control(\"CTL-AI-001\")\n@outcome(\"require_approval\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context has analysis && context.analysis.verdict == \"suspicious\" }\nunless { context.approval.granted };",
     "control_ids": ["CTL-AI-001"]
   },
   {
     "id": "permit-session-delegation-within-entitlements",
     "name": "permit session delegation within entitlements",
-    "cedar": "@id(\"permit-session-delegation-within-entitlements\")\n@control(\"CTL-DEL-001\")\npermit (\n  principal is Betsee::Human,\n  action == Betsee::Action::\"session.create\",\n  resource is Betsee::Agent\n)\nwhen {\n  principal.active &&\n  principal.entitlements.containsAll(context.delegated) &&\n  context.useCase.permitted.containsAll(context.delegated)\n};",
+    "cedar": "@id(\"permit-session-delegation-within-entitlements\")\n@reason(\"the delegation stays within the human's entitlements and {useCase}\")\n@control(\"CTL-DEL-001\")\npermit (\n  principal is Betsee::Human,\n  action == Betsee::Action::\"session.create\",\n  resource is Betsee::Agent\n)\nwhen {\n  principal.active &&\n  principal.entitlements.containsAll(context.delegated) &&\n  context.useCase.permitted.containsAll(context.delegated)\n};",
     "control_ids": ["CTL-DEL-001"]
   },
   {
     "id": "forbid-session-tier-above-ceiling",
     "name": "forbid session tier above ceiling",
-    "cedar": "@id(\"forbid-session-tier-above-ceiling\")\n@control(\"CTL-DEL-002\")\nforbid (\n  principal is Betsee::Human,\n  action == Betsee::Action::\"session.create\",\n  resource is Betsee::Agent\n)\nwhen {\n  context.tierCeiling > principal.clearance ||\n  context.tierCeiling > context.useCase.tierCeiling ||\n  context.tierCeiling > resource.clearance\n};",
+    "cedar": "@id(\"forbid-session-tier-above-ceiling\")\n@reason(\"the requested session ceiling is above the human's clearance, the ceiling of {useCase} or the agent's clearance\")\n@control(\"CTL-DEL-002\")\nforbid (\n  principal is Betsee::Human,\n  action == Betsee::Action::\"session.create\",\n  resource is Betsee::Agent\n)\nwhen {\n  context.tierCeiling > principal.clearance ||\n  context.tierCeiling > context.useCase.tierCeiling ||\n  context.tierCeiling > resource.clearance\n};",
     "control_ids": ["CTL-DEL-002"]
   },
   {
     "id": "forbid-session-agent-not-registered-for-use-case",
     "name": "forbid session agent not registered for use case",
-    "cedar": "@id(\"forbid-session-agent-not-registered-for-use-case\")\n@control(\"CTL-DEL-003\")\nforbid (principal, action == Betsee::Action::\"session.create\", resource is Betsee::Agent)\nunless { context.useCase.agents.contains(resource) };",
+    "cedar": "@id(\"forbid-session-agent-not-registered-for-use-case\")\n@reason(\"the agent is not registered for {useCase}\")\n@control(\"CTL-DEL-003\")\nforbid (principal, action == Betsee::Action::\"session.create\", resource is Betsee::Agent)\nunless { context.useCase.agents.contains(resource) };",
     "control_ids": ["CTL-DEL-003"]
   },
   {
     "id": "forbid-session-for-inactive-agent",
     "name": "forbid session for inactive agent",
-    "cedar": "@id(\"forbid-session-for-inactive-agent\")\n@control(\"CTL-ID-002\")\nforbid (principal, action == Betsee::Action::\"session.create\", resource is Betsee::Agent)\nunless { resource.state == \"active\" };\n\n// Mirrors of the permit so a refused delegation names the side that failed.",
+    "cedar": "@id(\"forbid-session-for-inactive-agent\")\n@reason(\"the agent is quarantined or suspended\")\n@control(\"CTL-ID-002\")\nforbid (principal, action == Betsee::Action::\"session.create\", resource is Betsee::Agent)\nunless { resource.state == \"active\" };\n\n// Mirrors of the permit so a refused delegation names the side that failed.",
     "control_ids": ["CTL-ID-002"]
   },
   {
     "id": "forbid-session-delegation-exceeds-human-entitlements",
     "name": "forbid session delegation exceeds human entitlements",
-    "cedar": "@id(\"forbid-session-delegation-exceeds-human-entitlements\")\n@control(\"CTL-DEL-001\")\nforbid (principal is Betsee::Human, action == Betsee::Action::\"session.create\", resource)\nunless { principal.entitlements.containsAll(context.delegated) };",
+    "cedar": "@id(\"forbid-session-delegation-exceeds-human-entitlements\")\n@reason(\"the delegation includes capabilities the human does not hold\")\n@control(\"CTL-DEL-001\")\nforbid (principal is Betsee::Human, action == Betsee::Action::\"session.create\", resource)\nunless { principal.entitlements.containsAll(context.delegated) };",
     "control_ids": ["CTL-DEL-001"]
   },
   {
     "id": "forbid-session-delegation-exceeds-use-case",
     "name": "forbid session delegation exceeds use case",
-    "cedar": "@id(\"forbid-session-delegation-exceeds-use-case\")\n@control(\"CTL-DEL-001\")\nforbid (principal, action == Betsee::Action::\"session.create\", resource)\nunless { context.useCase.permitted.containsAll(context.delegated) };",
+    "cedar": "@id(\"forbid-session-delegation-exceeds-use-case\")\n@reason(\"the delegation includes capabilities {useCase} does not permit\")\n@control(\"CTL-DEL-001\")\nforbid (principal, action == Betsee::Action::\"session.create\", resource)\nunless { context.useCase.permitted.containsAll(context.delegated) };",
     "control_ids": ["CTL-DEL-001"]
   },
   {
     "id": "forbid-session-create-human-not-active",
     "name": "forbid session create human not active",
-    "cedar": "@id(\"forbid-session-create-human-not-active\")\n@control(\"CTL-ID-004\")\nforbid (principal is Betsee::Human, action == Betsee::Action::\"session.create\", resource)\nunless { principal.active };",
+    "cedar": "@id(\"forbid-session-create-human-not-active\")\n@reason(\"the human is no longer active\")\n@control(\"CTL-ID-004\")\nforbid (principal is Betsee::Human, action == Betsee::Action::\"session.create\", resource)\nunless { principal.active };",
     "control_ids": ["CTL-ID-004"]
   },
   {
     "id": "tpl-suspend-high-impact",
     "name": "tpl suspend high impact",
-    "cedar": "@id(\"tpl-suspend-high-impact\")\n@control(\"CTL-RUN-004\")\nforbid (principal in ?principal, action in Betsee::Action::\"high_impact\", resource);",
+    "cedar": "@id(\"tpl-suspend-high-impact\")\n@reason(\"high-impact capabilities are suspended for this team or agent\")\n@control(\"CTL-RUN-004\")\nforbid (principal in ?principal, action in Betsee::Action::\"high_impact\", resource);",
     "control_ids": ["CTL-RUN-004"]
   }
 ]

@@ -6,6 +6,7 @@ import { ECOSYSTEM_URL } from '../components/shell.tsx';
 import { ErrorCard, Skeleton } from '../components/states.tsx';
 import { resolutionOf } from '../domain/decision.ts';
 import { formatCount, formatTime } from '../domain/format.ts';
+import { notClaimed } from '../domain/not-claimed.ts';
 
 // docs/demo-script.md, "ASI coverage by act"; the runner's scenario list overrides it when present.
 const SCRIPT_ACTS: Record<string, number[]> = {
@@ -95,6 +96,23 @@ function Evidence({ row, traces }: { row: Coverage; traces: ActionSummary[] }) {
   );
 }
 
+function NotClaimedBlock({ asiId }: { asiId: string }) {
+  const items = notClaimed(asiId);
+  if (!items.length) return null;
+  return (
+    <div className="mx-4 mb-3 rounded-md border border-dashed border-line-default p-3">
+      <p className="text-xs font-semibold text-fg-secondary">Not claimed in v0</p>
+      <ul className="mt-1.5 space-y-1.5 text-sm text-fg-secondary">
+        {items.map((item) => (
+          <li key={item.mitigation}>
+            <span className="text-fg-primary">OWASP: {item.mitigation}.</span> {item.betsee}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function CoveragePage() {
   const coverage = useCoverage();
   const scenarios = useScenarios();
@@ -141,11 +159,21 @@ export function CoveragePage() {
           const expanded = open === row.asi_id;
           return (
             <li key={row.asi_id} className="rounded-lg border border-line-subtle bg-surface-1 shadow-e1">
-              <button
-                type="button"
+              <div
+                role="button"
+                tabIndex={0}
                 aria-expanded={expanded}
-                onClick={() => setOpen(expanded ? null : row.asi_id)}
-                className="grid w-full grid-cols-[minmax(220px,1.1fr)_minmax(260px,1.4fr)_minmax(220px,1fr)_72px] items-center gap-5 rounded-lg p-4 text-left hover:bg-surface-2"
+                // The whole row toggles; only a real link inside it (a CTL id) keeps its own click.
+                onClick={(e) => {
+                  if (!(e.target as HTMLElement).closest('a')) setOpen(expanded ? null : row.asi_id);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setOpen(expanded ? null : row.asi_id);
+                  }
+                }}
+                className="grid w-full cursor-pointer grid-cols-[minmax(220px,1.1fr)_minmax(260px,1.4fr)_minmax(220px,1fr)_72px] items-center gap-5 rounded-lg p-4 text-left hover:bg-surface-2"
               >
                 <span className="min-w-0">
                   <span className="font-mono text-xs text-fg-secondary">{row.asi_id}</span>
@@ -171,7 +199,7 @@ export function CoveragePage() {
                     )}
                   </span>
                 </span>
-                <span className="flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
+                <span className="flex flex-wrap gap-1.5">
                   {row.controls.slice(0, MAX_CONTROLS).map((c) => (
                     <span key={c.id} title={`${c.name}: ${c.description}`}>
                       <IdToken id={c.id} href={`${ECOSYSTEM_URL}/policy-studio/controls/${encodeURIComponent(c.id)}`} copy={false} />
@@ -185,8 +213,13 @@ export function CoveragePage() {
                 </span>
                 <EvidenceBar row={row} />
                 <span className="text-right text-xs text-fg-secondary">{(acts[row.asi_id] ?? []).map((a) => `Act ${a}`).join(', ')}</span>
-              </button>
-              {expanded && <Evidence row={row} traces={traces.data ?? []} />}
+              </div>
+              {expanded && (
+                <>
+                  <NotClaimedBlock asiId={row.asi_id} />
+                  <Evidence row={row} traces={traces.data ?? []} />
+                </>
+              )}
             </li>
           );
         })}

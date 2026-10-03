@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import type { ActionSummary, Span } from '@betsee/api';
 import { becauseSentence, isStricter, outcomeTone, resolutionOf } from './decision.ts';
 import { computeKpis, groupBursts, recentByAgent } from './feed.ts';
+import { callerLabel, callerOf } from './caller.ts';
 import { edgeStyle, type EdgeLatest } from './graph-style.ts';
 import { buildRail, decidingStage, formatDuration } from './pipeline.ts';
 
@@ -72,8 +73,8 @@ describe('pipeline rail', () => {
     assert.equal(status.information_tier, 'denied');
     assert.equal(status.command_validation, 'not_reached');
     assert.equal(status.connector, 'not_reached');
-    assert.equal(status.approval, 'not_required');
-    assert.equal(status.step_up, 'not_required');
+    assert.equal(status.approval, 'not_reached');
+    assert.equal(status.step_up, 'not_reached');
     assert.equal(status.audit, 'passed');
     assert.equal(rail.totalMs, 14);
     assert.equal(decidingStage(rail)?.id, 'information_tier');
@@ -85,10 +86,32 @@ describe('pipeline rail', () => {
     const withStepUp = buildRail([pending], 'require_approval', true);
     const without = buildRail([pending], 'require_approval', false);
     const rejected = buildRail([span('approval', 'denied', 0, 5, { approval_id: 'apr-1' })], 'require_approval', true);
-    assert.equal(rejected.stages.find((s) => s.id === 'step_up')?.status, 'not_required');
+    assert.equal(rejected.stages.find((s) => s.id === 'step_up')?.status, 'not_reached');
     assert.equal(withStepUp.stages.find((s) => s.id === 'step_up')?.status, 'not_reached');
     assert.equal(without.stages.find((s) => s.id === 'step_up')?.status, 'not_required');
     assert.equal(decidingStage(withStepUp)?.id, 'approval');
+  });
+
+  it('after a deny every later stage is not reached, skipped spans included; after an allow approval is not required (S1)', () => {
+    const denied = buildRail(
+      [
+        span('information_tier', 'denied', 0, 1),
+        span('ai_analysis', 'skipped', 1, 0),
+        span('approval', 'skipped', 1, 0),
+        span('decision', 'denied', 1, 1),
+        span('audit', 'passed', 2, 1),
+      ],
+      'deny',
+    );
+    const st = Object.fromEntries(denied.stages.map((s) => [s.id, s.status]));
+    assert.equal(st.ai_analysis, 'not_reached');
+    assert.equal(st.approval, 'not_reached');
+    assert.equal(st.step_up, 'not_reached');
+    assert.equal(st.decision, 'denied');
+    assert.equal(st.audit, 'passed');
+    const allowed = buildRail([span('approval', 'skipped', 0, 0), span('step_up', 'skipped', 0, 0)], 'allow');
+    assert.equal(allowed.stages.find((s) => s.id === 'approval')?.status, 'not_required');
+    assert.equal(allowed.stages.find((s) => s.id === 'step_up')?.status, 'not_required');
   });
 
   it('preselects the tightened analysis when nothing denied or waits', () => {
@@ -100,6 +123,7 @@ describe('pipeline rail', () => {
     assert.equal(formatDuration(3.24), '3.2 ms');
     assert.equal(formatDuration(182), '182 ms');
     assert.equal(formatDuration(12_400), '12.4 s');
+    assert.equal(formatDuration(0.04), '<0.1 ms');
   });
 });
 
@@ -110,18 +134,36 @@ describe('decisions', () => {
     assert.ok(!isStricter('allow', 'require_approval'));
   });
 
-  it('writes the reason as "<verdict> because <control id> <name>: <reason>"', () => {
-    const names = (id: string) => (id === 'CTL-APR-003' ? 'Payment threshold' : undefined);
-    const base = { control_ids: ['CTL-APR-003', 'CTL-APR-002'], reasons: ['payments.transfer above 10,000.00 EUR.'] };
+  it('writes "<verdict> because <id> <name>: <reason>" from real Gateway data (M1)', () => {
+    const catalog = (id: string) =>
+      id === 'CTL-TIER-001'
+        ? { name: 'Resource tier ceiling', description: 'An agent cannot touch a resource labelled above its session tier ceiling.' }
+        : id === 'CTL-AI-001'
+          ? { name: 'AI analysis only tightens', description: 'The analyzer can only tighten.' }
+          : undefined;
+    const analyzer = { verdict: 'skipped' as const, rationale: 'Deterministic deny is not negotiable', model_label: 'mock model (demo)' };
+    // Live act 2 trace 9b0368c1: reasons carry only the policy id.
+    const deny = { decision: 'deny' as const, approval_state: 'none' as const, ai_tightened: false, analyzer, control_ids: ['CTL-TIER-001'], policy_ids: ['forbid-resource-above-session-tier'], reasons: ['forbid-resource-above-session-tier'] };
+    assert.equal(becauseSentence(deny, catalog), 'Denied because CTL-TIER-001 Resource tier ceiling: An agent cannot touch a resource labelled above its session tier ceiling.');
+    // Live act 3 trace fa764a02: AI-tightened, the analyzer's finding is the reason.
+    const tightened = {
+      decision: 'require_approval' as const,
+      approval_state: 'pending' as const,
+      ai_tightened: true,
+      analyzer: { verdict: 'suspicious' as const, rationale: 'Demo mock detected instructions embedded in untrusted action data; human review is required.', model_label: 'mock model (demo)' },
+      control_ids: ['CTL-AI-001'],
+      policy_ids: ['analyzer-suspicious', 'permit-effective-capability'],
+      reasons: ['analyzer-suspicious', 'permit-effective-capability'],
+    };
     assert.equal(
-      becauseSentence({ ...base, decision: 'require_approval', approval_state: 'pending' }, names),
-      'Awaiting approval because CTL-APR-003 Payment threshold: payments.transfer above 10,000.00 EUR.',
+      becauseSentence(tightened, catalog),
+      'Awaiting approval because CTL-AI-001 AI analysis only tightens: Demo mock detected instructions embedded in untrusted action data; human review is required.',
     );
+    // A real sentence from the Gateway wins over the catalogue.
     assert.equal(
-      becauseSentence({ ...base, decision: 'require_approval', approval_state: 'rejected' }, names),
-      'Rejected because CTL-APR-003 Payment threshold: payments.transfer above 10,000.00 EUR.',
+      becauseSentence({ ...deny, reasons: ['Resource restricted > session ceiling internal.'] }, catalog),
+      'Denied because CTL-TIER-001 Resource tier ceiling: Resource restricted > session ceiling internal.',
     );
-    assert.equal(becauseSentence({ decision: 'allow', approval_state: 'none', control_ids: [], reasons: [] }, names), 'Every deterministic control passed.');
   });
 
   it('reads a resolved approval by its outcome', () => {
@@ -207,5 +249,14 @@ describe('graph edge style', () => {
     assert.match(breaker.stroke, /deny/);
     assert.equal(breaker.dash, '4 4');
     assert.match(edgeStyle({ kind: 'session', breaker: false, latest: latest({ decision: 'deny' }) }, 'active').stroke, /border-strong/);
+  });
+});
+
+describe('callers', () => {
+  it('never treats an unknown or system caller as a human (p-417, p-420)', () => {
+    assert.deepEqual(callerOf(undefined), { kind: 'unauthenticated', id: 'unknown', name: 'Unauthenticated' });
+    assert.equal(callerOf({ sub: 'unknown', display_name: 'Unknown' }).kind, 'unauthenticated');
+    assert.equal(callerLabel(callerOf({ sub: 'system', display_name: 'Gateway observer' })), 'Gateway (system)');
+    assert.equal(callerLabel(callerOf({ sub: 'u-1', display_name: 'Maya Chen' })), 'Maya Chen');
   });
 });

@@ -11,15 +11,18 @@ services:
     user: "1000:1000"
     volumes:
       - .:/workspace
+      - ./docs/design/tokens.css:/source/tokens.css:ro
+      - ./infra/keycloak/themes/betsee/login/resources/css:/theme-css
     command:
       [
         "sh",
         "-ec",
-        "if [ ! -e /workspace/.env ]; then cp /workspace/.env.example /workspace/.env; fi",
+        "if [ ! -e /workspace/.env ]; then cp /workspace/.env.example /workspace/.env; fi; cp /source/tokens.css /theme-css/tokens.css",
       ]
 
   postgres:
     image: postgres:17-alpine
+    networks: [default, mcp-backend]
     environment:
       POSTGRES_USER: betsee
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -70,6 +73,7 @@ services:
       KC_HEALTH_ENABLED: "true"
     volumes:
       - ./infra/keycloak/betsee-realm.json:/opt/keycloak/data/import/betsee-realm.json:ro
+      - ./infra/keycloak/themes/betsee:/opt/keycloak/themes/betsee:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,8 +93,9 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       MCP_ADMIN_TOKEN: ${MCP_ADMIN_TOKEN}
+      MCP_GATEWAY_TOKEN: ${MCP_GATEWAY_TOKEN}
     networks:
-      default:
+      mcp-backend:
         aliases: ["betsee-mcp"]
     depends_on:
       postgres:
@@ -113,12 +118,14 @@ services:
   gateway:
     <<: *rust
     command: ["betsee-gateway"]
+    networks: [default, mcp-backend]
     environment:
       DATABASE_URL: ${DATABASE_URL}
       OIDC_ISSUER: ${OIDC_ISSUER}
       OIDC_JWKS_URL: ${OIDC_JWKS_URL}
       OIDC_AUDIENCE: ${OIDC_AUDIENCE}
       MCP_URL: ${MCP_URL}
+      MCP_GATEWAY_TOKEN: ${MCP_GATEWAY_TOKEN}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL}
       CONNECTOR_HTTP_ALLOWED_HOSTS: ${CONNECTOR_HTTP_ALLOWED_HOSTS}
     depends_on:
@@ -156,6 +163,7 @@ services:
     restart: on-failure:3
 
   demo-runner:
+    networks: [default, mcp-backend]
     build:
       context: ./demo
     environment:
@@ -214,3 +222,7 @@ volumes:
   postgres-data:
   caddy-data:
   caddy-config:
+
+networks:
+  mcp-backend:
+    internal: true

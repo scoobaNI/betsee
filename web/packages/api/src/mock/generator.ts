@@ -89,6 +89,8 @@ const DETERMINISTIC: { stage: DeterministicStage; control: string; ms: number }[
 ];
 
 const BUDGET_WINDOW_MS = 5 * 60_000;
+// Parameters the Gateway validates and binds into the approval hash (amount checked by Cedar).
+const GATEWAY_BOUND = new Set(['amount_cents', 'currency']);
 const EVENT_LOG_LIMIT = 2_000;
 const FEED_LIMIT = 1_000;
 const AUTO_REJECT_TIGHTENED_MS = 9_000;
@@ -375,7 +377,7 @@ export function createMockWorld(options: WorldOptions = {}) {
         : o.kind === 'approval' ? [o.reason]
         : [`${plan.capability} is effective for ${seed.useCase.name}.`],
       approval_state: final === 'require_approval' || final === 'require_step_up' ? 'pending' : 'none',
-      latency_ms: Math.round(spans.reduce((sum, s) => sum + s.duration_ms, 0) * 10) / 10,
+      latency_ms: Math.round(spans.reduce((sum, s) => sum + (s.duration_ms ?? 0), 0) * 10) / 10,
       executed: final === 'allow',
       output: final === 'allow' ? { status: 'ok' } : null,
       obligations:
@@ -398,13 +400,22 @@ export function createMockWorld(options: WorldOptions = {}) {
     };
     let approval: Approval | null = null;
     if (trace.approval_state === 'pending') {
+      const parameters: Record<string, unknown> =
+        o.kind === 'approval' ? o.parameters : { resource: `${plan.resource.type}:${plan.resource.id}` };
       approval = {
         id: `apr-${traceId.slice(0, 12)}`,
         trace_id: traceId,
         state: 'pending',
         action: summary(trace),
-        parameters: o.kind === 'approval' ? o.parameters : { resource: `${plan.resource.type}:${plan.resource.id}` },
-        provenance: { source: 'gateway', parameters: 'as received from the agent request' },
+        parameters,
+        provenance: {
+          human: seed.human,
+          source: 'Gateway persisted action parameters',
+          session_id: session?.id ?? null,
+          agent_supplied_text: true,
+          // p-438: the Gateway marks which parameters it validated and binds; everything else is agent text.
+          fields: Object.fromEntries(Object.keys(parameters).map((key) => [key, GATEWAY_BOUND.has(key) ? 'gateway' : 'agent'])),
+        },
         action_hash: `sha256:${hex(16)}`,
         requires_step_up: o.kind === 'approval' && o.stepUp,
         created_at: trace.occurred_at,
@@ -427,7 +438,7 @@ export function createMockWorld(options: WorldOptions = {}) {
         receiver: receiver
           ? { id: receiver.id, name: receiver.name, team: receiver.team }
           : { id: plan.message.receiverId, name: plan.message.receiverId, team: '' },
-        use_case: trace.use_case,
+        use_case: ref(seed.useCase),
         capability: plan.capability,
         provenance: { origin: agent.id, trust: 'untrusted', via: 'gateway' },
         decision: final,
@@ -446,7 +457,7 @@ export function createMockWorld(options: WorldOptions = {}) {
       if (o.kind === 'deny' && o.controls.includes('CTL-TOOL-001')) {
         emit({
           type: 'tool.descriptor_changed',
-          data: { connector_id: 'mcp', tool: plan.resource.id, pinned_hash: 'sha256:9f2c..e1', observed_hash: 'sha256:4ab0..77', status: 'blocked' },
+          data: { connector_id: 'mcp-demo', tool: plan.resource.id, pinned_hash: 'sha256:9f2c..e1', observed_hash: 'sha256:4ab0..77', status: 'blocked' },
         });
         securityEvent('descriptor_drift', 'critical', traceId, `${plan.resource.id} tool descriptor changed; the tool is blocked.`, { tool: plan.resource.id });
       }
@@ -739,7 +750,7 @@ export function createMockWorld(options: WorldOptions = {}) {
       breakerTripped.clear();
       emit({
         type: 'tool.descriptor_changed',
-        data: { connector_id: 'mcp', tool: 'payments', pinned_hash: 'sha256:9f2c..e1', observed_hash: 'sha256:9f2c..e1', status: 'restored' },
+        data: { connector_id: 'mcp-demo', tool: 'payments', pinned_hash: 'sha256:9f2c..e1', observed_hash: 'sha256:9f2c..e1', status: 'restored' },
       });
       evidence.clear();
     },
