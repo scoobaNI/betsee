@@ -1,13 +1,15 @@
-import { useAgents, useMe, type ActionSummary, type Agent } from '@betsee/api';
+import { useAgents, useApprovals, useMe, type ActionSummary, type Agent } from '@betsee/api';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { ActivityList } from '../components/activity.tsx';
+import { Donut, formatClock, LatencyChart, OUTCOME_SERIES, RankBars, Sparkline, StackedBars } from '../components/charts.tsx';
 import { Icon, type IconName } from '../components/icon.tsx';
 import { LiveLanes } from '../components/live-lanes.tsx';
 import { Burst, Rise, Stagger, TONE_COLOR, trackPointer, useRises, WordReveal } from '../components/motion.tsx';
 import { ReasonText } from '../components/reason.tsx';
 import {
+  ActionVerdict,
   AgentGlyph,
   AnimatedNumber,
   Card,
@@ -16,16 +18,19 @@ import {
   EmptyState,
   ErrorCard,
   OutcomeBar,
-  OutcomePill,
   outcomeOf,
   Section,
+  Segmented,
   Skeleton,
+  STATE_TONE,
   TextLink,
   type Tone,
 } from '../components/ui.tsx';
 import { isObservation } from '../domain/decision.ts';
+import { determinismStats } from '../domain/determinism.ts';
 import { groupByTeam, teamName } from '../domain/feed.ts';
-import { formatCount, formatTime } from '../domain/format.ts';
+import { formatAge, formatCount, formatTime } from '../domain/format.ts';
+import { bucketize, pendingSeries, percentile, rankBy } from '../domain/series.ts';
 import { useActions, useAttention, useKpis, useNow, type AttentionItem } from '../hooks.ts';
 import { useTeamPulse } from '../live.ts';
 
@@ -54,30 +59,28 @@ function Aura({ mood }: { mood: keyof typeof AURA }) {
 
 function Hero() {
   const me = useMe();
-  const agents = useAgents();
-  const { kpis, loading } = useKpis();
+  const { loading } = useKpis();
   const attention = useAttention();
   const reduce = useReducedMotion();
   const organization = (me.data?.organization as { name?: string } | undefined)?.name ?? 'Your organization';
-  const teams = useMemo(() => new Set((agents.data ?? []).map((a) => a.team)).size, [agents.data]);
   const n = attention.length;
   const sentence = n === 0 ? 'All agents are working within policy.' : `${n} ${n === 1 ? 'thing needs' : 'things need'} your attention.`;
   return (
-    <header className="relative isolate mb-12">
+    <header className="relative isolate mb-16">
       <Aura mood={n === 0 ? 'calm' : 'attention'} />
       <motion.p
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: EASE }}
-        className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3 py-1 text-[13px] font-medium text-ink-2 shadow-card backdrop-blur"
+        className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3.5 py-1.5 text-[14px] font-semibold text-ink-2 shadow-card backdrop-blur"
       >
-        <Icon name="building" size={13} className="text-ink-3" />
+        <Icon name="building" size={15} className="text-ink-3" />
         {organization}
       </motion.p>
       {loading ? (
         <Skeleton className="mt-4 h-10 w-[28rem] max-w-full rounded-xl" />
       ) : (
-        <h1 className="mt-4 min-h-[1.15em] text-[30px] leading-[1.15] font-semibold tracking-[-0.03em] text-ink sm:text-[40px]">
+        <h1 className="mt-5 min-h-[1.1em] text-[36px] leading-[1.08] font-bold tracking-[-0.035em] text-ink sm:text-[54px]">
           <AnimatePresence mode="wait" initial={false}>
             <motion.span
               key={sentence}
@@ -89,136 +92,329 @@ function Hero() {
           </AnimatePresence>
         </h1>
       )}
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.6, delay: 0.35 }}
-        className="mt-4 max-w-2xl text-[16px] leading-relaxed text-ink-2"
-      >
-        {formatCount(kpis.agentsActive)} agents active across {teams} {teams === 1 ? 'team' : 'teams'}. Every action they take passes through the
-        Gateway, which decides it, records it and explains it.
-      </motion.p>
     </header>
   );
 }
 
-/** Actions per minute over the last 15 minutes; denied ones stacked in red at the base. */
-function MiniHistogram({ actions }: { actions: readonly ActionSummary[] }) {
-  const now = useNow(15_000);
-  const buckets = useMemo(() => {
-    const out = Array.from({ length: 15 }, () => ({ total: 0, denied: 0 }));
-    for (const a of actions) {
-      const age = now - Date.parse(a.occurred_at);
-      if (age < 0 || age >= WINDOW_MS) continue;
-      const b = out[14 - Math.floor(age / 60_000)]!;
-      b.total++;
-      if (a.decision === 'deny') b.denied++;
-    }
-    return out;
-  }, [actions, now]);
-  const max = Math.max(1, ...buckets.map((b) => b.total));
+const MINUTE = 60_000;
+const BUCKETS = 15;
+
+/** The same window one step back, for "compared with the 15 minutes before". */
+function useWindows() {
+  const { actions } = useActions();
+  const approvals = useApprovals();
+  const tick = useNow(15_000);
+  return useMemo(() => {
+    // The clock ticks every 15 s; an action that arrived since then must still land in the window.
+    const now = Math.max(tick, Date.now());
+    const current = bucketize(actions, now, WINDOW_MS, BUCKETS);
+    // The 15 minutes just before the first bar, on the same minute edges.
+    const before = bucketize(actions, current[0]!.start - 1, WINDOW_MS, BUCKETS);
+    const previous = { total: before.reduce((sum, b) => sum + b.total, 0), deny: before.reduce((sum, b) => sum + b.deny, 0) };
+    const pending = pendingSeries(approvals.data ?? [], now, WINDOW_MS, BUCKETS);
+    const oldest = (approvals.data ?? []).filter((a) => a.state === 'pending').map((a) => Date.parse(a.created_at)).sort()[0];
+    return { current, previous, pending, oldest, now };
+  }, [actions, approvals.data, tick]);
+}
+
+const minuteLabel = (start: number) => formatClock(start);
+
+function Delta({ now, before, tone, unit }: { now: number; before: number; tone: Tone; unit: string }) {
+  if (!before && !now) return <span className="text-[13px] font-medium text-ink-3">Quiet so far</span>;
+  if (!before) return <span className="text-[13px] font-medium text-ink-3">First {unit} of the run</span>;
+  const diff = now - before;
+  // A percentage of a handful is noise; below ten the plain difference says more.
+  const change = before >= 10 ? `${Math.abs(Math.round((diff / before) * 100))}%` : String(Math.abs(diff));
+  const up = diff > 0;
   return (
-    <span aria-hidden="true" className="hidden h-8 items-end gap-[3px] sm:flex">
-      {buckets.map((b, i) => (
-        <motion.span
-          key={i}
-          className="flex w-[5px] flex-col-reverse overflow-hidden rounded-[2px]"
-          initial={false}
-          animate={{ height: b.total ? `${Math.max(12, (b.total / max) * 100)}%` : '2px' }}
-          transition={{ duration: 0.5, ease: EASE }}
-        >
-          <span className="w-full shrink-0 bg-bad" style={{ height: b.total ? `${(b.denied / b.total) * 100}%` : 0 }} />
-          <span className={`w-full flex-1 ${b.total ? 'bg-ink-4' : 'bg-line'}`} />
-        </motion.span>
-      ))}
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12.5px] font-bold tabular-nums ${diff === 0 ? 'bg-sunken text-ink-3' : ''}`}
+      style={diff ? { background: `color-mix(in srgb, ${TONE_COLOR[tone]} 12%, transparent)`, color: TONE_COLOR[tone] } : undefined}
+      title={`${before} in the 15 minutes before`}
+    >
+      {diff !== 0 && <Icon name={up ? 'arrow-up' : 'arrow-down'} size={13} />}
+      {diff === 0 ? 'No change' : change}
+      <span className="font-medium text-ink-3">vs prev.</span>
     </span>
   );
 }
 
-function Stat({ to, href, label, value, sub, tone, extra, ring }: { to?: string; href?: string; label: string; value: number; sub: ReactNode; tone?: Tone; extra?: ReactNode; ring?: boolean }) {
+function StatShell({
+  to,
+  href,
+  icon,
+  tone,
+  label,
+  value,
+  ring,
+  side,
+  foot,
+  chart,
+}: {
+  to?: string;
+  href?: string;
+  icon: IconName;
+  tone: Tone;
+  label: string;
+  value: number;
+  ring?: boolean;
+  side?: ReactNode;
+  foot: ReactNode;
+  chart: ReactNode;
+}) {
   const rises = useRises(value);
   const body = (
     <>
-      {ring && tone && <Burst trigger={rises || undefined} color={TONE_COLOR[tone]} radius="16px" strength={1.06} />}
-      <span className="flex items-center gap-2 text-[13px] font-medium text-ink-2">
-        {tone && <span className={`h-1.5 w-1.5 rounded-full transition-colors duration-500 ${tone === 'bad' ? 'bg-bad' : tone === 'wait' ? 'bg-wait' : tone === 'quar' ? 'bg-quar' : 'bg-ok'}`} />}
-        {label}
-        <Icon name={href ? 'external' : 'arrow-right'} size={13} className="ml-auto text-ink-4 opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100" />
+      {ring && <Burst trigger={rises || undefined} color={TONE_COLOR[tone]} radius="24px" strength={1.05} />}
+      <span className="flex items-center gap-3">
+        <span
+          className="flex h-10 w-10 items-center justify-center rounded-[12px] transition-transform duration-300 group-hover:scale-110 group-hover:rotate-[-4deg]"
+          style={{ background: `color-mix(in srgb, ${TONE_COLOR[tone]} 13%, transparent)`, color: TONE_COLOR[tone] }}
+        >
+          <Icon name={icon} size={19} />
+        </span>
+        <span className="text-[14.5px] font-semibold text-ink-2">{label}</span>
+        <Icon name={href ? 'external' : 'arrow-right'} size={16} className="ml-auto text-ink-4 opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100" />
       </span>
-      <span className="mt-4 flex items-end justify-between gap-3">
-        <span className="text-[34px] leading-none font-semibold tracking-[-0.03em] text-ink sm:text-[40px]">
+      <span className="mt-5 flex items-end justify-between gap-3">
+        <span className="text-[46px] leading-none font-bold tracking-[-0.04em] text-ink sm:text-[54px]">
           <AnimatedNumber value={value} />
         </span>
-        {extra}
+        {side}
       </span>
-      <span className="mt-3 block text-[13px] text-ink-3">{sub}</span>
+      <span className="mt-3 flex min-h-6 items-center">{foot}</span>
+      <span className="-mx-6 -mb-6 mt-4 block sm:-mx-7 sm:-mb-7">{chart}</span>
     </>
   );
-  const cls = 'group lift spotlight block h-full rounded-2xl border border-line bg-surface p-5 shadow-card sm:p-6';
+  const cls = 'group lift spotlight flex h-full flex-col overflow-visible rounded-[24px] border border-line bg-surface p-6 shadow-card sm:p-7';
   return href ? (
-    <a href={href} onPointerMove={trackPointer} className={cls}>
+    <a href={href} onPointerMove={trackPointer} className={cls} style={{ ['--spot' as string]: TONE_COLOR[tone] }}>
       {body}
     </a>
   ) : (
-    <Link to={to ?? '/'} onPointerMove={trackPointer} className={cls}>
+    <Link to={to ?? '/'} onPointerMove={trackPointer} className={cls} style={{ ['--spot' as string]: TONE_COLOR[tone] }}>
       {body}
     </Link>
+  );
+}
+
+/** Each agent as a bar: how busy it was in the last 15 minutes, coloured by its lifecycle state. */
+function AgentBars({ agents, actions, now }: { agents: readonly Agent[]; actions: readonly ActionSummary[]; now: number }) {
+  const reduce = useReducedMotion();
+  const counts = agents.map((a) => actions.filter((x) => x.agent.id === a.id && !isObservation(x) && now - Date.parse(x.occurred_at) <= WINDOW_MS).length);
+  const max = Math.max(1, ...counts);
+  return (
+    <span className="flex h-16 items-end gap-2 px-6 pb-5 sm:px-7">
+      {agents.map((agent, i) => (
+        <span key={agent.id} title={`${agent.id}: ${counts[i]} actions, ${agent.state}`} className="flex h-full flex-1 flex-col justify-end">
+          <motion.span
+            className="block w-full rounded-t-[6px] rounded-b-[2px]"
+            style={{ background: TONE_COLOR[STATE_TONE[agent.state]], opacity: agent.state === 'active' ? 0.75 : 1 }}
+            initial={reduce ? false : { height: 0 }}
+            animate={{ height: `${Math.max(8, (counts[i]! / max) * 100)}%` }}
+            transition={{ duration: 0.7, ease: EASE, delay: 0.3 + i * 0.05 }}
+          />
+        </span>
+      ))}
+    </span>
   );
 }
 
 function Stats() {
   const { kpis, loading } = useKpis();
   const { actions } = useActions();
-  const decided = useMemo(() => actions.filter((a) => !isObservation(a)), [actions]);
+  const agents = useAgents();
+  const w = useWindows();
   if (loading) {
     return (
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-[148px]" />
+          <Skeleton key={i} className="h-[260px]" />
         ))}
       </div>
     );
   }
   const offline = kpis.agentsQuarantined + kpis.agentsSuspended;
+  const registered = agents.data?.length ?? 0;
+  const deniedNow = w.current.reduce((sum, b) => sum + b.deny, 0);
+  const totalNow = w.current.reduce((sum, b) => sum + b.total, 0);
   return (
-    <Stagger className="grid grid-cols-2 gap-4 lg:grid-cols-4" step={0.06} delay={0.15}>
+    <Stagger className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4" step={0.06} delay={0.15}>
       <Rise>
-        <Stat
+        <StatShell
           to="/agents"
+          icon="bot"
+          tone={offline ? 'quar' : 'accent'}
           label="Agents active"
           value={kpis.agentsActive}
-          tone={offline ? 'quar' : 'ok'}
           ring
-          sub={
-            offline
-              ? [kpis.agentsQuarantined && `${kpis.agentsQuarantined} quarantined`, kpis.agentsSuspended && `${kpis.agentsSuspended} suspended`].filter(Boolean).join(', ')
-              : 'None quarantined'
+          side={<span className="pb-1 text-[15px] font-semibold text-ink-3 tabular-nums">of {registered}</span>}
+          foot={
+            offline ? (
+              <span className="text-[13px] font-semibold text-quar-ink">
+                {[kpis.agentsQuarantined && `${kpis.agentsQuarantined} quarantined`, kpis.agentsSuspended && `${kpis.agentsSuspended} suspended`].filter(Boolean).join(', ')}
+              </span>
+            ) : (
+              <span className="text-[13px] font-medium text-ink-3">None quarantined; bars show who is busiest</span>
+            )
           }
+          chart={<AgentBars agents={groupByTeam(agents.data ?? []).flatMap(([, l]) => l)} actions={actions} now={w.now} />}
         />
       </Rise>
       <Rise>
-        <Stat
+        <StatShell
           to="/activity"
+          icon="activity"
+          tone="accent"
           label="Actions, last 15 min"
           value={kpis.actions15m}
-          sub={kpis.tightened15m ? `${formatCount(kpis.tightened15m)} made stricter by AI analysis` : 'Each one a recorded trace'}
-          extra={<MiniHistogram actions={decided} />}
+          foot={<Delta now={totalNow} before={w.previous.total} tone="accent" unit="15 minutes" />}
+          chart={<Sparkline values={w.current.map((b) => b.total)} tone="accent" delay={0.35} readout={(i) => `${minuteLabel(w.current[i]!.start)}: ${w.current[i]!.total} actions`} />}
         />
       </Rise>
       <Rise>
-        <Stat to="/activity?show=denied" label="Denied, last 15 min" value={kpis.denied15m} tone={kpis.denied15m ? 'bad' : undefined} ring sub="Stopped before execution" />
+        <StatShell
+          to="/activity?show=denied"
+          icon="ban"
+          tone="bad"
+          label="Denied, last 15 min"
+          value={kpis.denied15m}
+          ring
+          foot={<Delta now={deniedNow} before={w.previous.deny} tone="bad" unit="15 minutes" />}
+          chart={<Sparkline values={w.current.map((b) => b.deny)} tone="bad" delay={0.45} readout={(i) => `${minuteLabel(w.current[i]!.start)}: ${w.current[i]!.deny} denied`} />}
+        />
       </Rise>
       <Rise>
-        <Stat
+        <StatShell
           href={`${ECOSYSTEM_URL}/approvals`}
+          icon="hourglass"
+          tone="wait"
           label="Awaiting a human"
           value={kpis.awaitingHuman}
-          tone={kpis.awaitingHuman ? 'wait' : undefined}
           ring
-          sub={kpis.awaitingHuman ? 'Approval or step-up pending' : 'Nothing waiting'}
+          foot={
+            <span className="text-[13px] font-medium text-ink-3">
+              {kpis.awaitingHuman && w.oldest ? `Oldest waiting ${formatAge(new Date(w.oldest).toISOString(), w.now).replace(' ago', '')}` : 'Nothing waiting for a person'}
+            </span>
+          }
+          chart={<Sparkline values={w.pending} tone="wait" delay={0.55} readout={(i) => `${minuteLabel(w.current[i]!.start)}: ${w.pending[i]} waiting`} />}
         />
       </Rise>
     </Stagger>
+  );
+}
+
+/** Decisions over time by outcome, beside the overall outcome mix. */
+function Analytics() {
+  const { actions } = useActions();
+  const tick = useNow(15_000);
+  const [range, setRange] = useState<'15' | '60'>('15');
+  const windowMs = Number(range) * MINUTE;
+  const count = range === '15' ? 30 : 40;
+  const buckets = useMemo(() => bucketize(actions, Math.max(tick, Date.now()), windowMs, count), [actions, tick, windowMs, count]);
+  const sums = OUTCOME_SERIES.map((s) => ({ ...s, value: buckets.reduce((sum, b) => sum + b[s.key], 0) }));
+  const total = sums.reduce((sum, s) => sum + s.value, 0);
+  return (
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]">
+      <Card className="p-7 sm:p-8">
+        <div className="mb-6 flex flex-wrap items-center gap-4">
+          <h2 className="min-w-0 flex-1 text-[21px] font-bold tracking-[-0.02em] text-ink">Decisions over time</h2>
+          <Segmented
+            label="Range"
+            value={range}
+            onChange={setRange}
+            options={[
+              { value: '15', label: '15 min' },
+              { value: '60', label: '1 hour' },
+            ]}
+          />
+        </div>
+        <StackedBars key={range} buckets={buckets} bucketMs={windowMs / count} />
+      </Card>
+      <Card className="flex flex-col p-7 sm:p-8">
+        <h2 className="flex items-baseline gap-3 text-[21px] font-bold tracking-[-0.02em] text-ink">
+          Outcome mix
+          <span className="text-[14px] font-medium tracking-normal text-ink-3">{range === '15' ? 'last 15 min' : 'last hour'}</span>
+        </h2>
+        <div className="mt-6 flex flex-1 flex-col items-center justify-center gap-7 sm:flex-row xl:flex-col 2xl:flex-row">
+          <Donut key={range} parts={sums.map((s) => ({ key: s.key, label: s.label, value: s.value, tone: s.tone }))} centre={{ value: total, label: 'decisions' }} />
+          <ul className="w-full max-w-[240px] space-y-3">
+            {sums.map((s) => (
+              <li key={s.key} className="flex items-center gap-3 text-[14px]">
+                <span className="h-3 w-3 rounded-[4px]" style={{ background: TONE_COLOR[s.tone] }} />
+                <span className="font-medium text-ink-2">{s.label}</span>
+                <span className="ml-auto font-bold text-ink tabular-nums">
+                  <AnimatedNumber value={s.value} />
+                </span>
+                <span className="w-11 text-right text-[12.5px] font-semibold text-ink-3 tabular-nums">{total ? Math.round((s.value / total) * 100) : 0}%</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/** Which capabilities agents ask for most, and how long the Gateway takes to decide. */
+function Insights() {
+  const { actions } = useActions();
+  const tick = useNow(15_000);
+  const recent = useMemo(() => actions.filter((a) => Math.max(tick, Date.now()) - Date.parse(a.occurred_at) <= 60 * MINUTE), [actions, tick]);
+  const top = useMemo(() => rankBy(recent, (a) => a.capability, 6), [recent]);
+  const agentsTop = useMemo(() => rankBy(recent, (a) => a.agent.id, 6), [recent]);
+  const latency = useMemo(() => bucketize(actions, Math.max(tick, Date.now()), 30 * MINUTE, 30), [actions, tick]);
+  const all = latency.flatMap((b) => b.latencies);
+  return (
+    <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+      <Card className="p-7 sm:p-8">
+        <h2 className="mb-6 flex items-baseline gap-3 text-[21px] font-bold tracking-[-0.02em] text-ink">
+          Most requested capabilities
+          <span className="text-[14px] font-medium tracking-normal text-ink-3">last hour</span>
+        </h2>
+        {top.length ? <RankBars items={top} label={(key) => <span className="font-mono text-[13.5px] font-medium text-ink">{key}</span>} /> : <p className="text-[14px] text-ink-3">No request yet.</p>}
+      </Card>
+      <Card className="p-7 sm:p-8">
+        <h2 className="mb-6 flex items-baseline gap-3 text-[21px] font-bold tracking-[-0.02em] text-ink">
+          Busiest agents
+          <span className="text-[14px] font-medium tracking-normal text-ink-3">last hour</span>
+        </h2>
+        {agentsTop.length ? (
+          <RankBars
+            items={agentsTop}
+            label={(key) => (
+              <Link to={`/agents/${encodeURIComponent(key)}`} className="inline-flex items-center gap-2.5 text-[14px] font-semibold text-ink hover:text-accent-ink">
+                <AgentGlyph size={26} agentId={key} />
+                {key}
+              </Link>
+            )}
+          />
+        ) : (
+          <p className="text-[14px] text-ink-3">No request yet.</p>
+        )}
+      </Card>
+      <Card className="p-7 sm:p-8 lg:col-span-2 2xl:col-span-1">
+        <div className="mb-6 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <h2 className="text-[21px] font-bold tracking-[-0.02em] text-ink">Gateway decision time</h2>
+          <span className="text-[14px] text-ink-3">
+            median <span className="font-bold text-ink tabular-nums">{percentile(all, 50)} ms</span>, 95th{' '}
+            <span className="font-bold text-ink tabular-nums">{percentile(all, 95)} ms</span>, last 30 min
+          </span>
+        </div>
+        <LatencyChart buckets={latency} />
+        <p className="mt-4 flex items-center gap-4 text-[12.5px] font-medium text-ink-3">
+          <span className="flex items-center gap-2">
+            <span className="h-[3px] w-5 rounded-full bg-accent" /> Median
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="h-0 w-5 border-t-2 border-dashed border-accent/50" /> 95th percentile
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-[3px] bg-accent/[0.18]" /> Decisions per minute
+          </span>
+        </p>
+      </Card>
+    </div>
   );
 }
 
@@ -253,7 +449,7 @@ function AttentionRow({ item }: { item: AttentionItem }) {
       </>
     );
     detail = `On ${action.resource.id}${action.human ? `, for ${action.human.display_name}` : ''}. Waiting since ${formatTime(action.occurred_at)}.`;
-    side = <OutcomePill outcome={outcomeOf(action)} size="sm" />;
+    side = <ActionVerdict action={action} size="sm" />;
   } else {
     to = '/graph';
     icon = (
@@ -382,7 +578,7 @@ function Teams() {
     );
   }
   return (
-    <Stagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" step={0.06}>
+    <Stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4" step={0.06}>
       {teams.map(([team, list]) => (
         <Rise key={team}>
           <TeamCard team={team} list={list} s={stats.get(team) ?? { ok: 0, bad: 0, wait: 0, total: 0 }} />
@@ -398,13 +594,13 @@ function TeamCard({ team, list, s }: { team: string; list: Agent[]; s: { ok: num
   const tone = pulse.action ? outcomeOf(pulse.action).tone : 'accent';
   return (
     <Link
-      to={`/agents?team=${encodeURIComponent(team)}`}
+      to={`/agents?view=list&team=${encodeURIComponent(team)}`}
       onPointerMove={trackPointer}
-      className="group lift spotlight flex h-full flex-col rounded-2xl border border-line bg-surface p-6 shadow-card"
+      className="group lift spotlight flex h-full flex-col rounded-[22px] border border-line bg-surface p-7 shadow-card"
     >
       <Burst trigger={pulse.seq} color={TONE_COLOR[tone]} radius="16px" strength={1.035} />
       <span className="flex items-center gap-2">
-        <span className="text-[16px] font-semibold tracking-[-0.01em] text-ink">{teamName(team)}</span>
+        <span className="text-[18px] font-bold tracking-[-0.015em] text-ink">{teamName(team)}</span>
         <Icon name="arrow-right" size={14} className="ml-auto text-ink-4 opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100" />
       </span>
       <span className="mt-1 text-[13px] text-ink-3">
@@ -414,7 +610,7 @@ function TeamCard({ team, list, s }: { team: string; list: Agent[]; s: { ok: num
       <span className="mt-5 flex -space-x-1.5 transition-all duration-300 group-hover:space-x-1">
         {list.slice(0, 6).map((agent) => (
           <span key={agent.id} title={`${agent.id}: ${agent.state}`} className="rounded-xl ring-2 ring-surface transition-all duration-300">
-            <AgentGlyph state={agent.state} size={30} agentId={agent.id} />
+            <AgentGlyph state={agent.state} size={38} agentId={agent.id} />
           </span>
         ))}
       </span>
@@ -463,22 +659,66 @@ function Latest() {
   );
 }
 
-function Explore() {
-  const items: { to: string; icon: IconName; title: string; body: string }[] = [
-    { to: '/agents', icon: 'network', title: 'Org chart', body: 'The organization, its teams and every agent, live.' },
-    { to: '/graph', icon: 'map', title: 'Graph', body: 'Who launched which agent, and what each one touched.' },
-    { to: '/coverage', icon: 'shield', title: 'Coverage', body: 'The OWASP agentic risks and the evidence from this run.' },
+/** The determinism story in one card: what decided, what AI changed, and that nothing was loosened. */
+function DeterminismCard() {
+  const { actions } = useActions();
+  const stats = useMemo(() => determinismStats(actions), [actions]);
+  const figures: { label: string; value: number; tone: Tone; note: string }[] = [
+    { label: 'Decided by policy', value: stats.total, tone: 'accent', note: 'deterministic controls first, every time' },
+    { label: 'Tightened by AI', value: stats.tightened, tone: 'ai', note: 'AI analysis may only make it stricter' },
+    { label: 'Loosened by AI', value: stats.loosened, tone: 'ok', note: 'the invariant, checked on this feed' },
   ];
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    <Link to="/determinism" onPointerMove={trackPointer} className="group lift spotlight block overflow-hidden rounded-[26px] border border-accent/15 bg-gradient-to-br from-accent-soft via-surface to-surface p-8 text-ink shadow-card sm:p-10">
+      <div className="flex flex-wrap items-center gap-x-10 gap-y-8">
+        <div className="max-w-md min-w-0 flex-1">
+          <p className="inline-flex items-center gap-2 rounded-full bg-accent-soft px-3 py-1 text-[12.5px] font-semibold text-accent-ink ring-1 ring-accent/15">
+            <Icon name="cpu" size={14} />
+            Determinism
+          </p>
+          <h2 className="mt-4 text-[26px] leading-tight font-bold tracking-[-0.025em] sm:text-[30px]">Non-deterministic agents, deterministic decisions.</h2>
+          <p className="mt-3 text-[15px] leading-relaxed text-ink-2">A model can phrase a request any way it likes. Whether it may act is decided by policy, the same way every time.</p>
+          <span className="mt-6 inline-flex items-center gap-2 text-[14.5px] font-semibold text-accent-ink">
+            See the boundary live
+            <Icon name="arrow-right" size={15} className="transition-transform group-hover:translate-x-1" />
+          </span>
+        </div>
+        <div className="grid flex-[1.2] grid-cols-3 gap-4">
+          {figures.map((f) => (
+            <div key={f.label} className="rounded-2xl border border-line bg-surface/80 p-5 shadow-card">
+              <p className="flex items-center gap-2 text-[13px] font-semibold text-ink-2">
+                <span className="h-2 w-2 rounded-full" style={{ background: TONE_COLOR[f.tone] }} />
+                {f.label}
+              </p>
+              <p className="mt-4 text-[40px] leading-none font-bold tracking-[-0.03em]">
+                <AnimatedNumber value={f.value} />
+              </p>
+              <p className="mt-2 text-[12.5px] leading-snug text-ink-3">{f.note}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function Explore() {
+  const items: { to: string; icon: IconName; title: string; body: string }[] = [
+    { to: '/agents', icon: 'network', title: 'Org chart', body: 'Every person, the agents beside them, live.' },
+    { to: '/graph', icon: 'map', title: 'Graph', body: 'Who launched which agent, and what it touched.' },
+    { to: '/determinism', icon: 'cpu', title: 'Determinism', body: 'Why a model never decides on its own.' },
+    { to: '/coverage', icon: 'shield', title: 'Coverage', body: 'The OWASP agentic risks and the evidence.' },
+  ];
+  return (
+    <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
       {items.map((item) => (
-        <Link key={item.to} to={item.to} onPointerMove={trackPointer} className="group lift spotlight flex items-center gap-4 rounded-2xl border border-line bg-surface p-5 shadow-card">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sunken text-ink-2 transition-all duration-300 group-hover:rotate-[-6deg] group-hover:bg-accent-soft group-hover:text-accent-ink">
-            <Icon name={item.icon} size={18} />
+        <Link key={item.to} to={item.to} onPointerMove={trackPointer} className="group lift spotlight flex items-center gap-4 rounded-[22px] border border-line bg-surface p-6 shadow-card">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sunken text-ink-2 transition-all duration-300 group-hover:rotate-[-6deg] group-hover:bg-accent group-hover:text-white group-hover:shadow-lift">
+            <Icon name={item.icon} size={21} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-[15px] font-semibold text-ink">{item.title}</span>
-            <span className="block text-[13px] text-ink-3">{item.body}</span>
+            <span className="block text-[16.5px] font-bold text-ink">{item.title}</span>
+            <span className="mt-0.5 block text-[13.5px] leading-snug text-ink-3">{item.body}</span>
           </span>
           <Icon name="arrow-right" size={16} className="text-ink-4 transition-transform duration-200 group-hover:translate-x-0.5" />
         </Link>
@@ -492,12 +732,21 @@ export function OverviewPage() {
     <div>
       <Hero />
       <Stats />
-      <Stagger className="mt-14 space-y-14" step={0.08} delay={0.35}>
+      <Stagger className="mt-16 space-y-20" step={0.08} delay={0.35}>
         <Rise>
           <Attention />
         </Rise>
         <Rise>
+          <Analytics />
+        </Rise>
+        <Rise>
           <LiveLanes />
+        </Rise>
+        <Rise>
+          <Insights />
+        </Rise>
+        <Rise>
+          <DeterminismCard />
         </Rise>
         <Rise>
           <Section title="Teams" hint="Last 15 minutes" action={<TextLink to="/agents">Org chart</TextLink>}>

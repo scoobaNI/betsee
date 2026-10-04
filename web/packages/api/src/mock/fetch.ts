@@ -1,8 +1,8 @@
 // A fetch() that answers /api/v1/* from the mock world. Only the network is fake: the typed client,
 // the SSE reader and the query hooks run their real code paths in mock mode.
 import { ecosystemMockResponse } from './fixtures/ecosystem.ts';
-import type { LoggedEvent, MockWorld } from './generator.ts';
-import { CONTROLS, MOCK_ME, USE_CASES } from './world.ts';
+import { AccessError, type AccessChangeRequest, type LoggedEvent, type MockWorld } from './generator.ts';
+import { CONTROLS, MOCK_ME } from './world.ts';
 
 /** Extra routes an app adds to the mock (frontend-ecosystem's fixtures); null passes it on. */
 export type MockHandler = (
@@ -59,13 +59,11 @@ export function createMockFetch(world: MockWorld, options: MockFetchOptions = {}
     if (method === 'GET') {
       if (path === '/api/v1/me') return json(MOCK_ME);
       if (path === '/api/v1/agents') return json({ items: world.agents() });
-      if (path === '/api/v1/use-cases') return json({ items: Object.values(USE_CASES) });
-      if (path === '/api/v1/sessions') {
-        return json({ items: world.agents().flatMap((a) => (a.current_session ? [a.current_session] : [])) });
-      }
+      if (path === '/api/v1/use-cases') return json({ items: world.useCases() });
+      if (path === '/api/v1/sessions') return json({ items: world.sessions() });
       if ((m = path.match(/^\/api\/v1\/sessions\/([^/]+)$/))) {
         const id = decodeURIComponent(m[1]);
-        const session = world.agents().find((a) => a.current_session?.id === id)?.current_session;
+        const session = world.sessions().find((s) => s.id === id);
         return session ? json(session) : notFound('session');
       }
       if (path === '/api/v1/traces') return json({ items: world.traces() });
@@ -83,6 +81,7 @@ export function createMockFetch(world: MockWorld, options: MockFetchOptions = {}
       if (path === '/api/v1/agent-messages') return json({ items: world.messages() });
       if (path === '/api/v1/security-events') return json({ items: world.securityEvents() });
       if (path === '/api/v1/summary') return json(world.summary());
+      if (path === '/api/v1/access') return json(world.access());
       if (path === '/api/v1/coverage') return json({ items: world.coverage() });
       if (path === '/api/v1/demo/scenarios') return json(world.scenarios());
       if ((m = path.match(/^\/api\/v1\/demo\/runs\/([^/]+)$/))) {
@@ -112,6 +111,16 @@ export function createMockFetch(world: MockWorld, options: MockFetchOptions = {}
         }
         const decided = world.resolveApproval(id, m[2] === 'approve' ? 'approved' : 'rejected')!;
         return json({ status: decided.state, trace_id: decided.trace_id, approval_id: id, acr_values: null, action: decided.action });
+      }
+      if (path === '/api/v1/access/changes') {
+        const { changes, reason, suggestion_id } = (body ?? {}) as { changes?: AccessChangeRequest[]; reason?: string; suggestion_id?: string };
+        if (!Array.isArray(changes) || !changes.length) return json({ error: 'invalid', message: 'changes must be a non-empty list' }, 422);
+        try {
+          return json({ items: world.applyAccess(changes, MOCK_ME.human, reason?.trim() ?? '', suggestion_id ?? null) });
+        } catch (error) {
+          if (error instanceof AccessError) return json({ error: 'invalid', message: error.message }, 422);
+          throw error;
+        }
       }
       if (path === '/api/v1/demo/reset') {
         world.reset();

@@ -9,7 +9,7 @@ import { AuthProvider, useAuth } from "react-oidc-context";
 import { WebStorageStateStore } from "oidc-client-ts";
 import { useQuery } from "@tanstack/react-query";
 import { api, configureApi, unwrap } from "@betsee/api/client";
-import { Icon, MockBadge } from "@betsee/ui";
+import { Icon, LogoMark, MockBadge } from "@betsee/ui";
 
 export const mockMode = import.meta.env.VITE_BETSEE_MOCK === "1";
 interface SessionAuth {
@@ -52,8 +52,10 @@ function LiveSession({ children }: { children: ReactNode }) {
   if (auth.error || !auth.isAuthenticated)
     return (
       <main className="mx-auto mt-24 max-w-lg rounded-xl border border-line-default bg-surface-1 p-8">
-        <Icon name="streamline-flex:shield-2" size={28} />
-        <p className="mt-6 font-display text-xl">Betsee</p>
+        <div className="flex items-center gap-3">
+          <LogoMark size={36} className="text-fg-primary" />
+          <p className="font-display text-xl">Betsee</p>
+        </div>
         <h1 className="mt-2 font-display text-3xl">See every agent.</h1>
         <p className="mt-4 text-md text-fg-secondary">
           Sign in to Acme Logistics to see, govern and safely operate your

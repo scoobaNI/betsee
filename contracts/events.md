@@ -104,12 +104,14 @@ Every security event correlation resolves to a trace. Events outside an agent ac
 `record_type: security_observation` trace; tool transitions use `tool_observation`. Summary action
 counters exclude both observation kinds. Summary reads are scoped to the human actor for employees.
 
-## Employee chat stream (agent-host)
+## Betsee Desk chat stream
 
-`GET /api/v1/chat/stream/{chat_id}` is served by agent-host on the host, through Caddy on
-`betsee.localhost`, to the chat's owner only (bearer, fetch-based SSE, `Last-Event-ID` resumes; ids
-are per chat and start at 1; `: ping` every 15 seconds). Each `data` is one JSON object whose
-`type` equals the SSE event name and which carries `id` and `at`.
+`GET /api/v1/chat/stream/{chat_id}` is served by the agent-host embedded in Betsee Desk on
+`127.0.0.1:8097`, to the desktop window holding the per-launch desk token (fetch-based SSE,
+`Last-Event-ID` resumes; ids are per chat and start at 1; `: ping` every 15 seconds). Each `data` is
+one JSON object whose `type` equals the SSE event name and which carries `id` and `at`. Files add
+`file_shared`, `file_blocked` and `file_released` events (`direction`, `name`, `path`, `tier`,
+`kind`, `reasons`, `control_ids`, `trace_id`, masked `findings`).
 
 | Event              | Payload fields                                                                                                                                                                                                                                            | Meaning                                                                       |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |

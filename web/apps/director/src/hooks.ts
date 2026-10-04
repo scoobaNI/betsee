@@ -3,6 +3,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { isObservation, withApprovalState } from './domain/decision.ts';
 import { computeKpis, type Kpis } from './domain/feed.ts';
 
+/** Whether a CSS media query matches, kept current as the window changes. */
+export function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const list = window.matchMedia(query);
+    const update = () => setMatches(list.matches);
+    update();
+    list.addEventListener('change', update);
+    return () => list.removeEventListener('change', update);
+  }, [query]);
+  return matches;
+}
+
 /** Re-renders on an interval so time windows slide even when no event arrives. */
 export function useNow(everyMs = 30_000) {
   const [now, setNow] = useState(() => Date.now());

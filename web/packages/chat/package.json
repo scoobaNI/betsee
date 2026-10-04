@@ -1,0 +1,20 @@
+{
+  "name": "@betsee/chat",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@betsee/api": "*",
+    "@betsee/ui": "*",
+    "motion": "^12.0.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  }
+}

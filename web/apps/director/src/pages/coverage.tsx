@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { ActivityList } from '../components/activity.tsx';
 import { Icon } from '../components/icon.tsx';
+import { Rise, Stagger } from '../components/motion.tsx';
 import { Card, Code, controlHref, EASE, EmptyState, ErrorCard, OutcomeBar, PageHeader, Skeleton, type Tone } from '../components/ui.tsx';
 import { formatCount } from '../domain/format.ts';
 import { notClaimed } from '../domain/not-claimed.ts';
@@ -141,7 +142,7 @@ function RiskRow({ row, acts, open, onToggle }: { row: Coverage; acts: number[];
     .map((s) => `${formatCount(count(row, s.key))} ${s.label}`)
     .join(', ');
   return (
-    <li>
+    <Rise as="li">
       <button
         type="button"
         aria-expanded={open}
@@ -183,7 +184,7 @@ function RiskRow({ row, acts, open, onToggle }: { row: Coverage; acts: number[];
           </motion.div>
         )}
       </AnimatePresence>
-    </li>
+    </Rise>
   );
 }
 
@@ -207,7 +208,6 @@ export function CoveragePage() {
       <PageHeader
         crumbs={[{ label: 'Overview', to: '/' }, { label: 'Coverage' }]}
         title="Coverage"
-        description="The OWASP Top 10 for agentic applications: which Betsee primitive mitigates each risk, and the evidence this run produced. Open a risk for its controls and traces."
         actions={rows.length > 0 ? <Ring value={evidenced} total={rows.length} /> : undefined}
       />
       {coverage.isPending && (
@@ -225,11 +225,11 @@ export function CoveragePage() {
       )}
       {rows.length > 0 && (
         <Card className="p-2">
-          <ol className="divide-y divide-line/70">
+          <Stagger as="ol" className="divide-y divide-line/70" step={0.045} delay={0.15}>
             {rows.map((row) => (
               <RiskRow key={row.asi_id} row={row} acts={acts[row.asi_id] ?? []} open={open === row.asi_id} onToggle={() => setOpen(open === row.asi_id ? null : row.asi_id)} />
             ))}
-          </ol>
+          </Stagger>
         </Card>
       )}
     </div>

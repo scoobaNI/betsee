@@ -18,6 +18,8 @@ const agents = new Map<string, Pulse>();
 const teams = new Map<string, Pulse>();
 let org: Pulse = { seq: 0, kind: 'action' };
 let seq = 0;
+/** Decisions that arrived since the reader last looked at Activity, for the dock badge. */
+let unseen = 0;
 const listeners = new Set<() => void>();
 let subscribed = false;
 
@@ -35,6 +37,7 @@ function onEvent(event: StreamEvent) {
     case 'action.decided':
     case 'action.updated':
       if (isObservation(event.data)) return;
+      if (event.type === 'action.decided') unseen++;
       record(event.data.agent.id, event.data.agent.team, { kind: 'action', action: event.data });
       return;
     case 'message.mediated':
@@ -68,3 +71,11 @@ function usePulseOf(read: () => Pulse): { pulse: Pulse; fresh: boolean } {
 export const useAgentPulse = (agentId: string | undefined) => usePulseOf(() => (agentId ? (agents.get(agentId) ?? NONE) : NONE));
 export const useTeamPulse = (team: string) => usePulseOf(() => teams.get(team) ?? NONE);
 export const useOrgPulse = () => usePulseOf(() => org);
+
+export const useUnseenActivity = () => useSyncExternalStore(subscribe, () => unseen, () => unseen);
+
+export function markActivitySeen() {
+  if (!unseen) return;
+  unseen = 0;
+  for (const listener of listeners) listener();
+}

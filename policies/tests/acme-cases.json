@@ -1987,6 +1987,23 @@
         "spentCents": 0
       },
       "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "workspace/uploads"
+      },
+      "attrs": {
+        "kind": "folder",
+        "tier": 1,
+        "external": false
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "runtime-files"
+        }
+      ]
     }
   ],
   "cases": [
@@ -5071,6 +5088,226 @@
       },
       "expect": "deny",
       "expect_reason": "forbid-session-delegation-exceeds-human-entitlements"
+    },
+    {
+      "name": "file maya uploads a clean text file",
+      "step": "file.1",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"file.submit\"",
+      "resource": "Betsee::Resource::\"workspace/uploads\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "detected": [],
+        "tier": 1,
+        "now": 1791043200
+      },
+      "expect": "allow",
+      "expect_reason": "permit-file-transfer-by-session-human"
+    },
+    {
+      "name": "file an upload with a card number",
+      "step": "file.2",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"file.submit\"",
+      "resource": "Betsee::Resource::\"workspace/uploads\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "detected": ["payment_card"],
+        "tier": 1,
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-file-payment-card"
+    },
+    {
+      "name": "file an executable upload",
+      "step": "file.3",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"file.submit\"",
+      "resource": "Betsee::Resource::\"workspace/uploads\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "detected": ["executable"],
+        "tier": 1,
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-file-executable"
+    },
+    {
+      "name": "file the EICAR test file",
+      "step": "file.4",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"file.submit\"",
+      "resource": "Betsee::Resource::\"workspace/uploads\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "detected": ["malware_test"],
+        "tier": 1,
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-file-malware-test"
+    },
+    {
+      "name": "file an image with no text to scan",
+      "step": "file.5",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"file.submit\"",
+      "resource": "Betsee::Resource::\"workspace/uploads\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "detected": ["unscannable"],
+        "tier": 1,
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-file-unscannable"
+    },
+    {
+      "name": "file an upload labelled confidential in an internal session",
+      "step": "file.6",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"file.submit\"",
+      "resource": "Betsee::Resource::\"workspace/uploads\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "detected": [],
+        "tier": 2,
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-file-above-session-tier"
+    },
+    {
+      "name": "file daniel uploads into maya's session",
+      "step": "file.7",
+      "principal": "Betsee::Human::\"daniel\"",
+      "action": "Betsee::Action::\"file.submit\"",
+      "resource": "Betsee::Resource::\"workspace/uploads\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "detected": [],
+        "tier": 1,
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-file-not-session-human"
+    },
+    {
+      "name": "file maya downloads an internal handbook file",
+      "step": "file.8",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"file.release\"",
+      "resource": "Betsee::Resource::\"workspace/handbook/onboarding.md\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "detected": [],
+        "tier": 1,
+        "now": 1791043200
+      },
+      "expect": "allow",
+      "expect_reason": "permit-file-transfer-by-session-human"
+    },
+    {
+      "name": "file the restricted salaries file is not released",
+      "step": "file.9",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"file.release\"",
+      "resource": "Betsee::Resource::\"workspace/hr/salaries-2026.csv\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "detected": [],
+        "tier": 3,
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-file-above-session-tier"
+    },
+    {
+      "name": "file a release outside the agent runtime",
+      "step": "file.10",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"file.release\"",
+      "resource": "Betsee::Resource::\"files/hr/salaries-2026.xlsx\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "detected": [],
+        "tier": 1,
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-file-outside-agent-runtime"
+    },
+    {
+      "name": "file a release of an agent output with an API key",
+      "step": "file.11",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"file.release\"",
+      "resource": "Betsee::Resource::\"workspace/notes/team-sync.md\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "detected": ["secret"],
+        "tier": 1,
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-file-secret"
     }
   ]
 }

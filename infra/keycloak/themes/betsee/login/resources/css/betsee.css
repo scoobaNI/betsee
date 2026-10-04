@@ -85,23 +85,13 @@ html.login-pf,
   text-transform: none;
 }
 
-#kc-header-wrapper::before {
+#kc-header-wrapper::after {
   position: absolute;
   inset: 0 auto auto 0;
   width: 32px;
   height: 32px;
-  border-radius: var(--bs-radius-sm);
-  background: var(--bs-color-surface-3);
-  content: "";
-}
-
-#kc-header-wrapper::after {
-  position: absolute;
-  inset: 8px auto auto 8px;
-  width: 16px;
-  height: 16px;
-  background: var(--bs-color-accent-text);
-  mask: url("../img/shield.svg") center / contain no-repeat;
+  background: var(--bs-color-text-primary);
+  mask: url("../img/logo.svg") center / contain no-repeat;
   content: "";
 }
 

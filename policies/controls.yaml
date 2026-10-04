@@ -75,7 +75,12 @@ controls:
     attach: [organization]
     mode: baseline
     outcome: deny
-    policies: [forbid-session-not-active, forbid-input-session-not-active]
+    policies:
+      [
+        forbid-session-not-active,
+        forbid-input-session-not-active,
+        forbid-file-session-not-active,
+      ]
 
   - id: CTL-ID-004
     name: Human actor still active
@@ -178,7 +183,11 @@ controls:
     parameters: [Resource.tier, AgentSession.tierCeiling]
     outcome: deny
     policies:
-      [forbid-resource-above-session-tier, forbid-scope-above-session-tier]
+      [
+        forbid-resource-above-session-tier,
+        forbid-scope-above-session-tier,
+        forbid-file-above-session-tier,
+      ]
 
   - id: CTL-TIER-002
     name: No write-down
@@ -231,6 +240,28 @@ controls:
     outcome: require_approval
     policies: [approval-high-impact-after-untrusted-input]
 
+  - id: CTL-FILE-001
+    name: File intake and release
+    primitive: PRM-TIER
+    explanation: A file enters or leaves an agent's workspace only through a Gateway scan. Its type comes from its bytes; executables, archives, the EICAR test signature, files with no text to scan and files carrying card numbers, IBANs, PESEL numbers or keys are refused. An accepted upload is catalogued with its tier before the agent can read it.
+    asi: [ASI01, ASI05, ASI06]
+    attach: [organization, use_case]
+    mode: baseline
+    outcome: deny
+    enforced_by: gateway
+    policies:
+      [
+        permit-file-transfer-by-session-human,
+        forbid-file-not-session-human,
+        forbid-file-outside-agent-runtime,
+        forbid-file-executable,
+        forbid-file-malware-test,
+        forbid-file-unscannable,
+        forbid-file-type-not-allowed,
+        forbid-file-oversize,
+      ]
+    mechanism: POST /api/v1/files/intake and /api/v1/files/release scan the bytes (magic-number type, EICAR, text from plain text, PDF via poppler, Word and Excel XML) with the CTL-IN-001 detectors and pass the classes to Cedar. Every scan is an audit row and a trace with the file hash and masked findings. An accepted upload becomes a catalogued Resource under workspace/uploads; a file the agent runtime writes after allow is catalogued with its folder's tier.
+
   - id: CTL-IN-001
     name: Input content filter
     primitive: PRM-TIER
@@ -249,6 +280,11 @@ controls:
         forbid-input-pesel,
         forbid-input-secret,
         forbid-input-resource-above-tier,
+        forbid-file-payment-card,
+        forbid-file-iban,
+        forbid-file-pesel,
+        forbid-file-secret,
+        forbid-file-resource-above-tier,
       ]
     mechanism: POST /api/v1/chat/inputs runs deterministic detectors that validate each match (Luhn check, IBAN mod-97, PESEL checksum and birth date, known key formats and PEM private-key blocks, catalogued resource names) and passes only the detected classes to Cedar. The mock analyzer may only add a deny. Every check is an audit row and a trace that stores masked findings, never the matched value.
 

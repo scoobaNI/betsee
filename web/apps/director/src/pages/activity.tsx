@@ -2,10 +2,13 @@ import type { ActionSummary } from '@betsee/api';
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import { ActivityList } from '../components/activity.tsx';
+import { StackedBars } from '../components/charts.tsx';
 import { Icon } from '../components/icon.tsx';
 import { Card, ECOSYSTEM_URL, EmptyState, ErrorCard, PageHeader, Segmented, Skeleton, TextLink } from '../components/ui.tsx';
 import { isAwaitingHuman, isObservation } from '../domain/decision.ts';
-import { useActions } from '../hooks.ts';
+import { formatCount } from '../domain/format.ts';
+import { bucketize } from '../domain/series.ts';
+import { useActions, useNow } from '../hooks.ts';
 
 type Show = 'all' | 'denied' | 'awaiting' | 'ai' | 'observed';
 
@@ -34,6 +37,8 @@ export function ActivityPage() {
   const scoped = useMemo(() => (agent ? actions.filter((a) => a.agent.id === agent) : actions), [actions, agent]);
   const counts = useMemo(() => Object.fromEntries(FILTERS.map((f) => [f.value, scoped.filter(f.test).length])) as Record<Show, number>, [scoped]);
   const shown = useMemo(() => scoped.filter(FILTERS.find((f) => f.value === show)!.test), [scoped, show]);
+  const tick = useNow(15_000);
+  const timeline = useMemo(() => bucketize(shown, Math.max(tick, Date.now()), 60 * 60_000, 40), [shown, tick]);
 
   const update = (next: { show?: Show; agent?: string | null }) => {
     const out = new URLSearchParams(params);
@@ -49,8 +54,7 @@ export function ActivityPage() {
     <div>
       <PageHeader
         crumbs={[{ label: 'Overview', to: '/' }, { label: 'Activity' }]}
-        title="Live activity"
-        description="Every request an agent made, as the Gateway decided it, newest first. Open any row to see who asked, why, and which control decided."
+        title="Activity"
         actions={show === 'awaiting' ? <TextLink href={`${ECOSYSTEM_URL}/approvals`}>Open approvals</TextLink> : undefined}
       />
       <div className="mb-6 flex flex-wrap items-center gap-3">
@@ -66,6 +70,15 @@ export function ActivityPage() {
           </button>
         )}
       </div>
+      <Card className="mb-6 p-7 sm:p-8">
+        <div className="mb-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <h2 className="text-[19px] font-bold tracking-[-0.02em] text-ink">Last hour</h2>
+          <span className="text-[14px] text-ink-3">
+            {formatCount(timeline.reduce((sum, b) => sum + b.total, 0))} decisions{show !== 'all' || agent ? ' matching the filter' : ''}, one bar per 90 seconds
+          </span>
+        </div>
+        <StackedBars buckets={timeline} bucketMs={90_000} height={150} />
+      </Card>
       <Card className="p-2">
         {query.isPending ? (
           <div className="space-y-2 p-2">
@@ -76,13 +89,10 @@ export function ActivityPage() {
         ) : query.isError && !query.data ? (
           <ErrorCard title="Could not load activity" error={query.error} onRetry={() => void query.refetch()} />
         ) : (
-          <ActivityList actions={shown} empty={<EmptyState icon="activity" title="Nothing here" body={EMPTY[show]} />} />
+          // Keyed by the filter: a new filter is a new list, not hundreds of rows animating out and in.
+          <ActivityList key={`${show}|${agent ?? ''}`} actions={shown} empty={<EmptyState icon="activity" title="Nothing here" body={EMPTY[show]} />} />
         )}
       </Card>
-      <p className="mt-5 flex items-center gap-2 px-2 text-[13px] text-ink-3">
-        <Icon name="info" size={14} />
-        Every row is a request the Gateway decided or an event it observed. Repeats within two seconds fold into one row.
-      </p>
     </div>
   );
 }

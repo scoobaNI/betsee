@@ -20,7 +20,7 @@ async function boot(): Promise<ReactNode> {
   if (import.meta.env.VITE_BETSEE_MOCK === '1') {
     // Dynamic so that real builds leave the whole mock world out of the bundle.
     const { createMockWorld, createMockFetch } = await import('@betsee/api/mock');
-    const world = createMockWorld({ seed: 7 });
+    const world = createMockWorld({ seed: 7, variety: true, chats: true });
     world.start();
     configureApi({ fetch: createMockFetch(world), mock: true });
     return (

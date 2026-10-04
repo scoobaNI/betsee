@@ -764,6 +764,17 @@ impl Gateway {
         match output {
             Ok(output) => {
                 trace["executed"] = json!(true);
+                // A new file the runtime writes after allow joins the catalogue at its folder's
+                // tier, so the agent and its human can read it back through the Gateway.
+                if delegated
+                    && new_file
+                    && request.capability == "files.write"
+                    && let Some(folder) = &resource
+                {
+                    self.store
+                        .put_entity(&json!({"uid":{"type":"Betsee::Resource","id":request.resource.id},"attrs":{"kind":"file","tier":folder["attrs"]["tier"],"external":false},"parents":folder["parents"]}))
+                        .await?;
+                }
                 append_span(
                     &mut trace,
                     "connector",

@@ -1,4 +1,4 @@
-export { Brand } from "./brand";
+export { Brand, LogoMark } from "./brand";
 export { Icon } from "./icon";
 export type { IconProps } from "./icon";
 export * from "./primitives";

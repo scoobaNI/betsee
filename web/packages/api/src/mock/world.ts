@@ -182,3 +182,23 @@ export const COST_CENTS: Record<string, number> = {
 };
 
 export const CUSTOMERS = ['C-1042', 'C-1043', 'C-1057', 'C-1088', 'C-1102', 'C-1131', 'C-1164', 'C-1190'];
+
+/**
+ * The Betsee Desk assistant and its use case, as the live Gateway names them. Only worlds created
+ * with `chats` have them, so the ecosystem mock's agents and use cases stay as they were.
+ */
+export const CHAT_USE_CASE = useCase('employee-assistance', 'Employee assistance', ['crm.read', 'files.read', 'tickets.read', 'llm.complete'], 'internal', {
+  agent_ids: ['employee-assistant'],
+});
+
+export const CHAT_AGENT: AgentSeed = {
+  id: 'employee-assistant',
+  team: 'Workplace',
+  provider: 'company-ai-gateway',
+  model: 'claude',
+  human: HUMANS.maya,
+  useCase: CHAT_USE_CASE,
+  delegated: ['crm.read', 'files.read', 'tickets.read', 'llm.complete'],
+  tierCeiling: 'internal',
+  budgetCents: 5_000,
+};

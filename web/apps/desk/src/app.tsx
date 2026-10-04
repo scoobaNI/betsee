@@ -1,0 +1,886 @@
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { Icon, IdToken, LogoMark, TierBadge } from "@betsee/ui";
+import { chatApi, useChatThread } from "@betsee/api/chat";
+import {
+  AGENT,
+  AgentMark,
+  Composer,
+  GovernedMarker,
+  Thread,
+} from "@betsee/chat";
+import {
+  desk,
+  native,
+  openSignIn,
+  pickFiles,
+  readDropped,
+  readFiles,
+  saveFile,
+  type PickedFile,
+} from "./bridge";
+
+type RuntimeId = "claude" | "codex";
+
+interface RuntimeStatus {
+  runtime: RuntimeId;
+  label: string;
+  installed: boolean;
+  path: string | null;
+  version: string | null;
+  logged_in: boolean;
+  auth: string;
+  detail: string;
+}
+
+interface DeskState {
+  signed_in: boolean;
+  human: { sub: string; display_name: string } | null;
+  runtime: RuntimeId;
+  runtimes: RuntimeStatus[];
+  workspace: string;
+  gateway: string;
+}
+
+interface WorkspaceFile {
+  path: string;
+  size: number;
+  modified: number | null;
+}
+
+const CONTROLS = [
+  ["CTL-IN-001", "What you type is checked first"],
+  ["CTL-FILE-001", "Files are scanned in and out"],
+  ["CTL-RT-001", "Every tool call asks the Gateway"],
+] as const;
+
+const bytes = (size: number) =>
+  size < 1024
+    ? `${size} B`
+    : size < 1024 * 1024
+      ? `${(size / 1024).toFixed(1)} KB`
+      : `${(size / 1024 / 1024).toFixed(1)} MB`;
+
+function Brand() {
+  return (
+    <div className="flex items-center gap-3">
+      <LogoMark size={36} className="text-fg-primary" />
+      <div>
+        <p className="font-display text-xl font-semibold">
+          Betsee<span className="text-accent-text">.</span> Desk
+        </p>
+        <p className="text-2xs text-fg-secondary">Governed AI workspace</p>
+      </div>
+    </div>
+  );
+}
+
+function Notice({
+  tone,
+  children,
+}: {
+  tone: "deny" | "info";
+  children: ReactNode;
+}) {
+  return (
+    <p
+      role={tone === "deny" ? "alert" : "status"}
+      className={`rounded-md border p-3 text-sm ${tone === "deny" ? "border-deny-border bg-deny-bg text-deny-fg" : "border-line-default bg-surface-1 text-fg-secondary"}`}
+    >
+      {children}
+    </p>
+  );
+}
+
+function SignIn({ error }: { error: string | null }) {
+  const [opened, setOpened] = useState(false);
+  return (
+    <main className="grid min-h-screen place-items-center bg-app p-6">
+      <section className="w-full max-w-md rounded-xl bg-surface-1 p-8 shadow-e2">
+        <Brand />
+        <h1 className="mt-8 font-display text-2xl font-semibold">Sign in</h1>
+        <p className="mt-1 text-md text-fg-secondary">Acme Logistics</p>
+        {error && (
+          <div className="mt-5">
+            <Notice tone="deny">{error}</Notice>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            setOpened(true);
+            void openSignIn();
+          }}
+          className="mt-7 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-accent px-5 font-semibold text-fg-on-accent hover:bg-accent-hover"
+        >
+          <Icon name="streamline-flex:user-identifier-card" size={16} />
+          Continue with SSO
+        </button>
+        {opened && (
+          <p
+            className="mt-4 text-center text-sm text-fg-secondary"
+            role="status"
+          >
+            Waiting for browser sign-in...
+          </p>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function RuntimeCard({
+  status,
+  selected,
+  onSelect,
+  onChanged,
+}: {
+  status: RuntimeStatus;
+  selected: boolean;
+  onSelect: () => void;
+  onChanged: () => void;
+}) {
+  const [key, setKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{
+    tone: "deny" | "info";
+    text: string;
+  } | null>(null);
+  const act = async (work: () => Promise<unknown>, done: string) => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await work();
+      setMessage({ tone: "info", text: done });
+      setKey("");
+      onChanged();
+    } catch (error) {
+      setMessage({
+        tone: "deny",
+        text: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const ready = status.installed && status.logged_in;
+  return (
+    <article
+      className={`flex flex-col rounded-lg p-5 ${selected ? "bg-surface-2 shadow-selected" : "bg-surface-1 shadow-e1"}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="inline-flex h-11 w-11 items-center justify-center rounded-md bg-surface-3 text-accent-text">
+            <Icon
+              name={
+                status.runtime === "codex"
+                  ? "streamline-flex:code-monitor-1"
+                  : "streamline-flex:ai-chip-robot"
+              }
+              size={22}
+            />
+          </span>
+          <div>
+            <h2 className="font-display text-xl font-semibold">
+              {status.label}
+            </h2>
+            <p className="font-mono text-xs text-fg-secondary">
+              {status.version ?? "not installed"}
+            </p>
+          </div>
+        </div>
+        <span
+          className={`inline-flex h-6 items-center gap-1.5 rounded-pill border px-2 text-xs font-semibold ${ready ? "border-allow-border bg-allow-bg text-allow-fg" : "border-approval-border bg-approval-bg text-approval-fg"}`}
+        >
+          <span
+            className={`h-1.5 w-1.5 rounded-pill ${ready ? "bg-allow-fg" : "bg-approval-fg"}`}
+          />
+          {ready
+            ? "Ready"
+            : status.installed
+              ? "Not signed in"
+              : "Not installed"}
+        </span>
+      </div>
+      <p className="mt-4 text-sm text-fg-secondary">{status.detail}</p>
+      {status.logged_in && (
+        <p className="mt-1 text-xs text-fg-tertiary">
+          Using{" "}
+          {status.auth === "api_key"
+            ? "your API key"
+            : status.auth === "chatgpt"
+              ? "your ChatGPT sign-in"
+              : "your own sign-in"}
+          .
+        </p>
+      )}
+      {status.installed && (
+        <div className="mt-5 space-y-3">
+          {status.runtime === "codex" && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                void act(
+                  () => desk("/desk/runtime/codex/import", {}),
+                  "Your Codex sign-in is linked to Betsee Desk.",
+                )
+              }
+              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-surface-3 px-3 text-sm font-medium hover:bg-surface-2"
+            >
+              <Icon name="streamline-flex:link-chain" size={14} />
+              Use my Codex sign-in
+            </button>
+          )}
+          <form
+            className="flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (key.trim())
+                void act(
+                  () =>
+                    desk("/desk/runtime/key", { runtime: status.runtime, key }),
+                  "Key saved. It stays on this computer.",
+                );
+            }}
+          >
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">
+                {status.runtime === "codex"
+                  ? "OpenAI API key"
+                  : "Anthropic API key"}
+              </span>
+              <input
+                type="password"
+                value={key}
+                onChange={(event) => setKey(event.target.value)}
+                placeholder={
+                  status.runtime === "codex"
+                    ? "OpenAI API key"
+                    : "Anthropic API key"
+                }
+                autoComplete="off"
+                className="h-9 w-full rounded-md border border-line-default bg-surface-inset px-3 font-mono text-sm focus:border-line-focus focus:outline-none"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={busy || !key.trim()}
+              className="h-9 rounded-md bg-surface-3 px-3 text-sm font-medium hover:bg-surface-2"
+            >
+              Save key
+            </button>
+          </form>
+          {status.runtime === "claude" && status.auth === "api_key" && (
+            <button
+              type="button"
+              className="text-xs text-fg-secondary underline"
+              onClick={() =>
+                void act(
+                  () =>
+                    desk("/desk/runtime/key", { runtime: "claude", key: null }),
+                  "Key removed.",
+                )
+              }
+            >
+              Remove saved key
+            </button>
+          )}
+          {status.runtime === "claude" && (
+            <p className="text-xs text-fg-tertiary">
+              Or sign in with your Claude plan: run{" "}
+              <code className="rounded-xs bg-surface-3 px-1 font-mono">
+                claude auth login
+              </code>{" "}
+              in a terminal.
+            </p>
+          )}
+        </div>
+      )}
+      {message && (
+        <div className="mt-4">
+          <Notice tone={message.tone}>{message.text}</Notice>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={onSelect}
+        disabled={!ready}
+        aria-pressed={selected}
+        className={`mt-auto inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 pt-0 text-sm font-semibold ${selected ? "bg-accent text-fg-on-accent" : ready ? "bg-surface-3 hover:bg-surface-2" : "bg-surface-3 text-fg-disabled"}`}
+        style={{ marginTop: 20 }}
+      >
+        {selected ? "Selected" : `Use ${status.label}`}
+      </button>
+    </article>
+  );
+}
+
+function Setup({
+  state,
+  onChanged,
+  onDone,
+}: {
+  state: DeskState;
+  onChanged: () => void;
+  onDone: () => void;
+}) {
+  const selected = state.runtimes.find((r) => r.runtime === state.runtime);
+  return (
+    <main className="min-h-screen bg-app p-8">
+      <div className="mx-auto max-w-4xl">
+        <div className="flex items-center justify-between gap-4">
+          <Brand />
+          <span className="text-sm text-fg-secondary">
+            {state.human?.display_name}
+          </span>
+        </div>
+        <h1 className="mt-10 font-display text-3xl font-semibold">
+          Choose your assistant
+        </h1>
+        <p className="mt-2 max-w-2xl text-md text-fg-secondary">
+          Bring your own Claude Code or Codex sign-in, or an API key. Whichever
+          you use, it runs inside Betsee: the Gateway decides every action and
+          every file before it happens.
+        </p>
+        <div className="mt-8 grid gap-5 md:grid-cols-2">
+          {state.runtimes.map((status) => (
+            <RuntimeCard
+              key={status.runtime}
+              status={status}
+              selected={status.runtime === state.runtime}
+              onChanged={onChanged}
+              onSelect={() =>
+                void desk("/desk/runtime", { runtime: status.runtime }).then(
+                  onChanged,
+                )
+              }
+            />
+          ))}
+        </div>
+        <div className="mt-8 flex items-center justify-between gap-4 rounded-lg bg-surface-1 p-5 shadow-e1">
+          <p className="text-sm text-fg-secondary">
+            Workspace:{" "}
+            <span className="font-mono text-fg-primary">{state.workspace}</span>
+          </p>
+          <button
+            type="button"
+            disabled={!selected?.logged_in}
+            onClick={onDone}
+            className={`inline-flex h-11 items-center gap-2 rounded-md px-5 font-semibold ${selected?.logged_in ? "bg-accent text-fg-on-accent hover:bg-accent-hover" : "bg-surface-3 text-fg-disabled"}`}
+          >
+            Open workspace
+            <Icon
+              name="streamline:interface-arrows-upright-corner-arrow-up-right-upright-corner"
+              size={14}
+            />
+          </button>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+// Remix Icon fill glyphs (Apache-2.0), the set the Director uses; copied, not imported.
+const GLYPHS = {
+  chat: "M7.291 20.824L2 22l1.176-5.291A9.96 9.96 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10s-4.477 10-10 10a9.96 9.96 0 0 1-4.709-1.176",
+  bot: "M13.5 2c0 .444-.193.843-.5 1.118V5h5a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3h5V3.118A1.5 1.5 0 1 1 13.5 2M0 10h2v6H0zm24 0h-2v6h2zM9 14.5a1.5 1.5 0 1 0 0-3a1.5 1.5 0 0 0 0 3m7.5-1.5a1.5 1.5 0 1 0-3 0a1.5 1.5 0 0 0 3 0",
+  inbox:
+    "M3 3h18a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1m6 9a3 3 0 1 0 6 0h5V5H4v7z",
+  power:
+    "M11 2.05V12h2V2.05c5.053.501 9 4.765 9 9.95c0 5.523-4.477 10-10 10S2 17.523 2 12c0-5.185 3.947-9.449 9-9.95",
+} as const;
+
+function DockTile({
+  glyph,
+  label,
+  tint,
+  active = false,
+  onClick,
+  href,
+}: {
+  glyph: keyof typeof GLYPHS | "logo";
+  label: string;
+  tint: [string, string];
+  active?: boolean;
+  onClick?: () => void;
+  href?: string;
+}) {
+  const tile = (
+    <span
+      className="desk-tile"
+      style={{ background: `linear-gradient(160deg, ${tint[0]}, ${tint[1]})` }}
+    >
+      {glyph === "logo" ? (
+        <LogoMark size={30} className="text-white" />
+      ) : (
+        <svg
+          viewBox="0 0 24 24"
+          width="26"
+          height="26"
+          fill="#fff"
+          aria-hidden="true"
+        >
+          <path d={GLYPHS[glyph]} />
+        </svg>
+      )}
+    </span>
+  );
+  return (
+    <div className="desk-dock-item">
+      {active && <span className="desk-dock-dot" aria-hidden="true" />}
+      {href ? (
+        <a href={href} target="_blank" rel="noreferrer" aria-label={label}>
+          {tile}
+        </a>
+      ) : (
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label={label}
+          aria-current={active ? "page" : undefined}
+        >
+          {tile}
+        </button>
+      )}
+      <span className="desk-dock-tip" role="tooltip">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/** The Director's dock: frosted glass on the left, gradient tiles, a dot marks the current place. */
+function Dock({
+  initials,
+  onNewChat,
+  onSettings,
+  onSignOut,
+}: {
+  initials: string;
+  onNewChat: () => void;
+  onSettings: () => void;
+  onSignOut: () => void;
+}) {
+  return (
+    <nav className="desk-dock glass" aria-label="Betsee Desk">
+      <DockTile
+        glyph="logo"
+        label="Betsee Desk"
+        tint={["#4a5568", "#101828"]}
+      />
+      <span className="desk-dock-sep" aria-hidden="true" />
+      <DockTile
+        glyph="chat"
+        label="New chat"
+        tint={["#6a96ff", "#2f5bea"]}
+        active
+        onClick={onNewChat}
+      />
+      <DockTile
+        glyph="bot"
+        label="Assistant and keys"
+        tint={["#3fd0f0", "#0a8bbd"]}
+        onClick={onSettings}
+      />
+      <DockTile
+        glyph="inbox"
+        label="Approvals (opens Betsee)"
+        tint={["#7d8fa8", "#34465f"]}
+        href="http://betsee.localhost/approvals"
+      />
+      <span className="desk-dock-sep" aria-hidden="true" />
+      <DockTile
+        glyph="power"
+        label="Sign out"
+        tint={["#9aa4b5", "#5b6578"]}
+        onClick={onSignOut}
+      />
+      <span className="desk-avatar" title="Signed in">
+        {initials}
+      </span>
+    </nav>
+  );
+}
+
+function Workspace({
+  state,
+  onSettings,
+  onSignOut,
+}: {
+  state: DeskState;
+  onSettings: () => void;
+  onSignOut: () => void;
+}) {
+  const [chatId, setChatId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const [notices, setNotices] = useState<string[]>([]);
+  const [sent, setSent] = useState<ReadonlyMap<string, string>>(new Map());
+  const [files, setFiles] = useState<WorkspaceFile[]>([]);
+  const [dropping, setDropping] = useState(false);
+  const [uploading, setUploading] = useState(0);
+  const thread = useChatThread(chatId, sent);
+  const runtime = state.runtimes.find((r) => r.runtime === state.runtime);
+  const notify = (text: string) =>
+    setNotices((current) => [...current.slice(-2), text]);
+
+  const startChat = useCallback(async () => {
+    try {
+      const chat = await chatApi.start();
+      setChatId(chat.chat_id);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not start a chat");
+    }
+  }, []);
+  useEffect(() => {
+    void startChat();
+  }, [startChat]);
+
+  const refreshFiles = useCallback(() => {
+    void desk<{ items: WorkspaceFile[] }>("/desk/files")
+      .then((list) => setFiles(list.items))
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    refreshFiles();
+    const timer = setInterval(refreshFiles, 5000);
+    return () => clearInterval(timer);
+  }, [refreshFiles]);
+  useEffect(refreshFiles, [thread.items.length, refreshFiles]);
+
+  const upload = useCallback(
+    async (picked: { files: PickedFile[]; errors: string[] }) => {
+      picked.errors.forEach(notify);
+      if (!chatId) return;
+      for (const file of picked.files) {
+        setUploading((n) => n + 1);
+        try {
+          await desk("/desk/files/upload", {
+            chat_id: chatId,
+            name: file.name,
+            content_base64: file.content_base64,
+            tier: "internal",
+          });
+        } catch {
+          // The refusal and its reason arrive in the thread as a file card.
+        } finally {
+          setUploading((n) => n - 1);
+        }
+      }
+      refreshFiles();
+    },
+    [chatId, refreshFiles],
+  );
+
+  const download = useCallback(
+    async (path: string) => {
+      if (!chatId) return;
+      try {
+        const result = await desk<{
+          type: string;
+          name: string;
+          content_base64?: string;
+        }>("/desk/files/download", { chat_id: chatId, path });
+        if (result.content_base64) {
+          const saved = await saveFile(
+            result.name ?? path.split("/").pop() ?? "file",
+            result.content_base64,
+          );
+          if (saved) notify(`Saved ${saved}`);
+        }
+      } catch {
+        // The refusal and its reason arrive in the thread as a file card.
+      }
+    },
+    [chatId],
+  );
+
+  useEffect(() => {
+    const tauri = native();
+    if (!tauri) return;
+    let stop: (() => void) | undefined;
+    void tauri.webview
+      .getCurrentWebview()
+      .onDragDropEvent((event) => {
+        const kind = event.payload.type;
+        if (kind === "enter" || kind === "over") setDropping(true);
+        else if (kind === "leave") setDropping(false);
+        else if (kind === "drop") {
+          setDropping(false);
+          void readDropped(event.payload.paths ?? []).then(upload);
+        }
+      })
+      .then((unlisten) => {
+        stop = unlisten;
+      });
+    return () => stop?.();
+  }, [upload]);
+
+  const send = async () => {
+    const text = draft.trim();
+    if (!text || !chatId) return;
+    setSending(true);
+    try {
+      const result = await chatApi.send(chatId, text);
+      setSent((current) => new Map(current).set(result.message_id, text));
+      setDraft("");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Message not sent");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const uploads = files.filter((f) => f.path.startsWith("uploads/"));
+  const others = files.filter((f) => !f.path.startsWith("uploads/"));
+
+  return (
+    <div className="desk-frame">
+      <Dock
+        initials={(state.human?.display_name ?? "?")
+          .split(" ")
+          .map((part) => part[0])
+          .join("")
+          .slice(0, 2)}
+        onNewChat={() => void startChat()}
+        onSettings={onSettings}
+        onSignOut={onSignOut}
+      />
+      <section
+        aria-label="Conversation"
+        className={`flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg bg-surface-1 shadow-e1 ${dropping ? "desk-drop" : ""}`}
+        onDragOver={(event) => {
+          if (!native()) {
+            event.preventDefault();
+            setDropping(true);
+          }
+        }}
+        onDragLeave={() => setDropping(false)}
+        onDrop={(event) => {
+          if (native()) return;
+          event.preventDefault();
+          setDropping(false);
+          void readFiles([...event.dataTransfer.files]).then(upload);
+        }}
+      >
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-line-subtle px-6">
+          <span className="inline-flex h-9 items-center gap-2 rounded-pill border border-line-default bg-surface-1 px-3">
+            <AgentMark size={20} />
+            <span className="font-mono text-sm font-medium">
+              {runtime?.label}
+            </span>
+          </span>
+          {thread.model && (
+            <span className="hidden h-9 items-center rounded-pill border border-line-default bg-surface-1 px-3 font-mono text-xs text-fg-secondary md:inline-flex">
+              {thread.model}
+            </span>
+          )}
+          <span className="ml-auto" />
+          <GovernedMarker />
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6">
+          <div className="mx-auto w-full max-w-(--bs-layout-eco-chat-column)">
+            {thread.items.length === 0 ? (
+              <div className="flex flex-col items-center pt-[10vh] text-center">
+                <span className="inline-flex h-16 w-16 items-center justify-center rounded-lg bg-surface-2 text-accent-text shadow-e2">
+                  <Icon name="streamline-flex:ai-chip-robot" size={28} />
+                </span>
+                <h1 className="mt-5 font-display text-3xl font-semibold">
+                  What do you need, {state.human?.display_name.split(" ")[0]}?
+                </h1>
+                <p className="mt-2 max-w-xl text-md text-fg-secondary">
+                  Ask {runtime?.label} about the files in your workspace, or
+                  attach your own. Drop files anywhere here: each is scanned
+                  before the assistant sees it.
+                </p>
+              </div>
+            ) : (
+              <Thread
+                items={thread.items}
+                busy={thread.busy}
+                onDownload={(path) => void download(path)}
+              />
+            )}
+          </div>
+        </div>
+        <div className="shrink-0 px-6 pb-6 pt-2">
+          <div className="mx-auto w-full max-w-(--bs-layout-eco-chat-column)">
+            {notices.map((text, index) => (
+              <div key={`${index}-${text}`} className="mb-2">
+                <Notice tone="info">{text}</Notice>
+              </div>
+            ))}
+            <Composer
+              value={draft}
+              onChange={setDraft}
+              onSend={() => void send()}
+              sending={sending}
+              disabled={sending || thread.busy || !chatId}
+              compact={thread.items.length > 0}
+              onAttach={() => void pickFiles().then(upload)}
+              attachments={
+                uploading > 0 ? (
+                  <p className="mb-2 text-xs text-fg-secondary" role="status">
+                    Scanning {uploading} {uploading === 1 ? "file" : "files"} at
+                    the Gateway
+                  </p>
+                ) : null
+              }
+            />
+          </div>
+        </div>
+      </section>
+      <aside
+        className="desk-files min-h-0 flex-col gap-4"
+        aria-label="Assistant and files"
+      >
+        <section className="rounded-lg bg-surface-1 p-5 shadow-e1">
+          <div className="flex items-center gap-3">
+            <AgentMark size={40} />
+            <div className="min-w-0">
+              <p className="truncate font-mono text-sm font-medium">{AGENT}</p>
+              <p className="text-xs text-fg-secondary">
+                {runtime?.label ?? "Runtime"}{" "}
+                <span className="font-mono">
+                  {runtime?.version?.split(" ")[0] ?? ""}
+                </span>
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center justify-between gap-3 text-sm">
+            <span className="text-fg-secondary">Session ceiling</span>
+            <TierBadge tier="internal" />
+          </div>
+          <ul className="mt-4 space-y-2 border-t border-line-subtle pt-4">
+            {CONTROLS.map(([id, label]) => (
+              <li key={id} className="flex items-center justify-between gap-3">
+                <span className="text-xs text-fg-secondary">{label}</span>
+                <IdToken
+                  id={id}
+                  href={`http://betsee.localhost/policy-studio/controls/${id}`}
+                  copy={false}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section className="flex min-h-0 flex-1 flex-col rounded-lg bg-surface-1 p-5 shadow-e1">
+          <h2 className="font-display text-xl font-bold tracking-[-0.02em]">
+            Workspace files
+          </h2>
+          <p className="mt-1 text-xs text-fg-secondary">
+            Downloads are scanned and released by the Gateway.
+          </p>
+          <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto">
+            {[
+              ["Shared by you", uploads],
+              ["Workspace", others],
+            ].map(([title, list]) => (
+              <section key={title as string}>
+                <p className="mb-2 text-2xs font-semibold tracking-widest text-fg-tertiary">
+                  {(title as string).toUpperCase()}
+                </p>
+                {(list as WorkspaceFile[]).length === 0 ? (
+                  <p className="text-xs text-fg-tertiary">Nothing yet.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {(list as WorkspaceFile[]).map((file) => (
+                      <li
+                        key={file.path}
+                        className="group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-surface-1"
+                      >
+                        <Icon
+                          name="streamline-flex:text-file"
+                          size={14}
+                          className="shrink-0 text-fg-tertiary"
+                        />
+                        <span
+                          className="min-w-0 flex-1 truncate font-mono text-xs"
+                          title={file.path}
+                        >
+                          {file.path}
+                        </span>
+                        <span className="text-2xs text-fg-tertiary">
+                          {bytes(file.size)}
+                        </span>
+                        <button
+                          type="button"
+                          title={`Download ${file.path}`}
+                          aria-label={`Download ${file.path}`}
+                          onClick={() => void download(file.path)}
+                          className="rounded-xs p-1 text-fg-secondary hover:bg-surface-2 hover:text-fg-primary"
+                        >
+                          <Icon name="streamline:download-box-1" size={14} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ))}
+          </div>
+        </section>
+      </aside>
+    </div>
+  );
+}
+
+export function App() {
+  const [state, setState] = useState<DeskState | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [settings, setSettings] = useState(false);
+  const load = useCallback(() => {
+    desk<DeskState>("/desk/state")
+      .then((next) => {
+        setState(next);
+        setError(null);
+      })
+      .catch((cause) =>
+        setError(cause instanceof Error ? cause.message : String(cause)),
+      );
+  }, []);
+  useEffect(load, [load]);
+  useEffect(() => {
+    if (state?.signed_in) return;
+    const timer = setInterval(load, 2500);
+    return () => clearInterval(timer);
+  }, [state?.signed_in, load]);
+  const ready = useMemo(
+    () =>
+      state?.runtimes.find((r) => r.runtime === state.runtime)?.logged_in ??
+      false,
+    [state],
+  );
+  if (!state)
+    return (
+      <main className="grid min-h-screen place-items-center bg-app p-6">
+        {error ? (
+          <Notice tone="deny">
+            Betsee Desk could not reach its governing service: {error}
+          </Notice>
+        ) : (
+          <p className="text-sm text-fg-secondary" role="status">
+            Starting Betsee Desk…
+          </p>
+        )}
+      </main>
+    );
+  if (!state.signed_in) return <SignIn error={error} />;
+  if (settings || !ready)
+    return (
+      <Setup state={state} onChanged={load} onDone={() => setSettings(false)} />
+    );
+  return (
+    <Workspace
+      state={state}
+      onSettings={() => setSettings(true)}
+      onSignOut={() => void desk("/desk/logout", {}).then(load)}
+    />
+  );
+}

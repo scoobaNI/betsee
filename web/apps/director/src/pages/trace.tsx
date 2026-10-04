@@ -1,7 +1,9 @@
 import { ApiRequestError, useAgentMessages, useAgents, useControls, useTrace, type Control, type Trace } from '@betsee/api';
-import { useEffect, useMemo, type ReactNode } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { Icon, type IconName } from '../components/icon.tsx';
+import { Burst, Rise, Stagger, TONE_COLOR } from '../components/motion.tsx';
 import { Composition, DecisionPath, Waterfall } from '../components/pipeline.tsx';
 import { Breakable, ReasonText } from '../components/reason.tsx';
 import {
@@ -16,6 +18,7 @@ import {
   Disclosure,
   EmptyState,
   ErrorCard,
+  outcomeOf,
   policyHref,
   RawTable,
   Section,
@@ -28,6 +31,8 @@ import { becauseSentence, decisionLabel, isVoided, reasonFromAnalyzer, resolutio
 import { teamName } from '../domain/feed.ts';
 import { formatDateTime, formatTime } from '../domain/format.ts';
 import { buildRail, formatDuration } from '../domain/pipeline.ts';
+import { repeatGroups } from '../domain/determinism.ts';
+import { useActions } from '../hooks.ts';
 
 /** After a human decides, the Gateway rewrites decision to allow; the sentence names the human step. */
 function verdictWords(trace: Trace): string {
@@ -36,8 +41,10 @@ function verdictWords(trace: Trace): string {
   // After approval the Gateway clears step_up_required; a passed step-up span is the evidence then.
   const stepUp =
     trace.step_up_required || trace.obligations.includes('step_up') || trace.spans.some((s) => s.stage === 'step_up' && s.status === 'passed');
-  if (resolution === 'approved' || resolution === 'verified') return stepUp ? 'Approved by a human with step-up' : 'Approved by a human';
-  if (resolution === 'rejected' || resolution === 'failed') return 'Rejected by a human';
+  if (resolution === 'verified') return 'Verified with step-up';
+  if (resolution === 'failed') return 'Step-up failed';
+  if (resolution === 'approved') return stepUp ? 'Approved by a human with step-up' : 'Approved by a human';
+  if (resolution === 'rejected') return 'Rejected by a human';
   return decisionLabel[trace.decision];
 }
 
@@ -80,10 +87,27 @@ function Sentence({ trace }: { trace: Trace }) {
 }
 
 function Hero({ trace, controls }: { trace: Trace; controls: Map<string, Control> }) {
+  const reduce = useReducedMotion();
+  const tone = outcomeOf(trace).tone;
   return (
-    <Card className="p-8 md:p-10">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <ActionVerdict action={trace} size="lg" />
+    <Card className="relative overflow-hidden p-8 md:p-10">
+      <motion.span
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-32 -left-24 h-80 w-80 rounded-full blur-3xl"
+        animate={{ background: TONE_COLOR[tone], opacity: 0.13 }}
+        initial={{ opacity: 0 }}
+        transition={{ duration: 1 }}
+      />
+      <div className="relative flex flex-wrap items-center gap-x-4 gap-y-3">
+        <motion.span
+          className="relative inline-flex rounded-full"
+          initial={reduce ? false : { scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 16, delay: 0.1 }}
+        >
+          <Burst trigger={1} onMount color={TONE_COLOR[tone]} strength={1.5} delay={0.25} />
+          <ActionVerdict action={trace} size="lg" />
+        </motion.span>
         <span className="ml-auto flex items-center gap-3 text-[13px] text-ink-3">
           <span title={formatDateTime(trace.occurred_at)} className="tabular-nums">
             {formatTime(trace.occurred_at)}
@@ -93,10 +117,15 @@ function Hero({ trace, controls }: { trace: Trace; controls: Map<string, Control
           <CopyId value={trace.trace_id} />
         </span>
       </div>
-      <div className="mt-7">
+      <motion.div
+        className="relative mt-7"
+        initial={reduce ? false : { opacity: 0, y: 10, filter: 'blur(6px)' }}
+        animate={{ opacity: 1, y: 0, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
+      >
         <Sentence trace={trace} />
-      </div>
-      <div className="mt-7 border-t border-line pt-6">
+      </motion.div>
+      <div className="relative mt-7 border-t border-line pt-6">
         <p className="text-[12px] font-medium text-ink-3">Why</p>
         <p className="mt-2 text-[15px] leading-relaxed text-ink">
           <ReasonText text={becauseSentence(trace, (id) => controls.get(id))} />
@@ -142,14 +171,14 @@ function CallerValue({ caller }: { caller: Caller }) {
 
 function Fact({ icon, label, children, sub }: { icon: IconName; label: string; children: ReactNode; sub?: ReactNode }) {
   return (
-    <div className="min-w-0 bg-surface p-6">
+    <Rise className="min-w-0 bg-surface p-6 transition-colors duration-200 hover:bg-hover/60">
       <p className="flex items-center gap-1.5 text-[12px] font-medium text-ink-3">
         <Icon name={icon} size={13} />
         {label}
       </p>
       <div className="mt-3 text-[15px] text-ink">{children}</div>
       {sub && <div className="mt-1.5 text-[13px] text-ink-3">{sub}</div>}
-    </div>
+    </Rise>
   );
 }
 
@@ -157,7 +186,7 @@ function Facts({ trace }: { trace: Trace }) {
   const agents = useAgents();
   const state = agents.data?.find((a) => a.id === trace.agent.id)?.state;
   return (
-    <div className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line shadow-card sm:grid-cols-2 lg:grid-cols-3">
+    <Stagger className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line shadow-card sm:grid-cols-2 lg:grid-cols-3" step={0.05} delay={0.3}>
       <Fact icon="user" label="Who initiated">
         <CallerValue caller={callerOf(trace.human, trace.agent.id)} />
       </Fact>
@@ -214,7 +243,7 @@ function Facts({ trace }: { trace: Trace }) {
           {!trace.policy_ids.length && !trace.control_ids.length && <span className="text-[14px] text-ink-3">None recorded</span>}
         </span>
       </Fact>
-    </div>
+    </Stagger>
   );
 }
 
@@ -243,6 +272,26 @@ function AgentMessage({ traceId }: { traceId: string }) {
   );
 }
 
+/** How often this exact request was made, and whether policy answered it the same way each time. */
+function Repeats({ traceId }: { traceId: string }) {
+  const { actions } = useActions();
+  const group = useMemo(() => repeatGroups(actions).find((g) => g.decisions.some((d) => d.traceId === traceId)), [actions, traceId]);
+  if (!group) return null;
+  return (
+    <div className={`mt-5 flex flex-wrap items-center gap-3 rounded-2xl px-5 py-4 text-[14px] ${group.consistent ? 'bg-ok-soft text-ok-ink' : 'bg-wait-soft text-wait-ink'}`}>
+      <Icon name={group.consistent ? 'equal' : 'git-branch'} size={18} />
+      <span className="min-w-0 flex-1 font-medium">
+        {group.consistent
+          ? `The same agent asked for exactly this ${group.decisions.length} times; policy gave the same answer every time.`
+          : `The same agent asked for exactly this ${group.decisions.length} times; the answer changed when the state the controls read changed.`}
+      </span>
+      <Link to="/determinism" className="font-semibold underline-offset-4 hover:underline">
+        Determinism
+      </Link>
+    </div>
+  );
+}
+
 function TraceSkeleton() {
   return (
     <div className="space-y-6">
@@ -259,6 +308,7 @@ export function TracePage() {
   const trace = useTrace(traceId);
   const controlsQuery = useControls();
   const controls = useMemo(() => new Map<string, Control>((controlsQuery.data ?? []).map((c) => [c.id, c])), [controlsQuery.data]);
+  const [replay, setReplay] = useState(0);
   const rail = useMemo(
     () =>
       trace.data ? buildRail(trace.data.spans, trace.data.decision, trace.data.step_up_required || trace.data.obligations.includes('step_up')) : undefined,
@@ -300,20 +350,36 @@ export function TracePage() {
       <div className="mt-6">
         <Facts trace={data} />
       </div>
-      <div className="mt-14 space-y-14">
+      <div className="mt-16 space-y-16">
+        <Section title="Deterministic first, AI second" hint="Why a model never decides this on its own">
+          <Card className="p-6 md:p-7">
+            <Composition trace={data} />
+            <Repeats traceId={data.trace_id} />
+          </Card>
+        </Section>
         {rail && (
-          <Section title="How the Gateway decided" hint="Open any step to see what it checked">
+          <Section
+            title="How the Gateway decided"
+            hint="Open any step to see what it checked"
+            action={
+              <button
+                type="button"
+                onClick={() => setReplay((n) => n + 1)}
+                className="press inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 font-medium text-ink-2 transition-colors hover:bg-sunken hover:text-ink"
+              >
+                <Icon name="play" size={12} />
+                Replay
+              </button>
+            }
+          >
             <Card className="p-4 md:p-6">
-              <DecisionPath rail={rail} controls={controls} />
+              <DecisionPath key={replay} rail={rail} controls={controls} />
             </Card>
           </Section>
         )}
         <Section title="Deeper detail">
           <div className="space-y-3">
             <AgentMessage traceId={data.trace_id} />
-            <Disclosure title="How the decision was composed" hint="Deterministic controls, then AI analysis, then the final decision" icon="sparkles">
-              <Composition trace={data} />
-            </Disclosure>
             {rail && (
               <Disclosure title="Timing" hint={`${formatDuration(rail.totalMs)} across ${data.spans.length} recorded spans`} icon="clock">
                 <Waterfall rail={rail} />

@@ -192,6 +192,96 @@
     "control_ids": ["CTL-AI-001"]
   },
   {
+    "id": "permit-file-transfer-by-session-human",
+    "name": "permit file transfer by session human",
+    "cedar": "@id(\"permit-file-transfer-by-session-human\")\n@reason(\"the file passed the Betsee file scan for {useCase}\")\n@control(\"CTL-FILE-001\")\npermit (\n  principal is Betsee::Human,\n  action in Betsee::Action::\"file_transfer\",\n  resource is Betsee::Resource\n)\nwhen {\n  context.session.human == principal &&\n  resource in Betsee::Connector::\"agent-runtime\"\n};",
+    "control_ids": ["CTL-FILE-001"]
+  },
+  {
+    "id": "forbid-file-not-session-human",
+    "name": "forbid file not session human",
+    "cedar": "@id(\"forbid-file-not-session-human\")\n@reason(\"only the human who started this session can move files in or out of its workspace\")\n@control(\"CTL-FILE-001\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource)\nunless { context.session.human == principal };",
+    "control_ids": ["CTL-FILE-001"]
+  },
+  {
+    "id": "forbid-file-outside-agent-runtime",
+    "name": "forbid file outside agent runtime",
+    "cedar": "@id(\"forbid-file-outside-agent-runtime\")\n@reason(\"files move only in and out of the agent runtime workspace\")\n@control(\"CTL-FILE-001\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource is Betsee::Resource)\nunless { resource in Betsee::Connector::\"agent-runtime\" };",
+    "control_ids": ["CTL-FILE-001"]
+  },
+  {
+    "id": "forbid-file-session-not-active",
+    "name": "forbid file session not active",
+    "cedar": "@id(\"forbid-file-session-not-active\")\n@reason(\"the session is closed, revoked or expired\")\n@control(\"CTL-ID-003\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource)\nunless {\n  context.session.status == \"active\" &&\n  context.now < context.session.expiresAt\n};",
+    "control_ids": ["CTL-ID-003"]
+  },
+  {
+    "id": "forbid-file-above-session-tier",
+    "name": "forbid file above session tier",
+    "cedar": "@id(\"forbid-file-above-session-tier\")\n@reason(\"the file is labelled above the session ceiling of {session.tierCeiling}\")\n@control(\"CTL-TIER-001\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource)\nwhen { context.tier > context.session.tierCeiling };",
+    "control_ids": ["CTL-TIER-001"]
+  },
+  {
+    "id": "forbid-file-payment-card",
+    "name": "forbid file payment card",
+    "cedar": "@id(\"forbid-file-payment-card\")\n@reason(\"the file contains a payment card number\")\n@control(\"CTL-IN-001\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource)\nwhen { context.detected.contains(\"payment_card\") };",
+    "control_ids": ["CTL-IN-001"]
+  },
+  {
+    "id": "forbid-file-iban",
+    "name": "forbid file iban",
+    "cedar": "@id(\"forbid-file-iban\")\n@reason(\"the file contains a bank account number (IBAN)\")\n@control(\"CTL-IN-001\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource)\nwhen { context.detected.contains(\"iban\") };",
+    "control_ids": ["CTL-IN-001"]
+  },
+  {
+    "id": "forbid-file-pesel",
+    "name": "forbid file pesel",
+    "cedar": "@id(\"forbid-file-pesel\")\n@reason(\"the file contains a PESEL national identification number\")\n@control(\"CTL-IN-001\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource)\nwhen { context.detected.contains(\"pesel\") };",
+    "control_ids": ["CTL-IN-001"]
+  },
+  {
+    "id": "forbid-file-secret",
+    "name": "forbid file secret",
+    "cedar": "@id(\"forbid-file-secret\")\n@reason(\"the file contains an API key or a private key\")\n@control(\"CTL-IN-001\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource)\nwhen { context.detected.contains(\"secret\") };",
+    "control_ids": ["CTL-IN-001"]
+  },
+  {
+    "id": "forbid-file-resource-above-tier",
+    "name": "forbid file resource above tier",
+    "cedar": "@id(\"forbid-file-resource-above-tier\")\n@reason(\"the file names a resource above the session ceiling of {session.tierCeiling}\")\n@control(\"CTL-IN-001\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource)\nwhen { context.detected.contains(\"resource_above_tier\") };",
+    "control_ids": ["CTL-IN-001"]
+  },
+  {
+    "id": "forbid-file-executable",
+    "name": "forbid file executable",
+    "cedar": "@id(\"forbid-file-executable\")\n@reason(\"the file is an executable or a script\")\n@control(\"CTL-FILE-001\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource)\nwhen { context.detected.contains(\"executable\") };",
+    "control_ids": ["CTL-FILE-001"]
+  },
+  {
+    "id": "forbid-file-malware-test",
+    "name": "forbid file malware test",
+    "cedar": "@id(\"forbid-file-malware-test\")\n@reason(\"the file carries the EICAR anti-malware test signature\")\n@control(\"CTL-FILE-001\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource)\nwhen { context.detected.contains(\"malware_test\") };",
+    "control_ids": ["CTL-FILE-001"]
+  },
+  {
+    "id": "forbid-file-unscannable",
+    "name": "forbid file unscannable",
+    "cedar": "@id(\"forbid-file-unscannable\")\n@reason(\"the file has no text Betsee can scan, so it cannot be checked\")\n@control(\"CTL-FILE-001\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource)\nwhen { context.detected.contains(\"unscannable\") };",
+    "control_ids": ["CTL-FILE-001"]
+  },
+  {
+    "id": "forbid-file-type-not-allowed",
+    "name": "forbid file type not allowed",
+    "cedar": "@id(\"forbid-file-type-not-allowed\")\n@reason(\"Betsee accepts text, PDF, Word and Excel files only\")\n@control(\"CTL-FILE-001\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource)\nwhen { context.detected.contains(\"type_not_allowed\") };",
+    "control_ids": ["CTL-FILE-001"]
+  },
+  {
+    "id": "forbid-file-oversize",
+    "name": "forbid file oversize",
+    "cedar": "@id(\"forbid-file-oversize\")\n@reason(\"the file is larger than the 8 MiB Betsee scans\")\n@control(\"CTL-FILE-001\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource)\nwhen { context.detected.contains(\"oversize\") };",
+    "control_ids": ["CTL-FILE-001"]
+  },
+  {
     "id": "forbid-budget-exceeded",
     "name": "forbid budget exceeded",
     "cedar": "@id(\"forbid-budget-exceeded\")\n@reason(\"this action would exceed the session budget\")\n@control(\"CTL-RUN-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context.session.spentCents + context.costCents > context.session.budgetCents };",

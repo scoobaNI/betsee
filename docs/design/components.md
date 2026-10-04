@@ -305,6 +305,6 @@ message `chat-bubble-text-square`, tier `layers-1`, budget `dashboard-gauge-1`, 
 `ai-scanner-robot`, mock `erlenmeyer-flask`, live `wave-signal-circle`, audit `text-file`, blocked
 tool `shield-cross`, Identity mark `user-identifier-card`, Connect mark `link-chain`.
 
-Employee chat: `streamline:` composer spark `ai-prompt-spark`, send `arrow-up-1`;
-`streamline-flex:` chat `chat-bubble-typing-oval`, shell command `code-monitor-1`, file write
+Employee chat: `streamline:` composer spark `ai-prompt-spark`, send `arrow-up-1`, attach `paperclip-1`, download `download-box-1`;
+`streamline-flex:` shell command `code-monitor-1`, file write
 `pencil-square`.

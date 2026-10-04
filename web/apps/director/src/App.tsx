@@ -2,15 +2,17 @@ import { useLiveSync, useMe } from '@betsee/api';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
-import { DemoDock } from './components/demo-dock.tsx';
 import { ErrorBoundary } from './components/error-boundary.tsx';
 import { EASE } from './components/motion.tsx';
 import { Shell } from './components/shell.tsx';
 import { ECOSYSTEM_URL, ErrorCard, FullPageMessage } from './components/ui.tsx';
+import { AccessPage } from './pages/access.tsx';
 import { ActivityPage } from './pages/activity.tsx';
 import { AgentPage } from './pages/agent.tsx';
 import { AgentsPage } from './pages/agents.tsx';
+import { ConfigurationPage } from './pages/configuration.tsx';
 import { CoveragePage } from './pages/coverage.tsx';
+import { DeterminismPage } from './pages/determinism.tsx';
 import { GraphPage } from './pages/graph.tsx';
 import { OverviewPage } from './pages/overview.tsx';
 import { TracePage } from './pages/trace.tsx';
@@ -19,7 +21,8 @@ const DIRECTOR_ROLES = ['security-officer', 'org-admin'];
 
 const TITLES: [RegExp, string][] = [
   [/^\/agents\/./, 'Agent'],
-  [/^\/agents/, 'Agents'],
+  [/^\/agents/, 'Org chart'],
+  [/^\/determinism/, 'Determinism'],
   [/^\/activity/, 'Activity'],
   [/^\/graph/, 'Graph'],
   [/^\/coverage/, 'Coverage'],
@@ -42,7 +45,7 @@ function Director() {
   // Query changes (?team=, ?show=) stay on the page; a new place swaps the page out and in.
   const place = location.pathname.split('/').slice(0, 3).join('/');
   return (
-    <Shell dock={<DemoDock />}>
+    <Shell>
       <AnimatePresence mode="wait" initial={false} onExitComplete={() => window.scrollTo({ top: 0 })}>
         <motion.div
           key={place}
@@ -60,6 +63,9 @@ function Director() {
               <Route path="/traces/:traceId" element={<TracePage />} />
               <Route path="/graph" element={<GraphPage />} />
               <Route path="/coverage" element={<CoveragePage />} />
+              <Route path="/determinism" element={<DeterminismPage />} />
+              <Route path="/configuration" element={<ConfigurationPage />} />
+              <Route path="/access" element={<AccessPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </ErrorBoundary>

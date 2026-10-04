@@ -36,30 +36,49 @@ kept, measured 97 seconds. Later starts reuse everything.
 Sign in as **Daniel Ortiz** (`daniel`, security officer and approver); the demo passwords are in
 `.env.example`. Step-up asks for a one-time code: `scripts/otp.sh` prints Daniel's current code.
 
+Step-by-step instructions for the demo, the real setup with Betsee Desk, and watching Desk chats in
+the Director: [`docs/running.md`](docs/running.md). What a production and commercial deployment takes:
+[`docs/prod_commercial_deployment.md`](docs/prod_commercial_deployment.md).
+
 Before presenting, `./scripts/stage-check.sh` runs a read-only preflight and prints GO or NO-GO.
 
 The seven-act stage demo is in [`docs/demo-script.md`](docs/demo-script.md). Each act launches from
-the Director's scenario dock; `demo/` holds the scenarios and the runner that drives them through the
+the Director's command palette (`Ctrl+K`); `demo/` holds the scenarios and the runner that drives them through the
 real Gateway.
 
-### Chat with a governed agent
+### Betsee Desk: chat with a governed agent
 
-`http://betsee.localhost/chat` is an employee (Maya) talking to real Claude Code. The claude CLI
-and its login live on the host, so its runner, agent-host, runs outside Docker:
+`desk/` is a native app (Tauri 2; the window is `web/apps/desk`) where an employee (Maya) works with
+real Claude Code or Codex under Betsee. What she types first passes the Gateway's content filter
+(CTL-IN-001: card numbers by Luhn, IBANs by mod-97, PESEL by checksum, API and private keys, names
+of resources above the session tier). Every tool call the runtime attempts goes through a
+PreToolUse hook to `POST /api/v1/actions` as the agent `employee-assistant` (CTL-RT-001): reads of
+catalogued workspace files by tier, read-only shell templates, writes after an approver says yes in
+Approvals, no network egress, and deny when the Gateway cannot be reached. Each attempt is a trace
+in the Director. On a realm imported before the Desk existed, run
+`python3 scripts/keycloak-sync-clients.py employee-assistant betsee-desk` once. It embeds agent-host on `127.0.0.1:8097` and is itself the runtimes'
+PreToolUse hook.
 
 ```sh
-python3 scripts/keycloak-sync-clients.py employee-assistant   # once, on a realm imported before the client existed
-scripts/agent-host.sh                                         # builds and starts agent-host on 127.0.0.1:8095
+cd desk && npm install && npm run dev        # development window (Vite on :1430)
+cd desk && npm run build                      # .deb, .rpm and AppImage under desk/src-tauri/target/release/bundle
+cd desk && npx tauri build --no-bundle       # the app binary only; plain `cargo build` would load the dev server instead of the built UI
 ```
 
-What Maya types first passes the Gateway's content filter (CTL-IN-001: card numbers by Luhn, IBANs
-by mod-97, PESEL by checksum, API and private keys, names of resources above the session tier).
-Every tool call Claude Code then attempts goes through a PreToolUse hook to `POST /api/v1/actions`
-as the agent `employee-assistant` (CTL-RT-001): reads of catalogued workspace files by tier,
-read-only shell templates, writes after an approver says yes in Approvals, no network egress, and
-deny when the Gateway cannot be reached. Each attempt is a trace in the Director. The workspace is
-`state/agent-workspace`, copied from `demo/workspace`; `scripts/agent-host.sh --reset-workspace`
-restores it. `python3 tests/agent-chat/e2e.py` checks all of it end to end.
+- **Sign-in** in the system browser (Keycloak client `betsee-desk`, PKCE, loopback redirect). The
+  window never holds a Keycloak token; it talks to the embedded service with a per-launch token.
+- **Runtime setup**: Claude Code with the person's own `claude auth login` or an Anthropic API key;
+  Codex with their own Codex sign-in (copied into a Betsee-owned `CODEX_HOME`) or an OpenAI API key.
+  Codex runs with the flags that close its fail-open hook paths (`runtime.rs` names each one), and a
+  command that ran without a matching Gateway allow stops the run.
+- **Files** go through `POST /api/v1/files/intake` and `/release` (CTL-FILE-001): the type comes
+  from the bytes, executables, archives, the EICAR signature and files with no scannable text are
+  refused, and text from plain files, PDFs, Word and Excel goes through the CTL-IN-001 detectors.
+  An accepted upload is catalogued under `workspace/uploads`; a file the assistant writes after
+  allow is catalogued too, so it can be read back and downloaded through the same scan.
+- The workspace is `~/.local/share/betsee-desk/workspace`, seeded from `demo/workspace`.
+- `desk/src-tauri/target/release/betsee-desk --serve-only` runs the governing service without a
+  window and prints a `?api=&token=` pair for the same UI in a browser (tests).
 
 ## The ecosystem
 
@@ -168,8 +187,8 @@ cargo test --manifest-path gateway/Cargo.toml -p betsee-decision
 # Positive and negative security suite against the running stack
 ./tests/run-security.sh
 
-# Governed employee chat end to end (needs scripts/agent-host.sh and a logged-in claude CLI)
-python3 tests/agent-chat/e2e.py
+# Betsee Desk end to end (needs the desk built, `npm run dev -w @betsee/desk` and a logged-in claude CLI)
+node tests/desk/e2e.mjs --live-gateway-stop
 ```
 
 The security suite has 37 cases and runs in under a minute against the live stack, with real HTTP

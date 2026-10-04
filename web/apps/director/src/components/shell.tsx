@@ -1,182 +1,366 @@
-import { eventHub, useMe, useStreamStatus, useTraces, type StreamStatus } from '@betsee/api';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { eventHub, useMe, useStreamStatus, useTraces } from '@betsee/api';
+import {
+  AnimatePresence,
+  motion,
+  useAnimate,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+  useTransform,
+  type MotionValue,
+} from 'motion/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { NavLink, useLocation } from 'react-router';
+import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useSignOut } from '../auth.tsx';
-import { formatTime } from '../domain/format.ts';
+import { formatTime, initials } from '../domain/format.ts';
+import { personByName, photoOf } from '../domain/people.ts';
 import { useKpis } from '../hooks.ts';
-import { useOrgPulse } from '../live.ts';
-import { useMockMode } from '../mock-mode.tsx';
-import { Icon, type IconName } from './icon.tsx';
-import { Burst, TONE_COLOR, usePop } from './motion.tsx';
+import { markActivitySeen, useUnseenActivity } from '../live.ts';
+import { NAV_GROUPS, NAV_ITEMS, type NavItem } from '../nav.ts';
+import { CommandPalette, useCommandPalette } from './command.tsx';
+import { Icon, LogoMark, type IconName } from './icon.tsx';
+import { EASE, SPRING } from './motion.tsx';
 import { LiveToasts } from './toasts.tsx';
-import { Avatar, EASE, ECOSYSTEM_URL, outcomeOf, Wordmark } from './ui.tsx';
+import { Avatar, ECOSYSTEM_URL } from './ui.tsx';
 
-const NAV: { to: string; label: string; icon: IconName; match: RegExp }[] = [
-  { to: '/', label: 'Overview', icon: 'overview', match: /^\/$/ },
-  { to: '/agents', label: 'Agents', icon: 'bot', match: /^\/agents/ },
-  { to: '/activity', label: 'Activity', icon: 'activity', match: /^\/(activity|traces)/ },
-  { to: '/graph', label: 'Graph', icon: 'map', match: /^\/graph/ },
-  { to: '/coverage', label: 'Coverage', icon: 'shield', match: /^\/coverage/ },
-];
+// Dock geometry, after the macOS Dock: tiles rest at BASE and swell to PEAK under the pointer,
+// neighbours within REACH swelling less. The dock is a fixed strip; swollen tiles grow out of it.
+const BASE = 54;
+const PEAK = 86;
+const REACH = 150;
+const PAD = 14;
+const DOCK_W = BASE + PAD * 2;
+// Left margin + dock + gap before the page, read by Shell and the full-bleed canvases.
+const RAIL = 16 + DOCK_W + 28;
 
-function Nav() {
-  const { pathname } = useLocation();
+const SHORTCUT = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K';
+
+/** How big a tile is right now, from how far the pointer is from its centre along the dock. */
+function useMagnify(pointer: MotionValue<number>) {
+  const ref = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
-  const [hovered, setHovered] = useState<string | null>(null);
-  const spring = reduce ? { duration: 0 } : ({ type: 'spring', stiffness: 500, damping: 42 } as const);
+  const distance = useTransform(pointer, (y) => {
+    const box = ref.current?.getBoundingClientRect();
+    return box ? y - (box.top + box.height / 2) : Infinity;
+  });
+  const target = useTransform(distance, [-REACH, 0, REACH], reduce ? [BASE, BASE, BASE] : [BASE, PEAK, BASE]);
+  const size = useSpring(target, { mass: 0.1, stiffness: 190, damping: 14 });
+  return { ref, size };
+}
+
+/** A rounded, glossy app tile with a glyph that scales with it. */
+function Tile({ size, tint, icon, children }: { size: MotionValue<number>; tint: [string, string]; icon?: IconName; children?: ReactNode }) {
   return (
-    <nav aria-label="Director" onPointerLeave={() => setHovered(null)} className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
-      {NAV.map((item) => {
-        const active = item.match.test(pathname);
-        return (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            onPointerEnter={() => setHovered(item.to)}
-            aria-current={active ? 'page' : undefined}
-            aria-label={item.label}
-            className={`press relative inline-flex h-9 shrink-0 items-center gap-2 rounded-xl px-3 text-[14px] font-medium transition-colors ${
-              active ? 'text-ink' : 'text-ink-3 hover:text-ink'
-            }`}
-          >
-            {hovered === item.to && !active && (
-              <motion.span layoutId="nav-hover" className="absolute inset-0 rounded-xl bg-hover" transition={spring} />
-            )}
-            {active && <motion.span layoutId="nav-active" className="absolute inset-0 rounded-xl bg-sunken shadow-[inset_0_0_0_1px_var(--color-line)]" transition={spring} />}
-            <motion.span className="relative" animate={active && !reduce ? { rotate: [0, -8, 0], scale: [1, 1.15, 1] } : {}} transition={{ duration: 0.4 }}>
-              <Icon name={item.icon} size={16} />
-            </motion.span>
-            <span className="relative hidden sm:inline">{item.label}</span>
-          </NavLink>
-        );
-      })}
-    </nav>
+    <motion.span
+      style={{ width: size, height: size, background: `linear-gradient(160deg, ${tint[0]}, ${tint[1]})` }}
+      className="relative flex shrink-0 items-center justify-center rounded-[27%] text-white shadow-[0_8px_18px_-6px_rgb(16_24_40/0.45),0_2px_4px_rgb(16_24_40/0.12),inset_0_1px_0_rgb(255_255_255/0.35),inset_0_-1px_0_rgb(0_0_0/0.15)]"
+    >
+      <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-[inherit] bg-gradient-to-b from-white/30 via-white/5 to-transparent" />
+      {icon && <Icon name={icon} size={28} className="relative h-[48%] w-[48%] drop-shadow-[0_1px_1px_rgb(0_0_0/0.25)]" />}
+      {children}
+    </motion.span>
   );
 }
 
-const STREAM: Record<StreamStatus, { label: string; dot: string; live?: boolean }> = {
-  connecting: { label: 'Connecting', dot: 'bg-ink-4' },
-  live: { label: 'Live', dot: 'bg-ok', live: true },
-  stale: { label: 'Quiet', dot: 'bg-wait' },
-  reconnecting: { label: 'Reconnecting', dot: 'bg-wait' },
-  offline: { label: 'Offline', dot: 'bg-bad' },
-};
-
-/** The stream state; while live, the dot beats once for every event the Gateway sends. */
-function StreamIndicator() {
-  const status = useStreamStatus();
-  const { pulse } = useOrgPulse();
-  const beat = usePop<HTMLSpanElement>(pulse.seq, 1.6);
-  const s = STREAM[status];
-  const tone = pulse.action ? outcomeOf(pulse.action).tone : 'ok';
-  const title =
-    status === 'stale' ? 'No event from the Gateway for 20 s; reconnecting soon.' : status === 'live' ? 'Receiving events from the Gateway as they happen.' : undefined;
-  return (
-    <span title={title} className="inline-flex h-8 items-center gap-2 rounded-full px-1 text-[13px] font-medium text-ink-2">
-      <span className="relative flex h-2 w-2">
-        {s.live && <Burst trigger={pulse.seq} color={TONE_COLOR[tone]} strength={3.2} />}
-        <span ref={beat} className={`h-2 w-2 rounded-full transition-colors duration-500 ${s.dot} ${s.live ? 'live-dot' : ''}`} />
-      </span>
-      <span className="hidden md:inline">{s.label}</span>
-    </span>
-  );
-}
-
-function AwaitingPill() {
-  const { kpis } = useKpis();
-  const count = kpis.awaitingHuman;
+function Label({ text, show }: { text: string; show: boolean }) {
   return (
     <AnimatePresence>
-      {count > 0 && (
-        <motion.a
-          href={`${ECOSYSTEM_URL}/approvals`}
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.9 }}
-          transition={{ duration: 0.25, ease: EASE }}
-          title="Open the approvals inbox in the Betsee ecosystem"
-          className="press inline-flex h-8 items-center gap-1.5 rounded-full bg-wait-soft px-3 text-[13px] font-medium text-wait-ink transition-colors hover:bg-[#fdecd0]"
+      {show && (
+        <motion.span
+          role="tooltip"
+          className="pointer-events-none absolute top-1/2 left-full z-50 ml-5 -translate-y-1/2 rounded-[10px] bg-ink/85 px-3 py-1.5 text-[13.5px] font-semibold whitespace-nowrap text-white shadow-lift backdrop-blur-md"
+          initial={{ opacity: 0, x: -8, scale: 0.94 }}
+          animate={{ opacity: 1, x: 0, scale: 1 }}
+          exit={{ opacity: 0, x: -6, scale: 0.96, transition: { duration: 0.1 } }}
+          transition={{ type: 'spring', stiffness: 520, damping: 32 }}
         >
-          <span className="waiting-ring h-1.5 w-1.5 rounded-full bg-wait" />
-          <span className="inline-grid">
-            <AnimatePresence initial={false}>
-              <motion.span
-                key={count}
-                className="col-start-1 row-start-1 tabular-nums"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.25, ease: EASE }}
-              >
-                {count}
-              </motion.span>
-            </AnimatePresence>
-          </span>
-          <span className="hidden sm:inline">awaiting a human</span>
-        </motion.a>
+          <span aria-hidden="true" className="absolute top-1/2 -left-1 h-2.5 w-2.5 -translate-y-1/2 rotate-45 rounded-[2px] bg-ink/85" />
+          {text}
+        </motion.span>
       )}
     </AnimatePresence>
   );
 }
 
-function UserMenu() {
+function Badge({ count, tone }: { count: number; tone: 'accent' | 'wait' }) {
+  return (
+    <AnimatePresence>
+      {count > 0 && (
+        <motion.span
+          key="badge"
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          exit={{ scale: 0 }}
+          transition={{ type: 'spring', stiffness: 600, damping: 18 }}
+          className={`absolute -top-1.5 -right-1.5 z-10 flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1.5 text-[11.5px] font-bold text-white tabular-nums ring-[2.5px] ring-white/90 ${
+            tone === 'wait' ? 'bg-wait' : 'bg-accent'
+          }`}
+        >
+          <motion.span key={count} initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+            {count > 99 ? '99+' : count}
+          </motion.span>
+        </motion.span>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/** One place in the dock: the tile, the running dot when it is the current page, a bounce on click. */
+function DockLink({ item, pointer, badge }: { item: NavItem; pointer: MotionValue<number>; badge?: number }) {
+  const { pathname } = useLocation();
+  const reduce = useReducedMotion();
+  const { ref, size } = useMagnify(pointer);
+  const [scope, animate] = useAnimate<HTMLSpanElement>();
+  const [hover, setHover] = useState(false);
+  const active = item.match.test(pathname);
+  return (
+    <motion.div ref={ref} style={{ height: size }} className="relative flex w-full items-center">
+      {active && (
+        <motion.span
+          layoutId="dock-dot"
+          className="absolute -left-[10px] h-[5px] w-[5px] rounded-full bg-ink/70"
+          transition={reduce ? { duration: 0 } : SPRING}
+        />
+      )}
+      <NavLink
+        to={item.to}
+        aria-label={item.label}
+        aria-current={active ? 'page' : undefined}
+        onPointerEnter={() => setHover(true)}
+        onPointerLeave={() => setHover(false)}
+        onClick={() => {
+          if (!reduce && scope.current) void animate(scope.current, { x: [0, 16, 0, 7, 0] }, { duration: 0.6, ease: 'easeOut' });
+        }}
+        className="relative block rounded-[27%]"
+      >
+        <span ref={scope} className="relative block">
+          <Tile size={size} tint={item.tint} icon={item.icon} />
+          {badge !== undefined && <Badge count={badge} tone="accent" />}
+        </span>
+        <Label text={item.label} show={hover} />
+      </NavLink>
+    </motion.div>
+  );
+}
+
+function DockButton({ label, pointer, tint, icon, onClick, href, badge, children }: {
+  label: string;
+  pointer: MotionValue<number>;
+  tint: [string, string];
+  icon?: IconName;
+  onClick?: () => void;
+  href?: string;
+  badge?: number;
+  children?: ReactNode;
+}) {
+  const { ref, size } = useMagnify(pointer);
+  const [hover, setHover] = useState(false);
+  const inner = (
+    <>
+      <span className="relative block">
+        <Tile size={size} tint={tint} icon={icon}>
+          {children}
+        </Tile>
+        {badge !== undefined && <Badge count={badge} tone="wait" />}
+      </span>
+      <Label text={label} show={hover} />
+    </>
+  );
+  const common = {
+    'aria-label': label,
+    onPointerEnter: () => setHover(true),
+    onPointerLeave: () => setHover(false),
+    className: 'relative block rounded-[27%]',
+  };
+  return (
+    <motion.div ref={ref} style={{ height: size }} className="relative flex w-full items-center">
+      {href ? (
+        <a href={href} {...common}>
+          {inner}
+        </a>
+      ) : (
+        <button type="button" onClick={onClick} {...common}>
+          {inner}
+        </button>
+      )}
+    </motion.div>
+  );
+}
+
+function Separator() {
+  return <span aria-hidden="true" className="my-1 h-px w-[70%] shrink-0 self-center bg-ink/12" />;
+}
+
+function AccountMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   const me = useMe();
   const signOut = useSignOut();
-  const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
     const close = (event: MouseEvent | KeyboardEvent) => {
-      if (event instanceof KeyboardEvent ? event.key === 'Escape' : !ref.current?.contains(event.target as Node)) setOpen(false);
+      if (event instanceof KeyboardEvent ? event.key === 'Escape' : !ref.current?.contains(event.target as Node)) onClose();
     };
-    window.addEventListener('mousedown', close);
-    window.addEventListener('keydown', close);
+    const timer = setTimeout(() => {
+      window.addEventListener('mousedown', close);
+      window.addEventListener('keydown', close);
+    });
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('mousedown', close);
       window.removeEventListener('keydown', close);
     };
-  }, [open]);
+  }, [open, onClose]);
   if (!me.data) return null;
+  const name = me.data.human.display_name;
+  const title = personByName(name)?.title ?? me.data.roles.filter((r) => r === 'security-officer' || r === 'org-admin').join(', ');
   const organization = (me.data.organization as { name?: string } | undefined)?.name;
   return (
-    <div ref={ref} className="relative">
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          ref={ref}
+          initial={{ opacity: 0, x: -10, scale: 0.96 }}
+          animate={{ opacity: 1, x: 0, scale: 1 }}
+          exit={{ opacity: 0, x: -10, scale: 0.97 }}
+          transition={{ duration: 0.2, ease: EASE }}
+          className="glass absolute bottom-0 left-full z-50 ml-5 w-72 origin-bottom-left rounded-[20px] p-2"
+        >
+          <div className="flex items-center gap-3 px-3 pt-3 pb-4">
+            <Avatar name={name} size={44} />
+            <div className="min-w-0">
+              <p className="truncate text-[15px] font-bold text-ink">{name}</p>
+              <p className="truncate text-[12.5px] text-ink-3">{[title, organization].filter(Boolean).join(', ')}</p>
+            </div>
+          </div>
+          <a href={ECOSYSTEM_URL} className="flex h-11 items-center gap-3 rounded-xl px-3 text-[14.5px] font-medium text-ink-2 transition-colors hover:bg-ink/[0.05] hover:text-ink">
+            <Icon name="home" size={18} />
+            Betsee ecosystem
+          </a>
+          {signOut && (
+            <button type="button" onClick={signOut} className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-[14.5px] font-medium text-ink-2 transition-colors hover:bg-ink/[0.05] hover:text-ink">
+              <Icon name="log-out" size={18} />
+              Sign out
+            </button>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/** The account as the last item in the dock: the person's photo, magnifying like the tiles. */
+function DockAccount({ pointer }: { pointer: MotionValue<number> }) {
+  const me = useMe();
+  const { ref, size } = useMagnify(pointer);
+  const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState(false);
+  if (!me.data) return null;
+  const name = me.data.human.display_name;
+  const person = personByName(name);
+  return (
+    <motion.div ref={ref} style={{ height: size }} className="relative flex w-full items-center">
       <button
         type="button"
-        aria-expanded={open}
         aria-label="Account"
+        aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center rounded-full transition-shadow hover:ring-4 hover:ring-sunken"
+        onPointerEnter={() => setHover(true)}
+        onPointerLeave={() => setHover(false)}
+        className="relative block rounded-full"
       >
-        <Avatar name={me.data.human.display_name} size={32} />
+        <motion.span
+          style={{ width: size, height: size }}
+          className="flex items-center justify-center overflow-hidden rounded-full bg-sunken text-[17px] font-bold text-ink-2 shadow-[0_8px_18px_-6px_rgb(16_24_40/0.45)] ring-[3px] ring-white"
+        >
+          {person ? <img src={photoOf(person)} alt="" draggable={false} className="h-full w-full object-cover" /> : initials(name)}
+        </motion.span>
+        <Label text={name} show={hover && !open} />
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
-            transition={{ duration: 0.18, ease: EASE }}
-            className="absolute top-11 right-0 z-50 w-64 origin-top-right rounded-2xl border border-line bg-surface p-2 shadow-pop"
-          >
-            <div className="px-3 pt-2 pb-3">
-              <p className="text-[14px] font-semibold text-ink">{me.data.human.display_name}</p>
-              <p className="mt-0.5 text-[12px] text-ink-3">{[organization, me.data.roles.filter((r) => r === 'security-officer' || r === 'org-admin').join(', ')].filter(Boolean).join(' - ')}</p>
-            </div>
-            <a href={ECOSYSTEM_URL} className="flex h-9 items-center gap-2.5 rounded-lg px-3 text-[14px] text-ink-2 transition-colors hover:bg-sunken hover:text-ink">
-              <Icon name="home" size={15} />
-              Betsee ecosystem
-            </a>
-            {signOut && (
-              <button type="button" onClick={signOut} className="flex h-9 w-full items-center gap-2.5 rounded-lg px-3 text-[14px] text-ink-2 transition-colors hover:bg-sunken hover:text-ink">
-                <Icon name="log-out" size={15} />
-                Sign out
-              </button>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+      <AccountMenu open={open} onClose={() => setOpen(false)} />
+    </motion.div>
+  );
+}
+
+/**
+ * The Director's navigation as a macOS-style dock on the left edge: app tiles that swell under the
+ * pointer, labels beside them, a dot at the current place, and badges for what is new or waiting.
+ */
+function Dock({ onSearch }: { onSearch: () => void }) {
+  const pointer = useMotionValue(Infinity);
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const { kpis } = useKpis();
+  const unseen = useUnseenActivity();
+  const onActivity = /^\/(activity|traces)/.test(pathname);
+  useEffect(() => {
+    if (onActivity) markActivitySeen();
+  }, [onActivity, unseen]);
+  return (
+    <motion.nav
+      aria-label="Director"
+      onPointerMove={(e) => pointer.set(e.clientY)}
+      onPointerLeave={() => pointer.set(Infinity)}
+      initial={{ opacity: 0, x: -40 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ type: 'spring', stiffness: 260, damping: 28, delay: 0.1 }}
+      style={{ width: DOCK_W, paddingInline: PAD }}
+      className="glass fixed top-1/2 left-4 z-40 hidden max-h-[calc(100vh-32px)] -translate-y-1/2 flex-col items-start gap-2.5 rounded-[30px] py-4 lg:flex"
+    >
+      <DockButton label="Director" pointer={pointer} tint={['#2b3646', '#0b111d']} onClick={() => navigate('/')}>
+        <LogoMark size={28} className="relative h-[58%] w-[58%] drop-shadow-[0_1px_1px_rgb(0_0_0/0.25)]" />
+      </DockButton>
+      <Separator />
+      {NAV_GROUPS.map((group, i) => (
+        <div key={group.label} className="contents">
+          {i > 0 && <Separator />}
+          {group.items.map((item) => (
+            <DockLink key={item.to} item={item} pointer={pointer} badge={item.to === '/activity' && !onActivity ? unseen : undefined} />
+          ))}
+        </div>
+      ))}
+      <Separator />
+      <DockButton label={`Search (${SHORTCUT})`} pointer={pointer} tint={['#f4f6fb', '#d9dfea']} onClick={onSearch}>
+        <Icon name="search" size={28} className="relative h-[46%] w-[46%] text-ink-2" />
+      </DockButton>
+      <DockButton
+        label={kpis.awaitingHuman ? `${kpis.awaitingHuman} awaiting a human` : 'Approvals inbox'}
+        pointer={pointer}
+        tint={['#ffffff', '#e9edf4']}
+        href={`${ECOSYSTEM_URL}/approvals`}
+        badge={kpis.awaitingHuman}
+      >
+        <Icon name="inbox" size={28} className={`relative h-[46%] w-[46%] ${kpis.awaitingHuman ? 'text-wait' : 'text-ink-3'}`} />
+      </DockButton>
+      <DockAccount pointer={pointer} />
+    </motion.nav>
+  );
+}
+
+/** Below the large breakpoint the dock moves to the bottom edge, still as app tiles. */
+function MobileDock({ onSearch }: { onSearch: () => void }) {
+  const { pathname } = useLocation();
+  const reduce = useReducedMotion();
+  return (
+    <nav aria-label="Director" className="glass fixed inset-x-3 bottom-3 z-40 flex items-center justify-around rounded-[24px] px-2 py-2.5 lg:hidden">
+      {NAV_ITEMS.map((item) => {
+        const active = item.match.test(pathname);
+        return (
+          <NavLink key={item.to} to={item.to} aria-label={item.label} className="relative flex flex-col items-center">
+            <motion.span
+              whileTap={reduce ? undefined : { scale: 0.85 }}
+              style={{ background: `linear-gradient(160deg, ${item.tint[0]}, ${item.tint[1]})` }}
+              className="relative flex h-11 w-11 items-center justify-center rounded-[13px] text-white shadow-[0_6px_14px_-6px_rgb(16_24_40/0.5),inset_0_1px_0_rgb(255_255_255/0.35)]"
+            >
+              <Icon name={item.icon} size={21} />
+            </motion.span>
+            {active && <motion.span layoutId="mobile-dock-dot" className="absolute -bottom-2 h-1 w-1 rounded-full bg-ink/70" transition={reduce ? { duration: 0 } : SPRING} />}
+          </NavLink>
+        );
+      })}
+      <button type="button" aria-label="Search" onClick={onSearch} className="flex h-11 w-11 items-center justify-center rounded-[13px] bg-surface text-ink-2 shadow-card">
+        <Icon name="search" size={21} />
+      </button>
+    </nav>
   );
 }
 
@@ -186,50 +370,37 @@ function OfflineBanner() {
   return (
     <motion.div
       role="alert"
-      initial={{ height: 0, opacity: 0 }}
-      animate={{ height: 'auto', opacity: 1 }}
-      exit={{ height: 0, opacity: 0 }}
+      initial={{ opacity: 0, y: -12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
       transition={{ duration: 0.3, ease: EASE }}
-      className="overflow-hidden border-b border-line bg-bad-soft"
+      className="mb-8 flex items-center gap-3 rounded-2xl border border-bad/20 bg-bad-soft px-5 py-3.5 text-[14px] text-bad-ink"
     >
-      <div className="mx-auto flex max-w-[1160px] items-center gap-3 px-6 py-2.5 text-[14px] text-bad-ink md:px-10">
-        <Icon name="alert" size={16} />
-        <span className="flex-1">Gateway unreachable. {since ? `Showing data as of ${since}.` : 'Live updates are paused.'}</span>
-        <button type="button" onClick={eventHub.retry} className="font-medium underline-offset-4 hover:underline">
-          Try again
-        </button>
-      </div>
+      <Icon name="alert" size={18} />
+      <span className="flex-1">Gateway unreachable. {since ? `Showing data as of ${since}.` : 'Live updates are paused.'}</span>
+      <button type="button" onClick={eventHub.retry} className="font-semibold underline-offset-4 hover:underline">
+        Try again
+      </button>
     </motion.div>
   );
 }
 
-/** One calm column: a slim header with the five places, the page, and the demo dock floating below. */
-export function Shell({ dock, children }: { dock: ReactNode; children: ReactNode }) {
+/** The dock on the left and a roomy centred page. */
+export function Shell({ children }: { children: ReactNode }) {
   const status = useStreamStatus();
-  const mock = useMockMode();
+  const palette = useCommandPalette();
   return (
-    <div className="min-h-screen overflow-x-clip bg-canvas text-ink">
-      <header className="sticky top-0 z-40 border-b border-line bg-surface/85 backdrop-blur-xl backdrop-saturate-150">
-        <div className="mx-auto flex h-16 max-w-[1160px] items-center gap-3 px-4 sm:gap-6 sm:px-6 md:px-10">
-          <NavLink to="/" aria-label="Director overview" className="shrink-0">
-            <Wordmark compact />
-          </NavLink>
-          <span aria-hidden="true" className="hidden h-6 w-px bg-line md:block" />
-          <Nav />
-          <div className="ml-auto flex shrink-0 items-center gap-3 sm:gap-4">
-            {mock && <span className="hidden rounded-full bg-sunken px-2.5 py-1 text-[12px] font-medium text-ink-3 lg:inline">Mock data</span>}
-            <AwaitingPill />
-            <StreamIndicator />
-            <UserMenu />
-          </div>
-        </div>
-      </header>
-      <AnimatePresence>{status === 'offline' && <OfflineBanner />}</AnimatePresence>
-      <main className="mx-auto max-w-[1160px] px-4 pt-8 pb-36 sm:px-6 sm:pt-10 md:px-10 md:pt-14">{children}</main>
-      <div className="pointer-events-none fixed inset-x-0 bottom-6 z-30 flex justify-center overflow-hidden px-4">
-        <div className="pointer-events-auto">{dock}</div>
+    <div style={{ ['--rail' as string]: `${RAIL}px` }} className="min-h-screen overflow-x-clip text-ink">
+      <Dock onSearch={palette.open} />
+      <MobileDock onSearch={palette.open} />
+      <div className="lg:pl-[var(--rail)]">
+        <main className="mx-auto max-w-[1360px] px-5 pt-8 pb-44 sm:px-8 sm:pt-12 lg:px-12 lg:pt-14">
+          <AnimatePresence>{status === 'offline' && <OfflineBanner />}</AnimatePresence>
+          {children}
+        </main>
       </div>
       <LiveToasts />
+      <CommandPalette state={palette} />
     </div>
   );
 }

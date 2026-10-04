@@ -17,15 +17,6 @@
 }
 
 http://betsee.localhost {
-	# Employee chat: agent-host on the host drives Claude Code under the Betsee hook.
-	handle /api/v1/chat/inputs {
-		reverse_proxy gateway:8080
-	}
-	handle /api/v1/chat/* {
-		reverse_proxy host.docker.internal:8095 {
-			flush_interval -1
-		}
-	}
 	import api
 	handle {
 		root * /srv/ecosystem

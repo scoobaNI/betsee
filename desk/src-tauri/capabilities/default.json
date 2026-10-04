@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Betsee Desk main window: core events (drag and drop) and its own commands.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

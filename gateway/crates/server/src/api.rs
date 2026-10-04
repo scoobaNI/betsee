@@ -67,6 +67,14 @@ pub fn router(gateway: Arc<Gateway>) -> Router {
         .route("/api/v1/actions", post(action))
         .route("/api/v1/actions/{id}", get(action_status))
         .route("/api/v1/chat/inputs", post(chat_input))
+        .route(
+            "/api/v1/files/intake",
+            post(file_intake).layer(axum::extract::DefaultBodyLimit::max(FILE_BODY_LIMIT)),
+        )
+        .route(
+            "/api/v1/files/release",
+            post(file_release).layer(axum::extract::DefaultBodyLimit::max(FILE_BODY_LIMIT)),
+        )
         .route("/api/v1/traces", get(traces))
         .route("/api/v1/traces/{id}", get(trace))
         .route("/api/v1/approvals", get(approvals))
@@ -587,6 +595,101 @@ async fn chat_input(
         .await
         .map(|trace| Json(summary(&trace)))
         .map_err(|e| ApiError::unavailable(e, &id.0))
+}
+
+/// A base64 body for the largest scanned file, with room for the JSON around it.
+const FILE_BODY_LIMIT: usize = crate::files::MAX_BYTES / 3 * 4 + 64 * 1024;
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FileTransfer {
+    session_id: String,
+    /// Intake: the file's own name. Release: the catalogued resource id.
+    name: String,
+    content_base64: String,
+    tier: Option<String>,
+}
+
+async fn file_transfer(
+    gateway: Arc<Gateway>,
+    claims: Claims,
+    human: Human,
+    id: Correlation,
+    body: FileTransfer,
+    direction: crate::input::FileDirection,
+) -> ApiResult {
+    use base64::Engine as _;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(body.content_base64.as_bytes())
+        .map_err(|_| {
+            ApiError::new(
+                StatusCode::BAD_REQUEST,
+                "content_base64 is not base64",
+                &id.0,
+            )
+        })?;
+    let session = gateway
+        .store
+        .get("session", &body.session_id)
+        .await
+        .map_err(|e| ApiError::unavailable(e, &id.0))?
+        .filter(|session| can_read(&claims, session))
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Session not found", &id.0))?;
+    gateway
+        .check_file(
+            &claims,
+            &human.0,
+            &session,
+            direction,
+            &body.name,
+            &bytes,
+            body.tier.as_deref(),
+            &id.0,
+        )
+        .await
+        .map(|trace| {
+            let mut response = summary(&trace);
+            response["findings"] = trace["findings"].clone();
+            response["file"] = trace["file"].clone();
+            Json(response)
+        })
+        .map_err(|e| ApiError::unavailable(e, &id.0))
+}
+
+async fn file_intake(
+    State(gateway): State<Arc<Gateway>>,
+    Extension(claims): Extension<Claims>,
+    Extension(human): Extension<Human>,
+    Extension(id): Extension<Correlation>,
+    Json(body): Json<FileTransfer>,
+) -> ApiResult {
+    file_transfer(
+        gateway,
+        claims,
+        human,
+        id,
+        body,
+        crate::input::FileDirection::Intake,
+    )
+    .await
+}
+
+async fn file_release(
+    State(gateway): State<Arc<Gateway>>,
+    Extension(claims): Extension<Claims>,
+    Extension(human): Extension<Human>,
+    Extension(id): Extension<Correlation>,
+    Json(body): Json<FileTransfer>,
+) -> ApiResult {
+    file_transfer(
+        gateway,
+        claims,
+        human,
+        id,
+        body,
+        crate::input::FileDirection::Release,
+    )
+    .await
 }
 
 async fn traces(

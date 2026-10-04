@@ -55,6 +55,21 @@ export type ThreadItem =
       result: { isError: boolean; content: string } | null;
       at: string;
     }
+  | {
+      kind: 'file';
+      key: string;
+      direction: 'upload' | 'download';
+      allowed: boolean;
+      name: string;
+      path: string | null;
+      tier: string | null;
+      fileType: string | null;
+      reasons: string[];
+      controlIds: string[];
+      traceId: string | null;
+      findings: InputFinding[];
+      at: string;
+    }
   | { kind: 'error'; key: string; message: string; at: string };
 
 export interface ChatThread {
@@ -144,6 +159,25 @@ export function foldChat(events: ChatEvent[], sent: ReadonlyMap<string, string> 
         break;
       case 'tool_result':
         tool(event).result = { isError: event.is_error === true, content: String(event.content ?? '') };
+        break;
+      case 'file_shared':
+      case 'file_released':
+      case 'file_blocked':
+        items.push({
+          kind: 'file',
+          key: `f-${event.id}`,
+          direction: event.direction === 'download' ? 'download' : 'upload',
+          allowed: event.type !== 'file_blocked',
+          name: String(event.name ?? event.path ?? 'file'),
+          path: typeof event.path === 'string' ? event.path : null,
+          tier: typeof event.tier === 'string' ? event.tier : null,
+          fileType: typeof event.kind === 'string' ? event.kind : null,
+          reasons: strings(event.reasons),
+          controlIds: strings(event.control_ids),
+          traceId: typeof event.trace_id === 'string' ? event.trace_id : null,
+          findings: Array.isArray(event.findings) ? (event.findings as InputFinding[]) : [],
+          at: event.at,
+        });
         break;
       case 'error':
         items.push({ kind: 'error', key: `e-${event.id}`, message: String(event.message ?? 'The agent run failed'), at: event.at });

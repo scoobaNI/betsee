@@ -24,7 +24,7 @@ export interface EdgeStyle {
 }
 
 const STROKE = {
-  allow: 'var(--color-accent)',
+  allow: 'var(--color-ok)',
   deny: 'var(--color-bad)',
   approval: 'var(--color-wait)',
   stepup: 'var(--color-verify)',
@@ -50,5 +50,5 @@ export function edgeStyle(edge: EdgeFacts, sourceState: Agent['state'] | undefin
   const pending = edge.latest.approval_state === 'pending';
   if (edge.latest.ai_tightened) return { stroke: STROKE.tightened, dash: pending ? PENDING_DASH : undefined, opacity: 1 };
   const tone = outcomeTone(edge.latest);
-  return { stroke: STROKE[tone], dash: pending ? PENDING_DASH : undefined, opacity: tone === 'allow' ? 0.55 : 1 };
+  return { stroke: STROKE[tone], dash: pending ? PENDING_DASH : undefined, opacity: tone === 'allow' ? 0.6 : 1 };
 }

@@ -1,13 +1,17 @@
-import { useAgentMessages, useAgents, useReleaseAgent, useUseCases, type AgentSession, type UseCase } from '@betsee/api';
-import { AnimatePresence, motion } from 'motion/react';
-import { useMemo } from 'react';
+import { useAgentMessages, useAgents, useReleaseAgent, useUseCases, type ActionSummary, type Agent, type AgentSession, type UseCase } from '@betsee/api';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { useMemo, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { ActivityList } from '../components/activity.tsx';
-import { Icon } from '../components/icon.tsx';
+import { formatClock, Sparkline } from '../components/charts.tsx';
+import { Icon, type IconName } from '../components/icon.tsx';
+import { Burst, Rise, Stagger, Swap, TONE_COLOR, trackPointer, useRises } from '../components/motion.tsx';
 import { ReasonText } from '../components/reason.tsx';
 import {
   AgentGlyph,
+  AnimatedNumber,
   Avatar,
+  Breadcrumbs,
   Button,
   Card,
   Code,
@@ -17,20 +21,22 @@ import {
   EmptyState,
   ErrorCard,
   KeyValues,
-  Meter,
-  OutcomePill,
+  StatusBadge,
   outcomeOf,
-  PageHeader,
   Section,
   Skeleton,
   StatePill,
   TextLink,
+  TickStrip,
   TierText,
+  toneClass,
+  type Tone,
 } from '../components/ui.tsx';
 import { isObservation } from '../domain/decision.ts';
 import { teamName } from '../domain/feed.ts';
-import { formatCents, formatCount, formatDateTime, formatTime } from '../domain/format.ts';
-import { useActions } from '../hooks.ts';
+import { formatAge, formatCents, formatCount, formatDateTime, formatTime } from '../domain/format.ts';
+import { bucketize } from '../domain/series.ts';
+import { useActions, useNow } from '../hooks.ts';
 import { BUDGET_CURRENCY } from './agents.tsx';
 
 /** Which human step a use case puts in front of a capability, in the words the presenter reads. */
@@ -49,7 +55,7 @@ function qualifiersFor(useCase: UseCase | undefined): Record<string, string> {
 function Mark({ on }: { on: boolean }) {
   return on ? (
     <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-ok-soft text-ok-ink">
-      <Icon name="check" size={13} strokeWidth={2.25} />
+      <Icon name="check" size={13} />
     </span>
   ) : (
     <span className="inline-flex h-6 w-6 items-center justify-center text-ink-4">
@@ -140,6 +146,131 @@ function ReleaseBanner({ agentId, state, reason, at }: { agentId: string; state:
   );
 }
 
+const WINDOW_MS = 15 * 60_000;
+
+/** Budget spent as a half dial; amber from 80 percent, red when spent. */
+function BudgetGauge({ ratio }: { ratio: number }) {
+  const reduce = useReducedMotion();
+  const clamped = Math.max(0, Math.min(1, ratio));
+  const color = clamped >= 1 ? 'var(--color-bad)' : clamped >= 0.8 ? 'var(--color-wait)' : 'var(--color-accent)';
+  const arc = 'M 10 62 A 52 52 0 0 1 114 62';
+  return (
+    <span className="relative block w-[124px]">
+      <svg viewBox="0 0 124 70" width="124" height="70" aria-hidden="true">
+        <path d={arc} fill="none" stroke="var(--color-sunken)" strokeWidth="10" strokeLinecap="round" />
+        <motion.path
+          d={arc}
+          fill="none"
+          stroke={color}
+          strokeWidth="10"
+          strokeLinecap="round"
+          initial={reduce ? false : { pathLength: 0 }}
+          animate={{ pathLength: Math.max(0.004, clamped) }}
+          transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
+          style={{ transition: 'stroke 500ms' }}
+        />
+      </svg>
+      <span className="absolute inset-x-0 bottom-0 text-center text-[22px] leading-none font-semibold tracking-[-0.02em] text-ink tabular-nums">
+        {Math.round(clamped * 100)}
+        <span className="text-[13px] text-ink-3">%</span>
+      </span>
+    </span>
+  );
+}
+
+function Tile({
+  label,
+  icon,
+  tone,
+  children,
+  sub,
+  value,
+  chart,
+}: {
+  label: string;
+  icon: IconName;
+  tone: Tone;
+  children: ReactNode;
+  sub: ReactNode;
+  value?: number;
+  chart?: ReactNode;
+}) {
+  const rises = useRises(value ?? 0);
+  return (
+    <div onPointerMove={trackPointer} style={{ ['--spot' as string]: TONE_COLOR[tone] }} className="group spotlight flex h-full flex-col rounded-[24px] border border-line bg-surface p-7 shadow-card">
+      {value !== undefined && <Burst trigger={rises || undefined} color={TONE_COLOR[tone]} radius="24px" strength={1.05} />}
+      <p className="flex items-center gap-3 text-[14.5px] font-semibold text-ink-2">
+        <span
+          className="flex h-10 w-10 items-center justify-center rounded-[12px] transition-transform duration-300 group-hover:scale-110 group-hover:rotate-[-4deg]"
+          style={{ background: `color-mix(in srgb, ${TONE_COLOR[tone]} 13%, transparent)`, color: TONE_COLOR[tone] }}
+        >
+          <Icon name={icon} size={19} />
+        </span>
+        {label}
+      </p>
+      <div className="mt-5">{children}</div>
+      <p className="mt-3 text-[13.5px] text-ink-3">{sub}</p>
+      {chart && <div className="-mx-7 -mb-7 mt-auto pt-5">{chart}</div>}
+    </div>
+  );
+}
+
+/** Who the agent is, who launched it, and its last decisions as a strip that grows live. */
+function AgentHero({ agent, decided }: { agent: Agent; decided: ActionSummary[] }) {
+  const now = useNow(10_000);
+  const session = agent.current_session;
+  const last = decided[0];
+  const strip = useMemo(() => decided.slice(0, 32).reverse(), [decided]);
+  const tone: Tone = agent.state === 'quarantined' ? 'quar' : agent.state === 'suspended' ? 'muted' : 'accent';
+  return (
+    <Card className="relative overflow-hidden p-6 md:p-8">
+      <motion.span
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-28 -right-20 h-72 w-72 rounded-full blur-3xl"
+        animate={{ background: TONE_COLOR[tone], opacity: agent.state === 'active' ? 0.12 : 0.22 }}
+        transition={{ duration: 0.8 }}
+      />
+      <div className="relative flex flex-wrap items-start gap-5">
+        <motion.span initial={{ scale: 0.6, rotate: -12, opacity: 0 }} animate={{ scale: 1, rotate: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 320, damping: 18 }}>
+          <AgentGlyph state={agent.state} size={56} agentId={agent.id} />
+        </motion.span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="truncate text-[28px] leading-tight font-semibold tracking-[-0.02em] text-ink">{agent.id}</h1>
+            <StatePill state={agent.state} />
+          </div>
+          <p className="mt-1 text-[14px] text-ink-3">
+            {teamName(agent.team)} team - {agent.provider} <span className="font-mono text-[13px]">{agent.model}</span>
+          </p>
+          {session && (
+            <p className="mt-4 inline-flex flex-wrap items-center gap-2 rounded-full border border-line bg-surface/80 py-1 pr-3.5 pl-1 text-[13px] text-ink-2 shadow-card">
+              <Avatar name={session.human.display_name} size={24} />
+              Launched by <span className="font-medium text-ink">{session.human.display_name}</span> for <span className="font-medium text-ink">{session.use_case.name}</span>
+            </p>
+          )}
+        </div>
+        <TextLink href={`${ECOSYSTEM_URL}/identity/agents/${encodeURIComponent(agent.id)}`}>Edit delegation</TextLink>
+      </div>
+      <div className="relative mt-7 rounded-xl border border-line/70 bg-sunken/50 px-4 py-3.5">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-ink-3">
+          <span className="font-medium text-ink-2">Recent decisions</span>
+          {last && (
+            <Swap id={last.trace_id} className="ml-auto">
+              <Link to={`/traces/${encodeURIComponent(last.trace_id)}`} className="inline-flex items-center gap-2 hover:text-ink">
+                <span className={`h-1.5 w-1.5 rounded-full ${toneClass(outcomeOf(last).tone).dot}`} />
+                <span className="font-mono text-[11px] text-ink-2">{last.capability}</span>
+                <span>{outcomeOf(last).label.toLowerCase()}</span>
+                <span>{formatAge(last.occurred_at, now)}</span>
+              </Link>
+            </Swap>
+          )}
+        </div>
+        <TickStrip tall actions={strip} className="mt-3" />
+      </div>
+    </Card>
+  );
+}
+
 export function AgentPage() {
   const { agentId = '' } = useParams();
   const agents = useAgents();
@@ -175,62 +306,75 @@ export function AgentPage() {
   }
 
   const decided = mine.filter((a) => !isObservation(a));
-  const denied = decided.filter((a) => a.decision === 'deny').length;
+  const recent = decided.filter((a) => Date.now() - Date.parse(a.occurred_at) <= WINDOW_MS);
+  const denied = recent.filter((a) => a.decision === 'deny').length;
+  const series = bucketize(decided, Date.now(), WINDOW_MS, 15);
   const budgetRatio = agent.budget.limit > 0 ? agent.budget.used / agent.budget.limit : 0;
 
   return (
     <div>
-      <PageHeader
-        crumbs={[
-          { label: 'Overview', to: '/' },
-          { label: 'Agents', to: '/agents' },
-          { label: teamName(agent.team), to: `/agents?team=${encodeURIComponent(agent.team)}` },
-          { label: agent.id },
-        ]}
-        title={
-          <span className="flex items-center gap-4">
-            <AgentGlyph state={agent.state} size={52} />
-            <span className="min-w-0">
-              <span className="flex flex-wrap items-center gap-3">
-                <span className="truncate">{agent.id}</span>
-                <StatePill state={agent.state} />
-              </span>
-              <span className="mt-1 block text-[14px] font-normal tracking-normal text-ink-3">
-                {teamName(agent.team)} team - {agent.provider} <span className="font-mono text-[13px]">{agent.model}</span>
-              </span>
-            </span>
-          </span>
-        }
-        actions={<TextLink href={`${ECOSYSTEM_URL}/identity/agents/${encodeURIComponent(agent.id)}`}>Edit delegation</TextLink>}
-      />
+      <div className="mb-6">
+        <Breadcrumbs
+          items={[
+            { label: 'Overview', to: '/' },
+            { label: 'Org chart', to: '/agents' },
+            { label: teamName(agent.team), to: `/agents?view=list&team=${encodeURIComponent(agent.team)}` },
+            { label: agent.id },
+          ]}
+        />
+      </div>
+      <div className="mb-6">
+        <AgentHero agent={agent} decided={decided} />
+      </div>
 
       <AnimatePresence>
         {agent.state !== 'active' && <ReleaseBanner agentId={agent.id} state={agent.state} reason={agent.state_reason} at={agent.state_changed_at} />}
       </AnimatePresence>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="p-6">
-          <p className="text-[13px] font-medium text-ink-2">Actions recorded</p>
-          <p className="mt-3 text-[32px] leading-none font-semibold tracking-[-0.03em] tabular-nums">{formatCount(decided.length)}</p>
-          <p className="mt-2 text-[13px] text-ink-3">In the live feed</p>
-        </Card>
-        <Card className="p-6">
-          <p className="flex items-center gap-2 text-[13px] font-medium text-ink-2">
-            {denied > 0 && <span className="h-1.5 w-1.5 rounded-full bg-bad" />}
-            Denied
-          </p>
-          <p className="mt-3 text-[32px] leading-none font-semibold tracking-[-0.03em] tabular-nums">{formatCount(denied)}</p>
-          <p className="mt-2 text-[13px] text-ink-3">Stopped before execution</p>
-        </Card>
-        <Card className="p-6">
-          <p className="text-[13px] font-medium text-ink-2">Budget used</p>
-          <p className="mt-3 text-[32px] leading-none font-semibold tracking-[-0.03em] tabular-nums">{Math.round(budgetRatio * 100)}%</p>
-          <Meter ratio={budgetRatio} label="Budget used" className="mt-3" />
-          <p className="mt-2 text-[13px] text-ink-3 tabular-nums">
-            {formatCents(agent.budget.used)} of {formatCents(agent.budget.limit)} {BUDGET_CURRENCY}
-          </p>
-        </Card>
-      </div>
+      <Stagger className="grid gap-5 sm:grid-cols-3" step={0.07} delay={0.1}>
+        <Rise>
+          <Tile
+            label="Actions, last 15 min"
+            icon="activity"
+            tone="accent"
+            value={recent.length}
+            sub={`${formatCount(decided.length)} in the live feed`}
+            chart={<Sparkline values={series.map((b) => b.total)} tone="accent" delay={0.3} readout={(i) => `${formatClock(series[i]!.start)}: ${series[i]!.total} actions`} />}
+          >
+            <p className="text-[48px] leading-none font-bold tracking-[-0.04em]">
+              <AnimatedNumber value={recent.length} />
+            </p>
+          </Tile>
+        </Rise>
+        <Rise>
+          <Tile
+            label="Denied, last 15 min"
+            icon="ban"
+            tone="bad"
+            value={denied}
+            sub="Stopped before execution"
+            chart={<Sparkline values={series.map((b) => b.deny)} tone="bad" delay={0.4} readout={(i) => `${formatClock(series[i]!.start)}: ${series[i]!.deny} denied`} />}
+          >
+            <p className="text-[48px] leading-none font-bold tracking-[-0.04em]">
+              <AnimatedNumber value={denied} />
+            </p>
+          </Tile>
+        </Rise>
+        <Rise>
+          <Tile
+            label="Budget used"
+            icon="gauge"
+            tone={budgetRatio >= 1 ? 'bad' : budgetRatio >= 0.8 ? 'wait' : 'accent'}
+            sub={
+              <span className="tabular-nums">
+                {formatCents(agent.budget.used)} of {formatCents(agent.budget.limit)} {BUDGET_CURRENCY}
+              </span>
+            }
+          >
+            <BudgetGauge ratio={budgetRatio} />
+          </Tile>
+        </Rise>
+      </Stagger>
 
       <div className="mt-14 grid gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] lg:gap-10">
         <Section title="Current session">
@@ -288,7 +432,7 @@ export function AgentPage() {
                       <span className="text-[14px] font-medium text-ink">{m.receiver.id}</span>
                       <Code className="hidden md:inline-flex">{m.capability}</Code>
                       <span className="ml-auto">
-                        <OutcomePill size="sm" outcome={outcomeOf({ decision: m.decision, approval_state: 'none', capability: m.capability, agent: m.sender })} />
+                        <StatusBadge size="sm" outcome={outcomeOf({ decision: m.decision, approval_state: 'none', capability: m.capability, agent: m.sender })} />
                       </span>
                       <Icon name="chevron-right" size={16} className="text-ink-4 opacity-0 transition-opacity group-hover:opacity-100" />
                     </Link>

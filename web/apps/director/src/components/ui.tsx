@@ -1,11 +1,12 @@
 import { ApiRequestError, type ActionSummary, type LifecycleState, type Tier } from '@betsee/api';
 import { animate, AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { decisionLabel, isObservation, isVoided, outcomeTone, resolutionOf } from '../domain/decision.ts';
 import { formatCount, formatTime, initials } from '../domain/format.ts';
+import { personByName, photoOf } from '../domain/people.ts';
 import { useAgentPulse } from '../live.ts';
-import { Icon, type IconName } from './icon.tsx';
+import { Icon, LogoMark, type IconName } from './icon.tsx';
 import { Burst, EASE, TONE_COLOR, trackPointer, usePop, useShake } from './motion.tsx';
 
 export { EASE };
@@ -33,6 +34,8 @@ export interface Outcome {
   tone: Tone;
   label: string;
   waiting: boolean;
+  /** What a fixed-width badge prints when `label` does not fit; `label` then goes in its title. */
+  short?: string;
 }
 
 /** What an action finally reads as: one word and one colour, used everywhere an action appears. */
@@ -46,8 +49,11 @@ export function outcomeOf(action: Pick<ActionSummary, 'decision' | 'approval_sta
     tone: tone === 'allow' ? 'ok' : tone === 'deny' ? 'bad' : tone === 'approval' ? 'wait' : 'verify',
     label,
     waiting: action.approval_state === 'pending' && (action.decision === 'require_approval' || action.decision === 'require_step_up'),
+    short: resolution ? undefined : PENDING_SHORT[action.decision],
   };
 }
+
+const PENDING_SHORT: Partial<Record<ActionSummary['decision'], string>> = { require_approval: 'Approval', require_step_up: 'Step-up' };
 
 /** Counts how often a value has changed since mount, so a change can trigger a one-shot animation. */
 function useChangeCount(value: unknown): number {
@@ -61,64 +67,104 @@ function useChangeCount(value: unknown): number {
   return count;
 }
 
+export type BadgeSize = 'sm' | 'md' | 'lg';
+
+const TONE_ICON: Record<Tone, IconName> = {
+  ok: 'check',
+  bad: 'x',
+  wait: 'hourglass',
+  verify: 'fingerprint',
+  ai: 'sparkles',
+  quar: 'power',
+  muted: 'eye',
+  accent: 'info',
+};
+
+// Fixed widths so badges stack into a clean column in lists; sized for "Quarantined" plus the AI
+// marker at each size.
+const BADGE_BOX: Record<BadgeSize, { box: string; dot: number; icon: number; mark: number }> = {
+  sm: { box: 'w-[124px] h-7 pl-[5px] pr-2 gap-1.5 text-[12.5px]', dot: 18, icon: 11, mark: 16 },
+  md: { box: 'w-[136px] h-8 pl-[5px] pr-2.5 gap-2 text-[13.5px]', dot: 22, icon: 13, mark: 18 },
+  lg: { box: 'w-[164px] h-10 pl-1.5 pr-3 gap-2.5 text-[16px]', dot: 28, icon: 16, mark: 22 },
+};
+
 /**
- * One outcome as a pill. When the outcome changes in place (a wait that a human resolved, an agent
- * that was quarantined) the colour slides over, the word rolls, and a ring announces the change.
+ * The one status badge: a fixed-width pill with its icon in a tone-coloured circle. Pending states
+ * animate while they wait; an AI-tightened decision carries the AI marker inside the badge. When the
+ * outcome changes in place (a wait a human resolved, an agent that was quarantined) the colour
+ * slides over, the word rolls, and a ring announces the change.
  */
-export function OutcomePill({ outcome, size = 'md', title }: { outcome: Outcome; size?: 'sm' | 'md' | 'lg'; title?: string }) {
+export function StatusBadge({
+  outcome,
+  size = 'md',
+  title,
+  icon,
+  ai,
+}: {
+  outcome: Outcome;
+  size?: BadgeSize;
+  title?: string;
+  icon?: IconName;
+  /** AI analysis tightened this decision: true, or the analyzer's model label. */
+  ai?: boolean | string;
+}) {
   const t = TONE[outcome.tone];
+  const s = BADGE_BOX[size];
   const reduce = useReducedMotion();
   const changes = useChangeCount(outcome.label);
   const scope = usePop<HTMLSpanElement>(changes, 1.12);
-  const box = { sm: 'h-6 px-2 text-[12px] gap-1.5', md: 'h-7 px-2.5 text-[13px] gap-2', lg: 'h-9 px-3.5 text-[15px] gap-2' }[size];
+  const text = outcome.short ?? outcome.label;
+  const aiNote = ai ? `AI analysis made this decision stricter${typeof ai === 'string' ? ` (${ai})` : ''}.` : '';
+  const fullTitle = [title ?? (outcome.short ? outcome.label : ''), aiNote].filter(Boolean).join(' ') || undefined;
+  const glyph = icon ?? TONE_ICON[outcome.tone];
   return (
     <span
       ref={scope}
-      title={title}
-      className={`relative inline-flex shrink-0 items-center rounded-full font-medium whitespace-nowrap transition-colors duration-500 ${box} ${t.soft} ${t.ink}`}
+      title={fullTitle}
+      style={{ '--badge-ring': TONE_COLOR[outcome.tone] } as CSSProperties}
+      className={`relative inline-flex shrink-0 items-center rounded-full font-semibold whitespace-nowrap transition-colors duration-500 ${s.box} ${t.soft} ${t.ink}`}
     >
       <Burst trigger={changes || undefined} color={TONE_COLOR[outcome.tone]} strength={1.5} />
-      <span className={`h-1.5 w-1.5 rounded-full transition-colors duration-500 ${t.dot} ${outcome.waiting ? 'waiting-ring' : ''}`} />
-      <span className="relative inline-grid">
+      <span
+        style={{ width: s.dot, height: s.dot }}
+        className={`inline-flex shrink-0 items-center justify-center rounded-full text-white transition-colors duration-500 ${t.dot} ${outcome.waiting ? 'badge-waiting' : ''}`}
+      >
+        <span className={`inline-flex ${outcome.waiting && glyph === 'hourglass' ? 'hourglass-flip' : ''}`}>
+          <Icon name={glyph} size={s.icon} />
+        </span>
+      </span>
+      <span className="relative inline-grid min-w-0 flex-1">
         <AnimatePresence initial={false}>
           <motion.span
-            key={outcome.label}
-            className="col-start-1 row-start-1"
+            key={text}
+            className="col-start-1 row-start-1 truncate"
             initial={reduce ? { opacity: 0 } : { opacity: 0, y: 7 }}
             animate={{ opacity: 1, y: 0 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: -7 }}
             transition={{ duration: 0.3, ease: EASE }}
           >
-            {outcome.label}
+            {text}
           </motion.span>
         </AnimatePresence>
       </span>
-    </span>
-  );
-}
-
-export function AiMark({ modelLabel, size = 'sm' }: { modelLabel?: string; size?: 'sm' | 'md' }) {
-  return (
-    <span
-      title={`AI analysis made this decision stricter${modelLabel ? ` (${modelLabel})` : ''}`}
-      className={`inline-flex shrink-0 items-center gap-1 rounded-full bg-ai-soft font-medium text-ai-ink ${size === 'sm' ? 'h-6 px-2 text-[12px]' : 'h-7 px-2.5 text-[13px]'}`}
-    >
-      <Icon name="sparkles" size={12} />
-      AI
+      {ai && (
+        <span
+          aria-label="AI tightened"
+          style={{ width: s.mark, height: s.mark }}
+          className="inline-flex shrink-0 items-center justify-center rounded-full bg-ai text-white ring-2 ring-white/70"
+        >
+          <Icon name="sparkles" size={Math.round(s.mark * 0.62)} />
+        </span>
+      )}
     </span>
   );
 }
 
 /** The action's outcome with its AI modifier, the one way an action's verdict is drawn. */
-export function ActionVerdict({ action, size = 'md' }: { action: ActionSummary; size?: 'sm' | 'md' | 'lg' }) {
-  const outcome = outcomeOf(action);
+export function ActionVerdict({ action, size = 'md' }: { action: ActionSummary; size?: BadgeSize }) {
   const title = isVoided(action) ? 'The session ended before a human decided; the approval was voided.' : undefined;
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      {action.ai_tightened && !isObservation(action) && <AiMark modelLabel={action.analyzer.model_label} size={size === 'sm' ? 'sm' : 'md'} />}
-      <OutcomePill outcome={outcome} size={size} title={title} />
-    </span>
-  );
+  const ai = action.ai_tightened && !isObservation(action) ? (action.analyzer.model_label ?? true) : undefined;
+  return <StatusBadge outcome={outcomeOf(action)} size={size} title={title} ai={ai} />;
 }
 
 /** The last decisions of one agent as quiet bars, oldest first. */
@@ -173,12 +219,31 @@ export function OutcomeBar({ parts, className = '' }: { parts: { tone: Tone; val
 
 /* Identity marks */
 
-export function Avatar({ name, size = 28 }: { name: string; size?: number }) {
+/** A person's photo from the directory, or their initials when they have none. */
+export function Avatar({ name, size = 28, className = '' }: { name: string; size?: number; className?: string }) {
+  const person = personByName(name);
+  const [failed, setFailed] = useState(false);
+  if (person && !failed) {
+    return (
+      <img
+        src={photoOf(person)}
+        alt=""
+        aria-hidden="true"
+        width={size}
+        height={size}
+        loading="lazy"
+        draggable={false}
+        onError={() => setFailed(true)}
+        style={{ width: size, height: size }}
+        className={`shrink-0 rounded-full bg-sunken object-cover ring-1 ring-black/5 ${className}`}
+      />
+    );
+  }
   return (
     <span
       aria-hidden="true"
       style={{ width: size, height: size, fontSize: Math.round(size * 0.38) }}
-      className="inline-flex shrink-0 items-center justify-center rounded-full bg-sunken font-semibold text-ink-2 ring-1 ring-line"
+      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-sunken font-semibold text-ink-2 ring-1 ring-line ${className}`}
     >
       {initials(name)}
     </span>
@@ -214,9 +279,11 @@ export function AgentGlyph({ state = 'active', size = 36, agentId }: { state?: L
   );
 }
 
+const STATE_ICON: Record<LifecycleState, IconName> = { active: 'check', quarantined: 'power', suspended: 'pause' };
+
 export function StatePill({ state }: { state: LifecycleState }) {
   const label = { active: 'Active', quarantined: 'Quarantined', suspended: 'Suspended' }[state];
-  return <OutcomePill outcome={{ tone: STATE_TONE[state], label, waiting: false }} size="sm" />;
+  return <StatusBadge outcome={{ tone: STATE_TONE[state], label, waiting: false }} size="sm" icon={STATE_ICON[state]} />;
 }
 
 const TIER_TONE: Record<Tier, string> = {
@@ -279,9 +346,19 @@ export function CopyId({ value, shown = value.slice(0, 8) }: { value: string; sh
 
 export function Card({ children, className = '', as: Tag = 'div', spotlight = false }: { children: ReactNode; className?: string; as?: 'div' | 'section' | 'article'; spotlight?: boolean }) {
   return (
-    <Tag onPointerMove={spotlight ? trackPointer : undefined} className={`rounded-2xl border border-line bg-surface shadow-card ${spotlight ? 'spotlight' : ''} ${className}`}>
+    <Tag onPointerMove={spotlight ? trackPointer : undefined} className={`rounded-[22px] border border-line bg-surface shadow-card ${spotlight ? 'spotlight' : ''} ${className}`}>
       {children}
     </Tag>
+  );
+}
+
+/** Breaks out of the centred column to (almost) the full viewport width, for canvases and charts. */
+export function Bleed({ children, className = '' }: { children: ReactNode; className?: string }) {
+  // --rail is the floating sidebar's footprint; it only takes room from the large breakpoint up.
+  return (
+    <div className={`relative left-1/2 w-[max(100%,min(1600px,calc(100vw-48px)))] -translate-x-1/2 lg:w-[max(100%,min(1600px,calc(100vw-var(--rail,0px)-56px)))] ${className}`}>
+      {children}
+    </div>
   );
 }
 
@@ -292,7 +369,7 @@ export interface Crumb {
 
 export function Breadcrumbs({ items }: { items: Crumb[] }) {
   return (
-    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink-3">
+    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-[14px] font-medium text-ink-3">
       {items.map((item, i) => (
         <Fragment key={`${item.label}-${i}`}>
           {i > 0 && <Icon name="chevron-right" size={13} className="text-ink-4" />}
@@ -309,31 +386,24 @@ export function Breadcrumbs({ items }: { items: Crumb[] }) {
   );
 }
 
-export function PageHeader({
-  crumbs,
-  title,
-  description,
-  actions,
-}: {
-  crumbs?: Crumb[];
-  title: ReactNode;
-  description?: ReactNode;
-  actions?: ReactNode;
-}) {
+/**
+ * The page's place in the Director: breadcrumbs on the left, the page's own controls on the right.
+ * The title is for assistive technology only; the page's content says what it is.
+ */
+export function PageHeader({ crumbs, title, actions }: { crumbs?: Crumb[]; title: string; actions?: ReactNode }) {
   return (
-    <header className="mb-10">
+    <header className="mb-8 flex min-h-11 flex-wrap items-center gap-x-6 gap-y-3">
+      <h1 className="sr-only">{title}</h1>
       {crumbs && (
-        <div className="mb-4">
+        <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, ease: EASE }}>
           <Breadcrumbs items={crumbs} />
-        </div>
+        </motion.div>
       )}
-      <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-[30px] leading-[1.15] font-semibold tracking-[-0.02em] text-ink">{title}</h1>
-          {description && <p className="mt-2.5 max-w-2xl text-[15px] leading-relaxed text-ink-2">{description}</p>}
-        </div>
-        {actions && <div className="flex shrink-0 items-center gap-3">{actions}</div>}
-      </div>
+      {actions && (
+        <motion.div className="ml-auto flex shrink-0 items-center gap-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.1 }}>
+          {actions}
+        </motion.div>
+      )}
     </header>
   );
 }
@@ -341,10 +411,10 @@ export function PageHeader({
 export function Section({ title, hint, action, children, className = '' }: { title: string; hint?: ReactNode; action?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section className={className} aria-label={title}>
-      <div className="mb-4 flex items-baseline gap-3">
-        <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-ink">{title}</h2>
-        {hint && <span className="text-[13px] text-ink-3">{hint}</span>}
-        {action && <span className="ml-auto text-[13px]">{action}</span>}
+      <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <h2 className="text-[21px] font-bold tracking-[-0.02em] text-ink">{title}</h2>
+        {hint && <span className="text-[14px] text-ink-3">{hint}</span>}
+        {action && <span className="ml-auto text-[14px]">{action}</span>}
       </div>
       {children}
     </section>
@@ -352,7 +422,7 @@ export function Section({ title, hint, action, children, className = '' }: { tit
 }
 
 export function TextLink({ to, href, children }: { to?: string; href?: string; children: ReactNode }) {
-  const cls = 'group inline-flex items-center gap-1 text-[14px] font-medium text-accent-ink transition-colors hover:text-accent';
+  const cls = 'group inline-flex items-center gap-1.5 text-[14.5px] font-semibold text-accent-ink transition-colors hover:text-accent';
   const inner = (
     <>
       {children}
@@ -398,7 +468,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`press inline-flex h-9 items-center gap-2 rounded-xl px-3.5 text-[14px] font-medium transition-colors disabled:opacity-50 ${look}`}
+      className={`press inline-flex h-11 items-center gap-2 rounded-[14px] px-4.5 text-[14.5px] font-semibold transition-colors disabled:opacity-50 ${look}`}
     >
       {icon && <Icon name={icon} size={15} />}
       {children}
@@ -421,7 +491,7 @@ export function Segmented<T extends string>({
   const id = useId();
   const reduce = useReducedMotion();
   return (
-    <div role="tablist" aria-label={label} className="inline-flex flex-wrap items-center gap-1 rounded-xl bg-sunken p-1">
+    <div role="tablist" aria-label={label} className="inline-flex flex-wrap items-center gap-1 rounded-[14px] bg-ink/[0.05] p-1">
       {options.map((option) => {
         const active = option.value === value;
         return (
@@ -431,12 +501,12 @@ export function Segmented<T extends string>({
             type="button"
             aria-selected={active}
             onClick={() => onChange(option.value)}
-            className={`press relative inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium transition-colors ${active ? 'text-ink' : 'text-ink-2 hover:text-ink'}`}
+            className={`press relative inline-flex h-10 items-center gap-2 rounded-[11px] px-4 text-[14px] font-semibold transition-colors ${active ? 'text-ink' : 'text-ink-2 hover:text-ink'}`}
           >
             {active && (
               <motion.span
                 layoutId={`seg-${id}`}
-                className="absolute inset-0 rounded-lg bg-surface shadow-card"
+                className="absolute inset-0 rounded-[11px] bg-surface shadow-[0_1px_2px_rgb(16_24_40/0.08),0_2px_8px_-2px_rgb(16_24_40/0.1)]"
                 transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 40 }}
               />
             )}
@@ -471,15 +541,15 @@ export function Disclosure({
   const reduce = useReducedMotion();
   return (
     <Card as="section">
-      <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-3 rounded-2xl px-6 py-5 text-left">
+      <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="group flex w-full items-center gap-4 rounded-[22px] px-7 py-6 text-left">
         {icon && (
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sunken text-ink-2">
-            <Icon name={icon} size={16} />
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sunken text-ink-2 transition-colors group-hover:bg-accent-soft group-hover:text-accent-ink">
+            <Icon name={icon} size={18} />
           </span>
         )}
         <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-semibold text-ink">{title}</span>
-          {hint && <span className="mt-0.5 block text-[13px] text-ink-3">{hint}</span>}
+          <span className="block text-[16.5px] font-bold text-ink">{title}</span>
+          {hint && <span className="mt-0.5 block text-[14px] text-ink-3">{hint}</span>}
         </span>
         <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: reduce ? 0 : 0.25, ease: EASE }} className="text-ink-3">
           <Icon name="chevron-down" size={18} />
@@ -494,7 +564,7 @@ export function Disclosure({
             transition={{ duration: 0.3, ease: EASE }}
             className="overflow-hidden"
           >
-            <div className="border-t border-line px-6 pt-5 pb-6">{children}</div>
+            <div className="border-t border-line px-7 pt-6 pb-7">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -583,7 +653,7 @@ export function Skeleton({ className = '' }: { className?: string }) {
 
 export function EmptyState({ icon, title, body, children }: { icon: IconName; title: string; body?: string; children?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center">
+    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
       <motion.span
         initial={{ opacity: 0, scale: 0.8, y: 6 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -659,7 +729,7 @@ export function Wordmark({ className = '', compact = false }: { className?: stri
   return (
     <span className={`flex items-center gap-2.5 ${className}`}>
       <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-ink text-white">
-        <Icon name="eye" size={16} strokeWidth={2} />
+        <LogoMark size={20} />
       </span>
       <span className={`flex-col text-left leading-none ${compact ? 'hidden sm:flex' : 'flex'}`}>
         <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">Director</span>

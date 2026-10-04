@@ -52,11 +52,26 @@ const ITEM_REDUCED: Variants = {
 };
 
 /** Children marked <Rise> cascade in one after another when this mounts. */
-export function Stagger({ children, className, step = 0.07, delay = 0, style }: { children: ReactNode; className?: string; step?: number; delay?: number; style?: CSSProperties }) {
+export function Stagger({
+  children,
+  className,
+  step = 0.07,
+  delay = 0,
+  style,
+  as = 'div',
+}: {
+  children: ReactNode;
+  className?: string;
+  step?: number;
+  delay?: number;
+  style?: CSSProperties;
+  as?: 'div' | 'ol' | 'ul';
+}) {
+  const Tag = as === 'ol' ? motion.ol : as === 'ul' ? motion.ul : motion.div;
   return (
-    <motion.div className={className} style={style} variants={container(step, delay)} initial="hidden" animate="show">
+    <Tag className={className} style={style} variants={container(step, delay)} initial="hidden" animate="show">
       {children}
-    </motion.div>
+    </Tag>
   );
 }
 
@@ -99,10 +114,25 @@ export function WordReveal({ text, className, delay = 0, emphasis }: { text: str
  * A ring that expands from its parent and fades whenever `trigger` changes after mount; the parent
  * must be positioned. Used for status changes and live pings.
  */
-export function Burst({ trigger, color, radius = '9999px', strength = 2.2 }: { trigger: number | string | undefined; color: string; radius?: string; strength?: number }) {
+export function Burst({
+  trigger,
+  color,
+  radius = '9999px',
+  strength = 2.2,
+  delay = 0,
+  onMount = false,
+}: {
+  trigger: number | string | undefined;
+  color: string;
+  radius?: string;
+  strength?: number;
+  delay?: number;
+  /** Also ring once when first shown, not only on later changes. */
+  onMount?: boolean;
+}) {
   const reduce = useReducedMotion();
   const first = useRef(trigger);
-  if (reduce || trigger === undefined || trigger === first.current) return null;
+  if (reduce || trigger === undefined || (!onMount && trigger === first.current)) return null;
   return (
     <AnimatePresence>
       <motion.span
@@ -110,9 +140,9 @@ export function Burst({ trigger, color, radius = '9999px', strength = 2.2 }: { t
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
         style={{ borderRadius: radius, boxShadow: `0 0 0 2px ${color}` }}
-        initial={{ opacity: 0.75, scale: 1 }}
-        animate={{ opacity: 0, scale: strength }}
-        transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
+        initial={{ opacity: 0, scale: 1 }}
+        animate={{ opacity: [0.8, 0], scale: [1, strength] }}
+        transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay }}
       />
     </AnimatePresence>
   );

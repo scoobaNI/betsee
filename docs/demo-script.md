@@ -39,8 +39,8 @@ Organization **Acme Logistics**. Fictional.
 
 ## Acts
 
-Every act launches with one click from the Director's scenario dock; the terminal runner in `demo/` is
-the fallback. Every step lands in the live feed within a second.
+Every act launches from the Director's command palette (`Ctrl+K`, entry "Act N: ..."); the terminal
+runner in `demo/` is the fallback. Every step lands in the live feed within a second.
 
 ### 0. Opening (30 s) - betsee.localhost
 
@@ -139,7 +139,7 @@ the fallback. Every step lands in the live feed within a second.
 
 - ASI01-ASI10, each row naming its primitives, its control chips, the live evidence from this run, and
   a "Not claimed in v0" block.
-- Click the dock's "Reset scenario". This is a human, audited action: Daniel releases the quarantined
+- Open the command palette (`Ctrl+K`) and pick "Reset scenario". This is a human, audited action: Daniel releases the quarantined
   agents and restores the payments tool. Line: "Quarantine ends only when a human says so."
 - Run `./tests/run-security.sh` in the terminal. It takes under a minute; talk over it while its
   traffic fills the Director's feed. It ends with "37 passed, 0 failed, 0 pending": positive and
@@ -180,4 +180,4 @@ Final mapping, with every control, lives in `docs/security/owasp-mapping.md` (F0
   director.betsee.localhost.
 - `scripts/otp.sh` ready in a terminal for the act 5 OTP; a second terminal ready for
   `./tests/run-security.sh`. Both on the projector: dark profile, font 18 pt or larger.
-- Reset the scenario state between rehearsals with the dock's "Reset scenario".
+- Reset the scenario state between rehearsals with "Reset scenario" in the command palette (`Ctrl+K`).

@@ -66,11 +66,22 @@ export function computeKpis(agents: readonly Agent[], actions: readonly ActionSu
 
 /** The last n decisions per agent, oldest first, for the tile's tick strip. */
 export function recentByAgent(actions: readonly ActionSummary[], n = 12): Map<string, ActionSummary[]> {
+  return recentBy(actions, (a) => a.agent.id, n);
+}
+
+/** The same per session, for chats: one employee-assistant serves many sessions at once. */
+export function recentBySession(actions: readonly ActionSummary[], n = 12): Map<string, ActionSummary[]> {
+  return recentBy(actions, (a) => a.session_id, n);
+}
+
+function recentBy(actions: readonly ActionSummary[], keyOf: (a: ActionSummary) => string | undefined, n: number): Map<string, ActionSummary[]> {
   const out = new Map<string, ActionSummary[]>();
   for (const action of actions) {
-    const list = out.get(action.agent.id) ?? [];
+    const key = keyOf(action);
+    if (!key) continue;
+    const list = out.get(key) ?? [];
     if (list.length < n) list.push(action);
-    out.set(action.agent.id, list);
+    out.set(key, list);
   }
   for (const list of out.values()) list.reverse();
   return out;

@@ -256,3 +256,161 @@ mod tests {
         );
     }
 }
+
+/// Which way a file crosses the agent workspace boundary.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum FileDirection {
+    Intake,
+    Release,
+}
+
+impl Gateway {
+    /// CTL-FILE-001: scan a file a human uploads to, or downloads from, the agent workspace.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn check_file(
+        &self,
+        claims: &Claims,
+        human: &Value,
+        session: &Value,
+        direction: FileDirection,
+        name: &str,
+        bytes: &[u8],
+        requested: Option<&str>,
+        requested_trace: &str,
+    ) -> Result<Value> {
+        let started = Instant::now();
+        let (trace_id, caller_trace_id) = self.unique_trace(requested_trace).await?;
+        let entities = self.store.entities().await?;
+        let session_id = text(session, "id");
+        let session_entity = find_entity(&entities, "AgentSession", session_id)
+            .context("session entity missing")?
+            .clone();
+        let agent_id = text(session, "agent_id");
+        let ceiling = session_entity["attrs"]["tierCeiling"].as_i64().unwrap_or(0);
+        let mut initial = Outcome::default();
+        // Intake lands in workspace/uploads under a safe name; release names a catalogued file.
+        let (resource_id, cedar_resource, tier_rank) = match direction {
+            FileDirection::Intake => {
+                let safe = crate::files::safe_name(name).unwrap_or_else(|| "upload".into());
+                let rank = requested
+                    .and_then(crate::pipeline::tier_rank)
+                    .unwrap_or(ceiling.min(1));
+                (
+                    format!("workspace/uploads/{safe}"),
+                    "workspace/uploads".to_owned(),
+                    rank,
+                )
+            }
+            FileDirection::Release => {
+                let found = find_entity(&entities, "Resource", name)
+                    .filter(|resource| resource["attrs"]["kind"] == "file");
+                if found.is_none() {
+                    initial = Outcome::denied("unknown file: not in the workspace catalogue");
+                }
+                let rank = found
+                    .and_then(|resource| resource["attrs"]["tier"].as_i64())
+                    .unwrap_or(3);
+                (name.to_owned(), name.to_owned(), rank)
+            }
+        };
+        let capability = match direction {
+            FileDirection::Intake => "file.submit",
+            FileDirection::Release => "file.release",
+        };
+        let mut trace = json!({"trace_id":trace_id,"caller_trace_id":caller_trace_id,"occurred_at":now(),"agent":crate::pipeline::agent_ref(find_entity(&entities,"Agent",agent_id),agent_id),"session_id":session_id,"human":session["human"],"use_case":session["use_case"],"capability":capability,"resource":{"type":"file","id":resource_id,"tier":tier(tier_rank)},"tool":null,"decision":"deny","deterministic_decision":"deny","analyzer":{"verdict":"skipped","rationale":"Files are decided by deterministic scanning only","model_label":MODEL_LABEL},"ai_tightened":false,"control_ids":[],"policy_ids":[],"reasons":[],"approval_state":"none","latency_ms":0,"executed":false,"execution":"forwarded","output":null,"obligations":[],"step_up_required":false,"spans":[],"execution_context":{}});
+        append_span(
+            &mut trace,
+            "authenticate",
+            "passed",
+            "Human token signature, issuer, audience, expiry and identity verified",
+            json!({"azp":claims.azp,"sub":claims.sub}),
+            0.0,
+        );
+        append_span(
+            &mut trace,
+            "resolve_context",
+            "passed",
+            "Gateway resolves the session, the file label and the workspace catalogue",
+            json!({"session_id":session_id,"direction":capability}),
+            0.0,
+        );
+        let scan_started = Instant::now();
+        let scan = crate::files::scan(name, bytes, &guarded_names(&entities, ceiling));
+        append_span(
+            &mut trace,
+            "information_tier",
+            if scan.classes.is_empty() {
+                "passed"
+            } else {
+                "denied"
+            },
+            "File scan: type from bytes, EICAR, text extraction, CTL-IN-001 detectors",
+            json!({"kind":scan.kind,"size":scan.size,"sha256":scan.sha256,"detected":scan.classes,"findings":scan.findings}),
+            scan_started.elapsed().as_secs_f64() * 1000.0,
+        );
+        let engine = self.engine().await?;
+        let cedar_started = Instant::now();
+        let outcome = engine.deciding_outcome(
+            engine
+                .evaluate(
+                    &uid("Human", text(human, "username")),
+                    &uid("Action", capability),
+                    &uid("Resource", &cedar_resource),
+                    entities.clone(),
+                    json!({"session":betsee_decision::entity_ref("AgentSession",session_id),"detected":scan.classes,"tier":tier_rank,"now":Utc::now().timestamp()}),
+                )
+                .tighten(initial),
+        );
+        append_span(
+            &mut trace,
+            "cedar_authz",
+            if outcome.deny { "denied" } else { "passed" },
+            "Cedar decides from the scan classes and the file tier",
+            json!({"detected":scan.classes,"tier":tier(tier_rank)}),
+            cedar_started.elapsed().as_secs_f64() * 1000.0,
+        );
+        trace["deterministic_decision"] = json!(outcome.decision());
+        self.render_input_reasons(&mut trace, &outcome, &engine, &session_entity);
+        let allowed = outcome.decision() == "allow";
+        trace["executed"] = json!(allowed);
+        append_span(
+            &mut trace,
+            "decision",
+            if allowed { "passed" } else { "denied" },
+            match (direction, allowed) {
+                (FileDirection::Intake, true) => {
+                    "File enters the agent workspace, catalogued with its tier"
+                }
+                (FileDirection::Intake, false) => {
+                    "File stays with the human; the agent never sees it"
+                }
+                (FileDirection::Release, true) => "File is released to the session's human",
+                (FileDirection::Release, false) => "File stays in the agent workspace",
+            },
+            json!({}),
+            0.0,
+        );
+        if allowed && direction == FileDirection::Intake {
+            self.store
+                .put_entity(&json!({"uid":{"type":"Betsee::Resource","id":resource_id},"attrs":{"kind":"file","tier":tier_rank,"external":false},"parents":[{"type":"Betsee::Tool","id":"runtime-files"}]}))
+                .await?;
+        }
+        trace["execution_context"] = json!({"organization":{"id":"acme","name":"Acme Logistics"},"human":trace["human"],"agent":trace["agent"],"use_case":trace["use_case"],"session":session,"file":{"name":name,"resource_id":resource_id,"kind":scan.kind,"size":scan.size,"sha256":scan.sha256,"scanned_characters":scan.scanned_characters,"findings":scan.findings,"detected":scan.classes}});
+        trace["latency_ms"] = json!(started.elapsed().as_secs_f64() * 1000.0);
+        append_span(
+            &mut trace,
+            "audit",
+            "passed",
+            "File check persisted with the hash and masked findings only",
+            json!({}),
+            0.0,
+        );
+        let mut recorded = self
+            .store
+            .audit(&trace, "file_check", Some("action.decided"))
+            .await?;
+        recorded["findings"] = json!(scan.findings);
+        recorded["file"] = json!({"resource_id":resource_id,"name":name,"kind":scan.kind,"size":scan.size,"sha256":scan.sha256});
+        Ok(recorded)
+    }
+}

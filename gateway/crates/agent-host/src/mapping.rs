@@ -178,6 +178,45 @@ pub fn action(workspace: &Path, tool: &str, input: &Value) -> Value {
     json!({"capability":capability,"resource":{"type":resource_type,"id":id,"tier":"internal"},"parameters":parameters})
 }
 
+/// Paths a Codex `apply_patch` touches. Every added, updated, deleted or moved-to file is a write
+/// the Gateway decides on its own; a patch naming no path is treated as unmappable.
+pub fn patch_paths(patch: &str) -> Vec<String> {
+    let mut paths = Vec::new();
+    for line in patch.lines() {
+        for marker in [
+            "*** Add File: ",
+            "*** Update File: ",
+            "*** Delete File: ",
+            "*** Move to: ",
+        ] {
+            if let Some(path) = line.strip_prefix(marker) {
+                let path = path.trim().to_owned();
+                if !path.is_empty() && !paths.contains(&path) {
+                    paths.push(path);
+                }
+            }
+        }
+    }
+    paths
+}
+
+/// One ActionRequest per file a Codex patch writes.
+pub fn patch_actions(workspace: &Path, input: &Value) -> Vec<Value> {
+    let patch = input["command"]
+        .as_str()
+        .or_else(|| input["patch"].as_str())
+        .or_else(|| input["input"].as_str())
+        .unwrap_or("");
+    patch_paths(patch)
+        .into_iter()
+        .map(|path| {
+            let (id, _) = resource_id(workspace, &path);
+            let relative = relative(&id).to_owned();
+            json!({"capability":"files.write","resource":{"type":"file","id":id,"tier":"internal"},"parameters":{"tool":"apply_patch","path":relative,"bytes":patch.len(),"sha256":sha256(patch),"preview":preview(patch)}})
+        })
+        .collect()
+}
+
 /// Identifies one exact tool call, so a retry after a timed-out approval finds the same trace.
 pub fn call_key(tool: &str, input: &Value) -> String {
     sha256(&format!("{tool}\n{input}"))
@@ -260,6 +299,22 @@ mod tests {
             resource_id(&ws, "handbook/new/deep.md").0,
             "workspace/handbook/new/deep.md"
         );
+    }
+
+    #[test]
+    fn codex_patches_become_one_write_per_path() {
+        let ws = workspace();
+        let patch = "*** Begin Patch\n*** Add File: notes/a.md\n+hello\n*** Update File: handbook/onboarding.md\n@@\n-x\n+y\n*** Delete File: ../outside.txt\n*** End Patch";
+        let actions = patch_actions(&ws, &json!({"command":patch}));
+        let ids: Vec<_> = actions
+            .iter()
+            .map(|a| a["resource"]["id"].as_str().unwrap().to_owned())
+            .collect();
+        assert_eq!(ids[0], "workspace/notes/a.md");
+        assert_eq!(ids[1], "workspace/handbook/onboarding.md");
+        assert!(!ids[2].starts_with("workspace"), "{}", ids[2]);
+        assert!(actions.iter().all(|a| a["capability"] == "files.write"));
+        assert!(patch_actions(&ws, &json!({"command":"no paths"})).is_empty());
     }
 
     #[test]

@@ -88,6 +88,7 @@ fn deny(reason: String) -> Verdict {
 struct Client {
     env: Env,
     http: reqwest::Client,
+    target: String,
 }
 
 impl Client {
@@ -104,7 +105,8 @@ impl Client {
             .await?)
     }
 
-    async fn publish(&self, event: Value) {
+    async fn publish(&self, mut event: Value) {
+        event["target"] = json!(self.target);
         if let Err(error) = self.internal("events", event).await {
             eprintln!("betsee hook: event not delivered: {error}");
         }
@@ -171,6 +173,18 @@ fn event(kind: &str, tool_use_id: &str, tool: &str, request: &Value, trace: &Val
     json!({"type":kind,"tool_use_id":tool_use_id,"tool":tool,"capability":request["capability"],"resource":trace.get("resource").cloned().unwrap_or_else(||request["resource"].clone()),"decision":trace["decision"],"approval_state":trace["approval_state"],"reasons":reasons(trace),"control_ids":trace["control_ids"],"policy_ids":trace["policy_ids"],"trace_id":trace["trace_id"],"execution":trace["execution"]})
 }
 
+/// What the runtime is about to run or touch, so agent-host can match what actually executed.
+fn target(tool: &str, input: &Value) -> String {
+    if tool == "apply_patch" {
+        return mapping::patch_paths(input["command"].as_str().unwrap_or("")).join("\n");
+    }
+    ["command", "file_path", "path", "url", "query", "pattern"]
+        .iter()
+        .find_map(|key| input[*key].as_str())
+        .unwrap_or("")
+        .to_owned()
+}
+
 async fn decide(stdin: &str) -> Result<Verdict> {
     let call: Value = serde_json::from_str(stdin).context("tool call is not JSON")?;
     let tool = call["tool_name"]
@@ -178,15 +192,59 @@ async fn decide(stdin: &str) -> Result<Verdict> {
         .context("tool call names no tool")?;
     let tool_use_id = call["tool_use_id"].as_str().unwrap_or("");
     let env = Env::load()?;
-    let mut request = mapping::action(&env.workspace, tool, &call["tool_input"]);
-    request["session_id"] = json!(env.session);
-    let key = mapping::call_key(tool, &call["tool_input"]);
+    // The whole decision has a deadline below the runtime's hook timeout: a Codex hook that times
+    // out lets the call through, so this hook must always answer first.
+    let deadline = env.approval_wait + Duration::from_secs(60);
+    let mut requests = if tool == "apply_patch" {
+        mapping::patch_actions(&env.workspace, &call["tool_input"])
+    } else {
+        vec![mapping::action(&env.workspace, tool, &call["tool_input"])]
+    };
+    if requests.is_empty() {
+        requests.push(mapping::action(
+            &env.workspace,
+            "apply_patch (no file paths)",
+            &call["tool_input"],
+        ));
+    }
     let client = Client {
         http: reqwest::Client::builder()
             .timeout(Duration::from_secs(15))
             .build()?,
+        target: target(tool, &call["tool_input"]),
         env,
     };
+    let mut verdict = deny("no request to decide".into());
+    for (index, mut request) in requests.into_iter().enumerate() {
+        request["session_id"] = json!(client.env.session);
+        let key = if index == 0 {
+            mapping::call_key(tool, &call["tool_input"])
+        } else {
+            mapping::call_key(tool, &json!({"input":call["tool_input"],"part":index}))
+        };
+        verdict = match tokio::time::timeout(
+            deadline,
+            decide_one(&client, tool, tool_use_id, request, key),
+        )
+        .await
+        {
+            Ok(result) => result?,
+            Err(_) => deny("Betsee did not decide in time; denied (fail closed)".into()),
+        };
+        if !verdict.allow {
+            return Ok(verdict);
+        }
+    }
+    Ok(verdict)
+}
+
+async fn decide_one(
+    client: &Client,
+    tool: &str,
+    tool_use_id: &str,
+    request: Value,
+    key: String,
+) -> Result<Verdict> {
     let previous = client
         .internal("pending/get", json!({"key":key}))
         .await

@@ -3,6 +3,7 @@ pub mod api;
 pub mod auth;
 pub mod connectors;
 pub mod content;
+pub mod files;
 pub mod input;
 pub mod pipeline;
 pub mod store;

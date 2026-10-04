@@ -2414,7 +2414,7 @@
           "get":
             {
               "operationId": "get__api_v1_chat_sessions",
-              "summary": "agent-host: the caller's chats with the employee assistant",
+              "summary": "Betsee Desk (embedded agent-host, 127.0.0.1:8097): the caller's chats with the employee assistant",
               "responses":
                 {
                   "200":
@@ -2460,7 +2460,7 @@
           "post":
             {
               "operationId": "post__api_v1_chat_sessions",
-              "summary": "agent-host: start a chat; creates a Betsee AgentSession for employee-assistant in use case employee-assistance with the caller's token",
+              "summary": "Betsee Desk (embedded agent-host, 127.0.0.1:8097): start a chat; creates a Betsee AgentSession for employee-assistant in use case employee-assistance with the caller's token",
               "responses":
                 {
                   "201":
@@ -2519,7 +2519,7 @@
           "post":
             {
               "operationId": "post__api_v1_chat_messages",
-              "summary": "agent-host: send a message. The Gateway content filter runs first; a refused or unchecked message never reaches the model (200 blocked). An accepted message starts the agent (202).",
+              "summary": "Betsee Desk (embedded agent-host, 127.0.0.1:8097): send a message. The Gateway content filter runs first; a refused or unchecked message never reaches the model (200 blocked). An accepted message starts the agent (202).",
               "requestBody":
                 {
                   "required": true,
@@ -2606,7 +2606,7 @@
           "get":
             {
               "operationId": "get__api_v1_chat_stream_chat_id",
-              "summary": "agent-host: Server-Sent Events of one chat (bearer, fetch-based; Last-Event-ID resumes). Event types are listed in contracts/events.md.",
+              "summary": "Betsee Desk (embedded agent-host, 127.0.0.1:8097): Server-Sent Events of one chat (bearer, fetch-based; Last-Event-ID resumes). Event types are listed in contracts/events.md.",
               "parameters":
                 [
                   {

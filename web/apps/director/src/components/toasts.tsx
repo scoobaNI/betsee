@@ -20,9 +20,16 @@ interface Toast {
   at: number;
 }
 
-type ToastDraft = Omit<Toast, 'id' | 'count' | 'at'>;
+export type ToastDraft = Omit<Toast, 'id' | 'count' | 'at'>;
 
-const SHOWN = 4;
+const noticeListeners = new Set<(draft: ToastDraft) => void>();
+
+/** Shows a notification for something the reader did here (a demo act started), not a stream event. */
+export function notify(draft: ToastDraft) {
+  for (const listener of noticeListeners) listener(draft);
+}
+
+const SHOWN = 3;
 const MERGE_MS = 5_000;
 const LIFETIME_MS = 6_500;
 
@@ -52,8 +59,9 @@ export function toastFor(event: StreamEvent): ToastDraft | null {
       const a = event.data;
       const what = `${a.agent.id}: ${a.capability} on ${a.resource.id}`;
       if (isVoided(a)) return { key: `done:${a.trace_id}`, tone: 'muted', icon: 'x', title: 'Approval voided', body: `${what}. The session ended first.`, to: trace(a.trace_id) };
-      if (a.approval_state === 'approved') return { key: `done:${a.trace_id}`, tone: 'ok', icon: 'circle-check', title: 'Approved by a human', body: what, to: trace(a.trace_id) };
-      if (a.approval_state === 'rejected') return { key: `done:${a.trace_id}`, tone: 'bad', icon: 'ban', title: 'Rejected by a human', body: what, to: trace(a.trace_id) };
+      const stepUp = a.decision === 'require_step_up';
+      if (a.approval_state === 'approved') return { key: `done:${a.trace_id}`, tone: 'ok', icon: 'circle-check', title: stepUp ? 'Step-up verified' : 'Approved by a human', body: what, to: trace(a.trace_id) };
+      if (a.approval_state === 'rejected') return { key: `done:${a.trace_id}`, tone: 'bad', icon: 'ban', title: stepUp ? 'Step-up failed' : 'Rejected by a human', body: what, to: trace(a.trace_id) };
       return null;
     }
     case 'agent.state_changed': {
@@ -138,8 +146,7 @@ export function LiveToasts() {
 
   useEffect(() => {
     let next = 0;
-    return subscribeToEvents((event) => {
-      const draft = toastFor(event);
+    const push = (draft: ToastDraft | null) => {
       if (!draft) return;
       const now = Date.now();
       setToasts((prev) => {
@@ -147,13 +154,19 @@ export function LiveToasts() {
         if (same) return [{ ...same, ...draft, count: same.count + 1, at: now }, ...prev.filter((t) => t !== same)];
         return [{ ...draft, id: ++next, count: 1, at: now }, ...prev].slice(0, SHOWN);
       });
-    });
+    };
+    const unsubscribe = subscribeToEvents((event) => push(toastFor(event)));
+    noticeListeners.add(push);
+    return () => {
+      unsubscribe();
+      noticeListeners.delete(push);
+    };
   }, []);
 
   const close = (id: number) => setToasts((prev) => prev.filter((t) => t.id !== id));
 
   return (
-    <div aria-live="polite" className="pointer-events-none fixed top-20 right-4 z-50 flex w-[360px] max-w-[calc(100vw-32px)] flex-col gap-2.5">
+    <div aria-live="polite" className="pointer-events-none fixed top-4 right-4 z-50 flex w-[380px] max-w-[calc(100vw-32px)] flex-col gap-2.5">
       <AnimatePresence initial={false}>
         {toasts.map((toast) => (
           <motion.div

@@ -167,4 +167,118 @@ describe('mock world over mock fetch', () => {
     await until(() => resumed.length === 3);
     assert.deepEqual(resumed, ['kubectl get pods 0', 'kubectl get pods 1', 'kubectl get pods 2']);
   });
+
+  it('keeps background traffic all-allow unless variety is on', () => {
+    world = createMockWorld({ seed: 7, backgroundEveryMs: [100_000, 100_000], backfill: 100 });
+    world.start();
+    assert.ok(world.traces(100).every((t) => t.decision === 'allow' && !t.ai_tightened));
+  });
+
+  it('with variety, background traffic includes denies, approvals, step-ups and AI tightening', () => {
+    world = createMockWorld({ seed: 7, backgroundEveryMs: [100_000, 100_000], backfill: 100, variety: true });
+    world.start();
+    const traces = world.traces(100);
+    const decisions = new Set(traces.map((t) => t.decision));
+    for (const d of ['allow', 'deny', 'require_approval', 'require_step_up'] as const) assert.ok(decisions.has(d), d);
+    assert.ok(traces.some((t) => t.ai_tightened));
+    assert.ok(traces.filter((t) => t.decision === 'allow').length > traces.length / 2);
+  });
+
+  it('resolves a step-up-only request through a step_up span', async () => {
+    const { fetchImpl } = boot();
+    const trace = world!.perform({
+      agentId: 'ops-runner',
+      capability: 'shell.exec',
+      resource: { type: 'command', id: 'deploy-service billing --env production', tier: 'internal' },
+      tool: null,
+      outcome: {
+        kind: 'approval',
+        controls: ['CTL-APR-002'],
+        reason: 'Production deploy.',
+        stepUp: true,
+        stepUpOnly: true,
+        resolution: 'approved',
+        resolveAfterMs: 100,
+        parameters: {},
+      },
+    });
+    assert.equal(trace.decision, 'require_step_up');
+    assert.equal(trace.spans.find((s) => s.stage === 'step_up')?.status, 'pending');
+    await until(() => world!.traces().find((t) => t.trace_id === trace.trace_id)?.approval_state === 'approved');
+    const done = await get<Trace>(fetchImpl, `/api/v1/traces/${trace.trace_id}`);
+    assert.equal(done.body.spans.find((s) => s.stage === 'step_up')?.status, 'passed');
+    assert.ok(!done.body.spans.some((s) => s.stage === 'approval'));
+    assert.equal(done.body.spans.at(-1)?.stage, 'audit');
+  });
+
+  it('has no chat sessions or employee-assistant unless chats is on', async () => {
+    const { fetchImpl } = boot();
+    const sessions = await get<{ items: { use_case: { id: string } }[] }>(fetchImpl, '/api/v1/sessions');
+    assert.ok(sessions.body.items.every((s) => s.use_case.id !== 'employee-assistance'));
+    assert.ok(world!.agents().every((a) => a.id !== 'employee-assistant'));
+  });
+
+  it('starts and ends chat sessions with events, keeping ended ones listed', async () => {
+    world = createMockWorld({ seed: 3, timeScale: 0.001, backgroundEveryMs: [100_000, 100_000], backfill: 16, chats: true });
+    world.start();
+    const fetchImpl = createMockFetch(world, { latencyMs: 0, pingMs: 50 });
+    const events: string[] = [];
+    world.subscribe((e) => events.push(e.event.type));
+    const chats = () => world!.sessions().filter((s) => s.use_case.id === 'employee-assistance');
+    assert.ok(chats().some((s) => s.status === 'closed'), 'backfilled history');
+    assert.equal(chats().filter((s) => s.status === 'active').length, 1, 'one chat live at start');
+    await until(() => events.includes('session.ended'), 3_000);
+    const listed = await get<{ items: { id: string; status: string; human: { display_name: string } }[] }>(fetchImpl, '/api/v1/sessions');
+    const ended = listed.body.items.filter((s) => s.status === 'closed');
+    assert.ok(ended.length >= 3);
+    const chatTraces = world!.traces(200).filter((t) => t.agent.id === 'employee-assistant');
+    assert.ok(chatTraces.length > 0);
+    for (const t of chatTraces) {
+      const session = listed.body.items.find((s) => s.id === t.session_id);
+      assert.ok(session, `trace ${t.trace_id} names a listed chat session`);
+      assert.equal(t.human?.display_name, session.human.display_name);
+    }
+  });
+
+  it('applies access changes: the next request is decided under them, and reset restores them', async () => {
+    const { fetchImpl } = boot();
+    const post = (changes: unknown[], reason = 'test') =>
+      fetchImpl(`${BASE}/api/v1/access/changes`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changes, reason }) });
+    const crmRead = { agentId: 'invoice-assistant', capability: 'crm.read', resource: { type: 'customer', id: 'C-1', tier: 'internal' as const }, tool: null, outcome: { kind: 'allow' as const } };
+
+    const revoked = await post([{ kind: 'delegation', agent_id: 'invoice-assistant', capability: 'crm.read', granted: false }]);
+    assert.equal(revoked.status, 200);
+    const [change] = ((await revoked.json()) as { items: { before: string; after: string; actor: { display_name: string } }[] }).items;
+    assert.deepEqual([change.before, change.after, change.actor.display_name], ['crm.read delegated', 'crm.read not delegated', 'Daniel Ortiz']);
+    let trace = world!.perform(crmRead);
+    assert.equal(trace.decision, 'deny');
+    assert.deepEqual(trace.control_ids, ['CTL-CAP-001']);
+    assert.ok(!world!.agents().find((a) => a.id === 'invoice-assistant')!.current_session!.effective.includes('crm.read'));
+
+    await post([{ kind: 'delegation', agent_id: 'invoice-assistant', capability: 'crm.read', granted: true }, { kind: 'person_tier', sub: 'u-maya-chen', tier_ceiling: 'public' }]);
+    trace = world!.perform(crmRead);
+    assert.equal(trace.decision, 'deny');
+    assert.deepEqual(trace.control_ids, ['CTL-TIER-001']);
+
+    const invalid = await post([{ kind: 'delegation', agent_id: 'invoice-assistant', capability: 'shell.exec', granted: true }]);
+    assert.equal(invalid.status, 422);
+
+    const snapshot = await get<{ people: { sub: string; tier_ceiling: string }[]; changes: unknown[] }>(fetchImpl, '/api/v1/access');
+    assert.equal(snapshot.body.people.find((p) => p.sub === 'u-maya-chen')!.tier_ceiling, 'public');
+    assert.equal(snapshot.body.changes.length, 3);
+
+    world!.reset();
+    assert.equal(world!.perform(crmRead).decision, 'allow');
+  });
+
+  it('suspending an agent denies it, and turning Betsee Desk off revokes the person\'s open chats', async () => {
+    world = createMockWorld({ seed: 3, timeScale: 0.01, backgroundEveryMs: [100_000, 100_000], backfill: 8, chats: true });
+    world.start();
+    const open = world.sessions().find((s) => s.use_case.id === 'employee-assistance' && s.status === 'active')!;
+    world.applyAccess([{ kind: 'person_desk', sub: open.human.sub, enabled: false }, { kind: 'agent_state', agent_id: 'ops-runner', state: 'suspended' }], { sub: 'u-daniel-ortiz', display_name: 'Daniel Ortiz' }, 'abuse', 'sug-1');
+    assert.equal(world.sessions().find((s) => s.id === open.id)!.status, 'revoked');
+    const shell = world.perform({ agentId: 'ops-runner', capability: 'shell.exec', resource: { type: 'command', id: 'tail-logs billing', tier: 'internal' }, tool: null, outcome: { kind: 'allow' } });
+    assert.deepEqual([shell.decision, shell.control_ids[0]], ['deny', 'CTL-ID-002']);
+    assert.equal(world.access().changes[0]!.suggestion_id, 'sug-1');
+  });
 });

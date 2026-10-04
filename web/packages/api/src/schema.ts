@@ -354,10 +354,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent-host: the caller's chats with the employee assistant */
+        /** Betsee Desk (embedded agent-host, 127.0.0.1:8097): the caller's chats with the employee assistant */
         get: operations["get__api_v1_chat_sessions"];
         put?: never;
-        /** agent-host: start a chat; creates a Betsee AgentSession for employee-assistant in use case employee-assistance with the caller's token */
+        /** Betsee Desk (embedded agent-host, 127.0.0.1:8097): start a chat; creates a Betsee AgentSession for employee-assistant in use case employee-assistance with the caller's token */
         post: operations["post__api_v1_chat_sessions"];
         delete?: never;
         options?: never;
@@ -374,7 +374,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** agent-host: send a message. The Gateway content filter runs first; a refused or unchecked message never reaches the model (200 blocked). An accepted message starts the agent (202). */
+        /** Betsee Desk (embedded agent-host, 127.0.0.1:8097): send a message. The Gateway content filter runs first; a refused or unchecked message never reaches the model (200 blocked). An accepted message starts the agent (202). */
         post: operations["post__api_v1_chat_messages"];
         delete?: never;
         options?: never;
@@ -389,7 +389,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent-host: Server-Sent Events of one chat (bearer, fetch-based; Last-Event-ID resumes). Event types are listed in contracts/events.md. */
+        /** Betsee Desk (embedded agent-host, 127.0.0.1:8097): Server-Sent Events of one chat (bearer, fetch-based; Last-Event-ID resumes). Event types are listed in contracts/events.md. */
         get: operations["get__api_v1_chat_stream_chat_id"];
         put?: never;
         post?: never;

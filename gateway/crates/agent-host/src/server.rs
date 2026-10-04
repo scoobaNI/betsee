@@ -2,6 +2,7 @@
 //! Typed text passes the Gateway's content filter (CTL-IN-001) before the model sees it; every
 //! tool call passes the Gateway through the PreToolUse hook (CTL-RT-001).
 
+use crate::runtime::{self, Runtime};
 use anyhow::{Context, Result, bail};
 use axum::{
     Json, Router,
@@ -48,41 +49,10 @@ pub struct Config {
     pub claude: String,
     pub model: Option<String>,
     pub approval_wait_secs: u64,
-}
-
-impl Config {
-    pub fn from_env() -> Result<Self> {
-        let var =
-            |name: &str, default: &str| std::env::var(name).unwrap_or_else(|_| default.into());
-        let listen = var("AGENT_HOST_LISTEN", "127.0.0.1:8095")
-            .split(',')
-            .map(|address| address.trim().parse().context("AGENT_HOST_LISTEN"))
-            .collect::<Result<Vec<_>>>()?;
-        Ok(Self {
-            listen,
-            gateway: var("BETSEE_GATEWAY_URL", "http://api.betsee.localhost"),
-            token_url: var(
-                "BETSEE_TOKEN_URL",
-                "http://auth.betsee.localhost/realms/betsee/protocol/openid-connect/token",
-            ),
-            client_id: var("AGENT_CLIENT_ID", AGENT_ID),
-            client_secret: std::env::var("AGENT_CLIENT_SECRET")
-                .context("AGENT_CLIENT_SECRET is not set")?,
-            workspace: PathBuf::from(
-                std::env::var("AGENT_WORKSPACE").context("AGENT_WORKSPACE is not set")?,
-            )
-            .canonicalize()
-            .context("AGENT_WORKSPACE does not exist")?,
-            state_dir: PathBuf::from(var("AGENT_HOST_STATE", "state/agent-host")),
-            claude: var("CLAUDE_BIN", "claude"),
-            model: std::env::var("CLAUDE_MODEL")
-                .ok()
-                .filter(|model| !model.is_empty()),
-            approval_wait_secs: var("BETSEE_APPROVAL_WAIT_SECS", "150")
-                .parse()
-                .unwrap_or(150),
-        })
-    }
+    pub runtime: Runtime,
+    /// Betsee-owned CODEX_HOME: auth plus the Betsee hook, never the user's own config.
+    pub codex_home: PathBuf,
+    pub desk: Option<crate::desk::DeskConfig>,
 }
 
 struct Chat {
@@ -97,6 +67,16 @@ struct Chat {
     pending: HashMap<String, String>,
     sender: broadcast::Sender<Value>,
     created_at: String,
+    runtime: Runtime,
+    /// Tool calls the Gateway allowed in this run, matched against what the runtime executed.
+    allowed: Vec<Allowed>,
+}
+
+struct Allowed {
+    tool_use_id: String,
+    tool: String,
+    target: String,
+    used: bool,
 }
 
 impl Chat {
@@ -108,23 +88,26 @@ impl Chat {
         event
     }
     fn summary(&self) -> Value {
-        json!({"chat_id":self.id,"session":self.session,"busy":self.busy,"created_at":self.created_at,"events":self.events.len(),"agent_id":AGENT_ID,"use_case":{"id":USE_CASE,"name":"Employee assistance"}})
+        json!({"chat_id":self.id,"session":self.session,"busy":self.busy,"created_at":self.created_at,"events":self.events.len(),"agent_id":AGENT_ID,"runtime":self.runtime,"use_case":{"id":USE_CASE,"name":"Employee assistance"}})
     }
 }
 
 pub struct Host {
-    config: Config,
-    http: reqwest::Client,
+    pub(crate) config: Config,
+    pub(crate) http: reqwest::Client,
     chats: Mutex<HashMap<String, Chat>>,
     token: Mutex<Option<(String, Instant)>>,
     hooks_file: PathBuf,
+    pub(crate) runtime: Mutex<Runtime>,
+    pub(crate) keys: Mutex<crate::desk::ApiKeys>,
+    pub(crate) desk: Option<crate::desk::DeskState>,
 }
 
 fn now() -> String {
     chrono::Utc::now().to_rfc3339()
 }
 
-struct ApiError(StatusCode, String);
+pub(crate) struct ApiError(pub(crate) StatusCode, pub(crate) String);
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         (
@@ -134,9 +117,9 @@ impl IntoResponse for ApiError {
             .into_response()
     }
 }
-type ApiResult<T = Json<Value>> = Result<T, ApiError>;
+pub(crate) type ApiResult<T = Json<Value>> = Result<T, ApiError>;
 
-fn bearer(headers: &HeaderMap) -> ApiResult<String> {
+pub(crate) fn header_bearer(headers: &HeaderMap) -> ApiResult<String> {
     headers
         .get("authorization")
         .and_then(|value| value.to_str().ok())
@@ -146,8 +129,12 @@ fn bearer(headers: &HeaderMap) -> ApiResult<String> {
 }
 
 impl Host {
-    pub fn new(config: Config) -> Result<Arc<Self>> {
+    pub fn new(mut config: Config) -> Result<Arc<Self>> {
         std::fs::create_dir_all(&config.state_dir)?;
+        // The runtimes run inside the workspace, so every path handed to them must be absolute.
+        std::fs::create_dir_all(&config.codex_home)?;
+        config.state_dir = config.state_dir.canonicalize()?;
+        config.codex_home = config.codex_home.canonicalize()?;
         let exe = std::env::current_exe()?;
         let quoted = format!("'{}' hook", exe.to_string_lossy().replace('\'', "'\\''"));
         let hooks_file = config
@@ -159,13 +146,26 @@ impl Host {
                     .unwrap_or_default()
                     .join(config.state_dir.join("hooks.json"))
             });
-        // The hook must outlive the longest approval wait, or Claude Code gives up on it first.
-        let hooks = json!({"hooks":{"PreToolUse":[{"matcher":"*","hooks":[{"type":"command","command":quoted,"timeout":config.approval_wait_secs + 120}]}]}});
-        std::fs::write(&hooks_file, serde_json::to_vec_pretty(&hooks)?)?;
+        // The hook outlives the longest approval wait; it also answers deny before this timeout.
+        let timeout = config.approval_wait_secs + 120;
+        std::fs::write(
+            &hooks_file,
+            serde_json::to_vec_pretty(&runtime::hooks_json(&quoted, timeout, false))?,
+        )?;
+        std::fs::create_dir_all(&config.codex_home)?;
+        std::fs::write(
+            config.codex_home.join("hooks.json"),
+            serde_json::to_vec_pretty(&runtime::hooks_json(&quoted, timeout, true))?,
+        )?;
+        let keys = crate::desk::ApiKeys::load(&config.state_dir);
+        let desk = config.desk.clone().map(crate::desk::DeskState::new);
         Ok(Arc::new(Self {
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(20))
                 .build()?,
+            runtime: Mutex::new(config.runtime),
+            keys: Mutex::new(keys),
+            desk,
             config,
             chats: Mutex::new(HashMap::new()),
             token: Mutex::new(None),
@@ -174,7 +174,7 @@ impl Host {
     }
 
     /// The human behind a browser token, as the Gateway verifies it.
-    async fn human(&self, token: &str) -> ApiResult<Value> {
+    pub(crate) async fn human(&self, token: &str) -> ApiResult<Value> {
         let response = self
             .http
             .get(format!("{}/api/v1/me", self.config.gateway))
@@ -200,8 +200,26 @@ impl Host {
         Ok(me["human"].clone())
     }
 
-    async fn owned(&self, headers: &HeaderMap, chat_id: &str) -> ApiResult<(String, Value)> {
-        let token = bearer(headers)?;
+    /// A browser bearer token, or in the desktop app the signed-in human's token behind the
+    /// per-launch desk token.
+    pub(crate) async fn bearer(&self, headers: &HeaderMap) -> ApiResult<String> {
+        if let Some(desk) = &self.desk
+            && desk.authorized(headers)
+        {
+            return desk
+                .access_token(&self.http)
+                .await
+                .map_err(|error| ApiError(error.0, error.1));
+        }
+        header_bearer(headers)
+    }
+
+    pub(crate) async fn owned(
+        &self,
+        headers: &HeaderMap,
+        chat_id: &str,
+    ) -> ApiResult<(String, Value)> {
+        let token = self.bearer(headers).await?;
         let human = self.human(&token).await?;
         let chats = self.chats.lock().await;
         match chats.get(chat_id) {
@@ -245,7 +263,15 @@ impl Host {
         Ok(token)
     }
 
-    async fn push(&self, chat_id: &str, event: Value) {
+    pub(crate) async fn session_of(&self, chat_id: &str) -> Option<String> {
+        self.chats
+            .lock()
+            .await
+            .get(chat_id)
+            .and_then(|chat| chat.session["id"].as_str().map(str::to_owned))
+    }
+
+    pub(crate) async fn push(&self, chat_id: &str, event: Value) {
         if let Some(chat) = self.chats.lock().await.get_mut(chat_id) {
             chat.push(event);
         }
@@ -282,33 +308,65 @@ impl Host {
     }
 
     async fn run_inner(self: Arc<Self>, chat_id: &str, text: &str) -> Result<()> {
-        let (resume, run_token, session_id, name) = {
-            let chats = self.chats.lock().await;
-            let chat = chats.get(chat_id).context("chat vanished")?;
+        let (resume, run_token, session_id, name, runtime) = {
+            let mut chats = self.chats.lock().await;
+            let chat = chats.get_mut(chat_id).context("chat vanished")?;
+            chat.allowed.clear();
             (
                 chat.claude_session.clone(),
                 chat.run_token.clone(),
                 chat.session["id"].as_str().unwrap_or("").to_owned(),
                 chat.human_name.clone(),
+                chat.runtime,
             )
         };
         let config = &self.config;
-        let mut command = tokio::process::Command::new(&config.claude);
+        let binary = runtime::which(runtime.binary())
+            .with_context(|| format!("{} is not installed", runtime.label()))?;
+        let mut command = tokio::process::Command::new(binary);
+        let mut prompt = text.to_owned();
+        match runtime {
+            Runtime::Claude => {
+                command
+                    .arg("-p")
+                    .args(["--output-format", "stream-json", "--verbose"])
+                    .arg("--settings")
+                    .arg(&self.hooks_file)
+                    // Only the hook settings: no user hooks, no user CLAUDE.md, no MCP, no skills.
+                    .args(["--setting-sources", "project", "--strict-mcp-config"])
+                    .args(["--tools", TOOLS])
+                    .args(["--permission-mode", "default"])
+                    .arg("--append-system-prompt")
+                    .arg(Self::system_prompt(&name))
+                    .env("CLAUDE_CODE_DISABLE_CLAUDE_MDS", "1")
+                    .env("CLAUDE_CODE_DISABLE_AUTO_MEMORY", "1")
+                    .env("CLAUDE_CODE_DISABLE_BUNDLED_SKILLS", "1");
+                if let Some(model) = &config.model {
+                    command.args(["--model", model]);
+                }
+                if let Some(resume) = &resume {
+                    command.args(["--resume", resume]);
+                }
+                if let Some(key) = &self.keys.lock().await.anthropic {
+                    command.env("ANTHROPIC_API_KEY", key);
+                }
+            }
+            Runtime::Codex => {
+                command
+                    .args(runtime::codex_args(&config.workspace, resume.as_deref()))
+                    .env("CODEX_HOME", &config.codex_home);
+                if resume.is_none() {
+                    // Codex has no system-prompt flag in exec; the instructions open the thread.
+                    prompt = format!(
+                        "{} Create and change files with apply_patch, never with shell redirection; the shell is for simple read-only commands.\n\n{text}",
+                        Self::system_prompt(&name)
+                    );
+                }
+            }
+        }
         command
             .current_dir(&config.workspace)
-            .arg("-p")
-            .args(["--output-format", "stream-json", "--verbose"])
-            .arg("--settings")
-            .arg(&self.hooks_file)
-            // Only the hook settings: no user hooks, no user CLAUDE.md, no MCP servers, no skills.
-            .args(["--setting-sources", "project", "--strict-mcp-config"])
-            .args(["--tools", TOOLS])
-            .args(["--permission-mode", "default"])
-            .arg("--append-system-prompt")
-            .arg(Self::system_prompt(&name))
-            .env("CLAUDE_CODE_DISABLE_CLAUDE_MDS", "1")
-            .env("CLAUDE_CODE_DISABLE_AUTO_MEMORY", "1")
-            .env("CLAUDE_CODE_DISABLE_BUNDLED_SKILLS", "1")
+            .env("PATH", runtime::login_path())
             .env(
                 "BETSEE_AGENT_HOST_URL",
                 format!("http://127.0.0.1:{}", config.listen[0].port()),
@@ -323,22 +381,19 @@ impl Host {
                 config.approval_wait_secs.to_string(),
             )
             .env_remove("AGENT_CLIENT_SECRET")
+            .env_remove("OPENAI_API_KEY")
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .kill_on_drop(true);
-        if let Some(model) = &config.model {
-            command.args(["--model", model]);
-        }
-        if let Some(resume) = &resume {
-            command.args(["--resume", resume]);
-        }
-        let mut child = command.spawn().context("claude CLI could not start")?;
-        let mut stdin = child.stdin.take().context("claude stdin")?;
-        stdin.write_all(text.as_bytes()).await?;
+        let mut child = command
+            .spawn()
+            .with_context(|| format!("{} could not start", runtime.label()))?;
+        let mut stdin = child.stdin.take().context("runtime stdin")?;
+        stdin.write_all(prompt.as_bytes()).await?;
         drop(stdin);
-        let stdout = child.stdout.take().context("claude stdout")?;
-        let mut stderr = child.stderr.take().context("claude stderr")?;
+        let stdout = child.stdout.take().context("runtime stdout")?;
+        let mut stderr = child.stderr.take().context("runtime stderr")?;
         let errors = tokio::spawn(async move {
             let mut text = String::new();
             let _ = stderr.read_to_string(&mut text).await;
@@ -346,14 +401,26 @@ impl Host {
         });
         let mut lines = BufReader::new(stdout).lines();
         let mut finished = false;
+        let mut ungoverned = None;
         let reading = async {
             while let Some(line) = lines.next_line().await? {
                 let Ok(message) = serde_json::from_str::<Value>(&line) else {
                     continue;
                 };
-                finished |= message["type"] == "result";
-                for event in self.translate(chat_id, &message).await {
+                let (events, done, violation) = match runtime {
+                    Runtime::Claude => {
+                        let done = message["type"] == "result";
+                        (self.translate(chat_id, &message).await, done, None)
+                    }
+                    Runtime::Codex => self.translate_codex(chat_id, &message).await,
+                };
+                finished |= done;
+                for event in events {
                     self.push(chat_id, event).await;
+                }
+                if violation.is_some() {
+                    ungoverned = violation;
+                    break;
                 }
             }
             anyhow::Ok(())
@@ -368,6 +435,14 @@ impl Host {
                 );
             }
         }
+        if let Some(what) = ungoverned {
+            // Detective control: something executed that no Gateway allow covers. Stop the run.
+            child.kill().await.ok();
+            bail!(
+                "{} ran something Betsee never allowed ({what}); the run was stopped",
+                runtime.label()
+            );
+        }
         let status = child.wait().await?;
         let errors = errors.await.unwrap_or_default();
         if !finished {
@@ -375,6 +450,102 @@ impl Host {
             bail!("the agent run ended without a result ({status}): {tail}");
         }
         Ok(())
+    }
+
+    /// Takes the Gateway allow that covers what the runtime executed, if any.
+    async fn claim(&self, chat_id: &str, tool: &str, executed: &str) -> Option<String> {
+        let mut chats = self.chats.lock().await;
+        let chat = chats.get_mut(chat_id)?;
+        let allowed = chat.allowed.iter_mut().find(|allowed| {
+            !allowed.used
+                && allowed.tool == tool
+                && !allowed.target.is_empty()
+                && (executed.contains(&allowed.target)
+                    || allowed.target.lines().any(|path| executed.contains(path)))
+        })?;
+        allowed.used = true;
+        Some(allowed.tool_use_id.clone())
+    }
+
+    /// Codex `exec --json` events as chat events, plus whether the turn ended and anything that ran
+    /// without a matching Gateway allow.
+    async fn translate_codex(
+        &self,
+        chat_id: &str,
+        message: &Value,
+    ) -> (Vec<Value>, bool, Option<String>) {
+        let mut events = Vec::new();
+        let item = &message["item"];
+        match (message["type"].as_str(), item["type"].as_str()) {
+            (Some("thread.started"), _) => {
+                if let Some(thread) = message["thread_id"].as_str()
+                    && let Some(chat) = self.chats.lock().await.get_mut(chat_id)
+                {
+                    chat.claude_session = Some(thread.to_owned());
+                }
+                events.push(
+                    json!({"type":"run_started","model":"codex","tools":["Bash","apply_patch"]}),
+                );
+            }
+            (Some("item.completed"), Some("agent_message")) => {
+                if let Some(text) = item["text"].as_str().filter(|t| !t.trim().is_empty()) {
+                    events.push(json!({"type":"assistant_text","text":text}));
+                }
+            }
+            (Some("item.completed"), Some("command_execution")) => {
+                let command = item["command"].as_str().unwrap_or("");
+                let output = item["aggregated_output"]
+                    .as_str()
+                    .or_else(|| item["output"].as_str())
+                    .unwrap_or("");
+                let Some(tool_use_id) = self.claim(chat_id, "Bash", command).await else {
+                    return (events, false, Some(format!("command `{command}`")));
+                };
+                let failed = item["exit_code"].as_i64().is_some_and(|code| code != 0)
+                    || item["status"] == "failed";
+                events.push(json!({"type":"tool_result","tool_use_id":tool_use_id,"is_error":failed,"content":output.chars().take(TEXT_LIMIT).collect::<String>()}));
+            }
+            (Some("item.completed"), Some("file_change")) => {
+                let paths: Vec<String> = item["changes"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|change| change["path"].as_str())
+                    .map(|path| {
+                        std::path::Path::new(path)
+                            .strip_prefix(&self.config.workspace)
+                            .map(|p| p.to_string_lossy().into_owned())
+                            .unwrap_or_else(|_| path.to_owned())
+                    })
+                    .collect();
+                let mut ids = Vec::new();
+                for path in &paths {
+                    match self.claim(chat_id, "apply_patch", path).await {
+                        Some(id) => ids.push(id),
+                        None => return (events, false, Some(format!("file change {path}"))),
+                    }
+                }
+                if let Some(id) = ids.first() {
+                    events.push(json!({"type":"tool_result","tool_use_id":id,"is_error":item["status"] == "failed","content":format!("Changed: {}", paths.join(", "))}));
+                }
+            }
+            (Some("turn.completed"), _) => {
+                events.push(json!({"type":"turn_end","subtype":"success","is_error":false,"usage":message["usage"]}));
+                return (events, true, None);
+            }
+            (Some("turn.failed"), _) | (Some("error"), _) => {
+                let detail = message["error"]["message"]
+                    .as_str()
+                    .or_else(|| message["message"].as_str())
+                    .unwrap_or("Codex reported an error");
+                events.push(json!({"type":"error","message":detail}));
+                if message["type"] == "turn.failed" {
+                    return (events, true, None);
+                }
+            }
+            _ => {}
+        }
+        (events, false, None)
     }
 
     /// Claude Code stream-json messages as chat events.
@@ -444,7 +615,7 @@ async fn create_session(
     State(host): State<Arc<Host>>,
     headers: HeaderMap,
 ) -> ApiResult<(StatusCode, Json<Value>)> {
-    let token = bearer(&headers)?;
+    let token = host.bearer(&headers).await?;
     let human = host.human(&token).await?;
     let response = host
         .http
@@ -482,6 +653,8 @@ async fn create_session(
         pending: HashMap::new(),
         sender,
         created_at: now(),
+        runtime: *host.runtime.lock().await,
+        allowed: Vec::new(),
     };
     chat.push(json!({"type":"session","session":chat.session}));
     let summary = chat.summary();
@@ -490,7 +663,7 @@ async fn create_session(
 }
 
 async fn list_sessions(State(host): State<Arc<Host>>, headers: HeaderMap) -> ApiResult {
-    let human = host.human(&bearer(&headers)?).await?;
+    let human = host.human(&host.bearer(&headers).await?).await?;
     let chats = host.chats.lock().await;
     let mut items: Vec<_> = chats
         .values()
@@ -707,6 +880,20 @@ async fn internal(
             Ok(Json(json!({"access_token":token})))
         }
         "events" => {
+            if body.payload["type"] == "decision"
+                && body.payload["decision"] == "allow"
+                && let Some(chat) = host.chats.lock().await.get_mut(&body.chat_id)
+            {
+                chat.allowed.push(Allowed {
+                    tool_use_id: body.payload["tool_use_id"]
+                        .as_str()
+                        .unwrap_or("")
+                        .to_owned(),
+                    tool: body.payload["tool"].as_str().unwrap_or("").to_owned(),
+                    target: body.payload["target"].as_str().unwrap_or("").to_owned(),
+                    used: false,
+                });
+            }
             host.push(&body.chat_id, body.payload).await;
             Ok(Json(json!({"ok":true})))
         }
@@ -741,7 +928,7 @@ async fn health() -> Json<Value> {
 }
 
 pub fn router(host: Arc<Host>) -> Router {
-    Router::new()
+    let router = Router::new()
         .route("/healthz", get(health))
         .route("/api/v1/chat/healthz", get(health))
         .route(
@@ -751,7 +938,29 @@ pub fn router(host: Arc<Host>) -> Router {
         .route("/api/v1/chat/messages", post(send_message))
         .route("/api/v1/chat/stream/{chat_id}", get(stream))
         .route("/internal/{*action}", post(internal))
-        .layer(axum::extract::DefaultBodyLimit::max(64 * 1024))
+        .layer(axum::extract::DefaultBodyLimit::max(64 * 1024));
+    if host.desk.is_none() {
+        return router.with_state(host);
+    }
+    // The desktop webview calls in from its own origin; nothing else is allowed cross-origin.
+    let cors = tower_http::cors::CorsLayer::new()
+        .allow_origin([
+            "tauri://localhost".parse().expect("origin"),
+            "http://tauri.localhost".parse().expect("origin"),
+            "http://localhost:1430".parse().expect("origin"),
+        ])
+        .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
+        .allow_headers([
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::ACCEPT,
+            axum::http::header::CACHE_CONTROL,
+            "x-desk-token".parse().expect("header"),
+            "last-event-id".parse().expect("header"),
+        ]);
+    router
+        .merge(crate::desk::router())
+        .layer(cors)
         .with_state(host)
 }
 

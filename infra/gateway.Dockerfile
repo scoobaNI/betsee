@@ -13,7 +13,7 @@ RUN --mount=type=cache,id=betsee-cargo-registry,target=/usr/local/cargo/registry
     for binary in $BUILD_BINARIES; do cp "target/debug/$binary" /out/; done
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl poppler-utils && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /out/ /usr/local/bin/

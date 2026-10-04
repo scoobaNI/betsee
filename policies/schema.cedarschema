@@ -63,6 +63,17 @@ namespace Betsee {
     scopeTier?: Tier,
   };
 
+  // A file crossing the agent workspace boundary (CTL-FILE-001): uploaded by the session's human
+  // or released to them. detected holds the scan classes: the CTL-IN-001 content classes plus
+  // executable, malware_test, unscannable, type_not_allowed and oversize. tier is the label the
+  // file carries (chosen for an upload, from the catalogue for a release).
+  type FileContext = {
+    session: AgentSession,
+    detected: Set<String>,
+    tier: Tier,
+    now: Long,
+  };
+
   // What the Gateway's deterministic detectors found in text a human typed (CTL-IN-001). Classes:
   // payment_card, iban, pesel, secret, resource_above_tier.
   type InputContext = {
@@ -222,6 +233,13 @@ namespace Betsee {
     principal: [Agent],
     resource: [Resource],
     context: ActionContext,
+  };
+
+  action "file_transfer";
+  action "file.submit", "file.release" in ["file_transfer"] appliesTo {
+    principal: [Human],
+    resource: [Resource],
+    context: FileContext,
   };
 
   // A human submits text to the agent of their own session (CTL-IN-001).

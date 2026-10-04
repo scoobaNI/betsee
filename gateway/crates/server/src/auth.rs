@@ -50,7 +50,10 @@ impl Claims {
         )
     }
     pub fn browser(&self) -> bool {
-        matches!(self.azp.as_str(), "betsee-director" | "betsee-ecosystem")
+        matches!(
+            self.azp.as_str(),
+            "betsee-director" | "betsee-ecosystem" | "betsee-desk"
+        )
     }
     pub fn runner(&self) -> bool {
         self.azp == "betsee-demo-runner" && self.role("demo-initiator")

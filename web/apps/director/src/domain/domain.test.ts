@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { ActionSummary, Span } from '@betsee/api';
+import type { ActionSummary, AgentSession, Span } from '@betsee/api';
 import { atLeastMedium, becauseSentence, isObservation, isStricter, isVoided, outcomeTone, resolutionOf, withApprovalState } from './decision.ts';
 import { computeKpis, groupBursts, recentByAgent } from './feed.ts';
 import { callerLabel, callerOf } from './caller.ts';
+import { chatAgentIds, chatsByPerson, principalIds } from './chats.ts';
+import { capabilityRules, delegationOf } from './configuration.ts';
+import { describe as describeChange, preview, stage, suggestAccess, type AccessSnapshot } from './access.ts';
 import { edgeStyle, type EdgeLatest } from './graph-style.ts';
 import { buildRail, decidingStage, formatDuration } from './pipeline.ts';
+import { determinismStats, repeatGroups } from './determinism.ts';
+import { bucketize, niceCeiling, pendingSeries, percentile, rankBy } from './series.ts';
 
 const t0 = Date.parse('2026-10-03T19:00:00.000Z');
 
@@ -282,5 +287,235 @@ describe('fix window (FAIL-1, FAIL-3, D22)', () => {
     assert.ok(atLeastMedium('high'));
     assert.ok(!atLeastMedium('low'));
     assert.ok(!atLeastMedium(undefined));
+  });
+});
+
+describe('determinism', () => {
+  it('counts tightening, never counts a human approval as AI loosening, and catches a real loosening', () => {
+    const stats = determinismStats([
+      action({ at: 1 }),
+      action({ at: 2, deterministic_decision: 'allow', decision: 'deny', ai_tightened: true }),
+      action({ at: 3, deterministic_decision: 'require_approval', decision: 'allow', approval_state: 'approved' }),
+      action({ at: 4, deterministic_decision: 'deny', decision: 'deny', analyzer: { verdict: 'skipped', rationale: '', model_label: 'm' } }),
+      action({ at: 5, capability: 'security.observe', agent: { id: 'gateway', name: 'g', team: 'platform' } }),
+    ]);
+    assert.equal(stats.total, 4);
+    assert.equal(stats.tightened, 1);
+    assert.equal(stats.loosened, 0);
+    assert.equal(stats.resolvedByPerson, 1);
+    assert.equal(stats.analyzed, 3);
+    assert.equal(stats.deterministic.require_approval, 1);
+    assert.equal(stats.final.deny, 2);
+    assert.equal(determinismStats([action({ at: 1, deterministic_decision: 'deny', decision: 'allow' })]).loosened, 1);
+  });
+
+  it('groups identical requests and names the controls behind a changed answer', () => {
+    const groups = repeatGroups([
+      action({ at: 3, deterministic_decision: 'deny', control_ids: ['CTL-RUN-003'] }),
+      action({ at: 2 }),
+      action({ at: 1 }),
+      action({ at: 0, resource: { type: 'customer', id: 'C-2', tier: 'internal' } }),
+      action({ at: 5, capability: 'files.read' }),
+      action({ at: 4, capability: 'files.read' }),
+    ]);
+    assert.equal(groups.length, 2);
+    const [changed, same] = groups;
+    assert.equal(changed!.consistent, false);
+    assert.deepEqual(changed!.changedBy, ['CTL-RUN-003']);
+    assert.deepEqual(changed!.decisions.map((d) => d.decision), ['allow', 'allow', 'deny']);
+    assert.equal(same!.consistent, true);
+  });
+});
+
+describe('series', () => {
+  it('buckets decided actions by time and outcome, oldest first, without observations', () => {
+    const now = t0 + 59_999;
+    const buckets = bucketize(
+      [
+        action({ at: 5_000 }),
+        action({ at: 6_000, decision: 'deny', latency_ms: 9 }),
+        action({ at: 59_000, decision: 'require_approval', approval_state: 'pending' }),
+        action({ at: -1_000 }),
+        action({ at: 30_000, capability: 'security.observe', agent: { id: 'gateway', name: 'g', team: 'platform' } }),
+      ],
+      now,
+      60_000,
+      6,
+    );
+    assert.equal(buckets.length, 6);
+    assert.equal(buckets[0]!.total, 2);
+    assert.equal(buckets[0]!.deny, 1);
+    assert.deepEqual(buckets[0]!.latencies, [1, 9]);
+    assert.equal(buckets[5]!.approval, 1);
+    assert.equal(buckets.reduce((sum, b) => sum + b.total, 0), 3);
+  });
+
+  it('reconstructs how many approvals were waiting at the end of each bucket', () => {
+    const iso = (ms: number) => new Date(t0 + ms).toISOString();
+    const series = pendingSeries(
+      [
+        { created_at: iso(5_000), decided_at: iso(25_000) },
+        { created_at: iso(15_000), decided_at: null },
+      ],
+      t0 + 29_999,
+      30_000,
+      3,
+    );
+    assert.deepEqual(series, [1, 2, 1]);
+  });
+
+  it('keeps bucket edges on whole multiples of the bucket size as time moves', () => {
+    const a = bucketize([], t0 + 61_234, 60_000, 6).map((b) => b.start);
+    const b = bucketize([], t0 + 64_321, 60_000, 6).map((b) => b.start);
+    assert.deepEqual(a, b);
+    assert.equal(a[0]! % 10_000, 0);
+    assert.ok(a.at(-1)! <= t0 + 61_234 && t0 + 61_234 < a.at(-1)! + 10_000);
+  });
+
+  it('takes nearest-rank percentiles, ranks keys, and rounds axis tops', () => {
+    assert.equal(percentile([5, 1, 3, 2, 4], 50), 3);
+    assert.equal(percentile([5, 1, 3, 2, 4], 95), 5);
+    assert.equal(percentile([], 50), 0);
+    const ranked = rankBy([action({ at: 1 }), action({ at: 2 }), action({ at: 3, capability: 'files.read', decision: 'deny' })], (a) => a.capability, 5);
+    assert.deepEqual(ranked.map((r) => [r.key, r.total, r.byOutcome.deny]), [['crm.read', 2, 0], ['files.read', 1, 1]]);
+    assert.deepEqual([niceCeiling(0), niceCeiling(3), niceCeiling(7), niceCeiling(42), niceCeiling(100)], [1, 5, 10, 50, 100]);
+  });
+});
+
+const chat = (id: string, name: string, status: AgentSession['status'], started: string, useCase = 'employee-assistance'): AgentSession => ({
+  id,
+  human: { sub: `u-${id}`, display_name: name },
+  agent_id: useCase === 'employee-assistance' ? 'employee-assistant' : 'invoice-assistant',
+  use_case: { id: useCase, name: useCase },
+  delegated: [],
+  effective: [],
+  tier_ceiling: 'internal',
+  budget: { limit: 0, used: 0, unit: 'cents' },
+  approval_state: 'none',
+  status,
+  started_at: started,
+  expires_at: started,
+});
+
+describe('chat sessions', () => {
+  const sessions = [
+    chat('c3', 'Maya Chen', 'active', '2026-10-04T10:05:00Z'),
+    chat('c1', 'Maya Chen', 'active', '2026-10-04T10:01:00Z'),
+    chat('c2', 'Maya Chen', 'closed', '2026-10-04T09:00:00Z'),
+    chat('c4', 'Maya Chen', 'revoked', '2026-10-04T09:30:00Z'),
+    chat('c5', 'Someone Unknown', 'active', '2026-10-04T10:00:00Z'),
+    chat('s1', 'Priya Raman', 'active', '2026-10-04T08:00:00Z', 'deployment-helper'),
+  ];
+
+  it('groups chats by person: live oldest first, ended newest first, other use cases and strangers left out', () => {
+    const byPerson = chatsByPerson(sessions);
+    assert.deepEqual([...byPerson.keys()], ['maya-chen']);
+    assert.deepEqual(byPerson.get('maya-chen')!.live.map((s) => s.id), ['c1', 'c3']);
+    assert.deepEqual(byPerson.get('maya-chen')!.ended.map((s) => s.id), ['c4', 'c2']);
+  });
+
+  it('names the agents that serve chats', () => {
+    assert.deepEqual([...chatAgentIds(sessions)], ['employee-assistant']);
+  });
+
+  it('derives principals from sessions, actions and agents, matched to the directory', () => {
+    const ids = principalIds(
+      [chat('c1', 'Maya Chen', 'closed', '2026-10-04T10:00:00Z')],
+      [{ human: { sub: 'u', display_name: 'daniel ortiz' } }, { human: undefined }],
+      [{ current_session: chat('x', 'Noah Schmidt', 'active', '2026-10-04T10:00:00Z') }, { current_session: null }],
+    );
+    assert.deepEqual([...ids].sort(), ['daniel-ortiz', 'maya-chen', 'noah-schmidt']);
+  });
+});
+
+describe('configuration', () => {
+  it('lists a use case\'s capabilities with their approval and step-up checks, in order', () => {
+    const rules = capabilityRules({ permitted: ['crm.read', 'payments.transfer'], approval_required: ['payments.transfer'], step_up_required: ['payments.transfer'] });
+    assert.deepEqual(rules, [
+      { capability: 'crm.read', approval: false, stepUp: false },
+      { capability: 'payments.transfer', approval: true, stepUp: true },
+    ]);
+  });
+
+  it('splits a delegation into effective and blocked by the use case', () => {
+    assert.deepEqual(delegationOf({ delegated: ['crm.read', 'email.send', 'files.read'], effective: ['files.read', 'crm.read'] }), {
+      effective: ['crm.read', 'files.read'],
+      blocked: ['email.send'],
+    });
+  });
+});
+
+describe('access', () => {
+  const snapshot = (): AccessSnapshot => ({
+    agents: [
+      {
+        agent_id: 'support-triage',
+        use_case: { id: 'ticket-triage', name: 'Ticket triage' },
+        permitted: ['tickets.read', 'memory.write', 'crm.read'],
+        approval_required: [],
+        step_up_required: [],
+        delegated: ['tickets.read', 'memory.write', 'crm.read'],
+        effective: ['tickets.read', 'memory.write', 'crm.read'],
+        tier_ceiling: 'internal',
+        state: 'active',
+      },
+      {
+        agent_id: 'employee-assistant',
+        use_case: { id: 'employee-assistance', name: 'Employee assistance' },
+        permitted: ['crm.read'],
+        approval_required: [],
+        step_up_required: [],
+        delegated: ['crm.read'],
+        effective: ['crm.read'],
+        tier_ceiling: 'internal',
+        state: 'active',
+      },
+    ],
+    people: [{ sub: 'u-maya', display_name: 'Maya Chen', desk: true, tier_ceiling: 'confidential' }],
+    changes: [],
+  });
+  const now = t0 + 30 * 60_000;
+  const triage = (over: Partial<ActionSummary> & { at: number }) => action({ agent: { id: 'support-triage', name: 'support-triage', team: 'Support' }, capability: 'tickets.read', ...over });
+  const flagged = (verdict: 'suspicious' | 'malicious', at: number, capability = 'memory.write') =>
+    triage({ at, capability, ai_tightened: true, decision: 'deny', analyzer: { verdict, rationale: 'Instructions inside data.', model_label: 'm' } });
+
+  it('stages a change, and unstages it when it would bring things back to how they are', () => {
+    const s0 = snapshot();
+    const revoke = { kind: 'delegation' as const, agent_id: 'support-triage', capability: 'crm.read', granted: false };
+    const staged = stage(s0, new Map(), revoke);
+    assert.equal(staged.size, 1);
+    assert.ok(!preview(s0, staged).agents[0]!.effective.includes('crm.read'));
+    assert.equal(stage(s0, staged, { ...revoke, granted: true }).size, 0);
+    assert.equal(stage(s0, new Map(), { kind: 'person_desk', sub: 'u-maya', enabled: true }).size, 0);
+    assert.deepEqual(describeChange(revoke), { sign: '-', text: 'Revoke crm.read from support-triage' });
+  });
+
+  it('suggests suspending an agent AI analysis flagged as malicious, and revoking a capability it flagged twice', () => {
+    const suspend = suggestAccess(snapshot(), [flagged('suspicious', 1_000), flagged('malicious', 2_000)], now);
+    assert.equal(suspend[0]!.id, 'suspend:support-triage');
+    assert.equal(suspend[0]!.severity, 'critical');
+    assert.ok(suspend[0]!.ai);
+    const revoke = suggestAccess(snapshot(), [flagged('suspicious', 1_000), flagged('suspicious', 2_000)], now);
+    assert.deepEqual(revoke[0]!.changes, [{ kind: 'delegation', agent_id: 'support-triage', capability: 'memory.write', granted: false }]);
+  });
+
+  it('suggests revoking a delegated capability a busy agent never used, and ignores old evidence', () => {
+    const busy = Array.from({ length: 10 }, (_, i) => triage({ at: i * 1_000, capability: i % 2 ? 'tickets.read' : 'memory.write' }));
+    const ids = suggestAccess(snapshot(), busy, now).map((s) => s.id);
+    assert.deepEqual(ids, ['unused:support-triage:crm.read']);
+    assert.deepEqual(suggestAccess(snapshot(), [flagged('malicious', 0), flagged('malicious', 1)], now + 2 * 60 * 60_000), []);
+  });
+
+  it('suggests Desk off for a person whose chats AI analysis flagged twice, a lower tier for one flag', () => {
+    const chat = (at: number, over: Partial<ActionSummary> = {}) =>
+      action({ at, agent: { id: 'employee-assistant', name: 'employee-assistant', team: 'Workplace' }, human: { sub: 'u-maya', display_name: 'Maya Chen' }, ...over });
+    const ai = { ai_tightened: true, decision: 'deny' as const, analyzer: { verdict: 'malicious' as const, rationale: 'Asked to export every customer.', model_label: 'm' } };
+    const twice = suggestAccess(snapshot(), [chat(1_000, ai), chat(2_000, ai)], now);
+    assert.deepEqual(twice.map((s) => s.id), ['desk:u-maya']);
+    const once = suggestAccess(snapshot(), [chat(1_000, ai)], now);
+    assert.deepEqual(once[0]!.changes, [{ kind: 'person_tier', sub: 'u-maya', tier_ceiling: 'internal' }]);
+    const off = snapshot();
+    off.people[0]!.desk = false;
+    assert.ok(suggestAccess(off, [chat(1_000, ai), chat(2_000, ai)], now).every((s) => s.id !== 'desk:u-maya'));
   });
 });

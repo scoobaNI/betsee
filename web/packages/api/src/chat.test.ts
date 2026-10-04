@@ -48,3 +48,15 @@ test('a blocked message shows the text only this browser typed', () => {
   const elsewhere = foldChat([event]).items[0];
   assert.ok(elsewhere.kind === 'blocked' && elsewhere.text === null);
 });
+
+test('files crossing the boundary become file items, allowed or blocked', () => {
+  const thread = foldChat([
+    e(1, 'file_shared', { direction: 'upload', name: 'plan.md', path: 'uploads/plan.md', tier: 'internal', kind: 'text', reasons: ['ok'], control_ids: ['CTL-FILE-001'], trace_id: 't1', findings: [] }),
+    e(2, 'file_blocked', { direction: 'upload', name: 'cards.csv', reasons: ['the file contains a payment card number'], control_ids: ['CTL-IN-001'], trace_id: 't2', findings: [{ class: 'payment_card', label: 'payment card number', masked: 'card ending 1111' }] }),
+    e(3, 'file_released', { direction: 'download', name: 'scorecard.md', path: 'notes/scorecard.md', reasons: [], control_ids: [], trace_id: 't3', findings: [] }),
+  ]);
+  const [shared, blocked, released] = thread.items;
+  assert.ok(shared.kind === 'file' && shared.allowed && shared.path === 'uploads/plan.md' && shared.fileType === 'text');
+  assert.ok(blocked.kind === 'file' && !blocked.allowed && blocked.findings[0].masked === 'card ending 1111');
+  assert.ok(released.kind === 'file' && released.direction === 'download' && released.allowed);
+});

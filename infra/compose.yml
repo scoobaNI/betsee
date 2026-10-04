@@ -201,9 +201,6 @@ services:
       dockerfile: infra/caddy/Dockerfile
     ports:
       - "80:80"
-    # agent-host runs on the host (it drives the claude CLI and its login), not in Compose.
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
