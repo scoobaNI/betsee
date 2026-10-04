@@ -14,6 +14,7 @@ import { ConfigurationPage } from './pages/configuration.tsx';
 import { CoveragePage } from './pages/coverage.tsx';
 import { DeterminismPage } from './pages/determinism.tsx';
 import { GraphPage } from './pages/graph.tsx';
+import { GuardrailsPage } from './pages/guardrails.tsx';
 import { OverviewPage } from './pages/overview.tsx';
 import { TracePage } from './pages/trace.tsx';
 
@@ -26,6 +27,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/activity/, 'Activity'],
   [/^\/graph/, 'Graph'],
   [/^\/coverage/, 'Coverage'],
+  [/^\/guardrails/, 'Guardrails'],
 ];
 
 function useDocumentTitle() {
@@ -63,6 +65,7 @@ function Director() {
               <Route path="/traces/:traceId" element={<TracePage />} />
               <Route path="/graph" element={<GraphPage />} />
               <Route path="/coverage" element={<CoveragePage />} />
+              <Route path="/guardrails" element={<GuardrailsPage />} />
               <Route path="/determinism" element={<DeterminismPage />} />
               <Route path="/configuration" element={<ConfigurationPage />} />
               <Route path="/access" element={<AccessPage />} />

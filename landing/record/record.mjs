@@ -5,7 +5,6 @@
 //
 // Needs the same dev servers as film/capture/capture.mjs, all from the repository's own code:
 //   web: VITE_BETSEE_MOCK=1 npm run dev -w @betsee/director     (:5174, mock world)
-//   web: VITE_BETSEE_MOCK=1 npm run dev -w @betsee/ecosystem    (:5173, mock world)
 //   web: npm run dev -w @betsee/desk                            (:1430, the Desk window UI)
 // The Desk talks to a governing-service stub started below, which streams fixture events shaped
 // like agent-host's (contracts/events.md, "Employee chat stream") with real pauses between them.
@@ -26,7 +25,6 @@ const media = join(root, "landing/media");
 mkdirSync(media, { recursive: true });
 
 const DIRECTOR = "http://localhost:5174";
-const ECOSYSTEM = "http://localhost:5173";
 const DESK = "http://localhost:1430";
 
 // CSS px of every clip; frames are captured at twice this.
@@ -107,8 +105,8 @@ const cursorScript = () => {
 
 let lastPage = null;
 
-async function newPage(browser, { mockWorld = false, quiet = false, reducedMotion = "no-preference" } = {}) {
-  const context = await browser.newContext({ viewport: null, timezoneId: "Europe/Warsaw", locale: "en-GB", reducedMotion });
+async function newPage(browser, { mockWorld = false, quiet = false } = {}) {
+  const context = await browser.newContext({ viewport: null, timezoneId: "Europe/Warsaw", locale: "en-GB" });
   await context.clock.install({ time: MORNING });
   await context.addInitScript(cursorScript);
   // The Director's live toasts stack over the cards a clip is pointing at.
@@ -123,7 +121,7 @@ async function newPage(browser, { mockWorld = false, quiet = false, reducedMotio
   if (mockWorld) {
     // Mock mode keeps its world in module scope; hand it to the page so a clip can launch the
     // scenarios the Director's command palette does (same rewrite as film/capture).
-    await context.route(/localhost:517[34]\/src\/main\.tsx/, async (route) => {
+    await context.route(/localhost:5174\/src\/main\.tsx/, async (route) => {
       const response = await route.fetch();
       const body = (await response.text()).replace("world.start();", "world.start(); window.__world = world;");
       await route.fulfill({ response, body });
@@ -136,6 +134,12 @@ async function newPage(browser, { mockWorld = false, quiet = false, reducedMotio
   page.__pos = { x: W * 0.62, y: H * 0.7 };
   return { context, page };
 }
+
+const goInApp = (page, path) =>
+  page.evaluate((p) => {
+    history.pushState({}, "", p);
+    dispatchEvent(new PopStateEvent("popstate"));
+  }, path);
 
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
@@ -564,67 +568,67 @@ clips.guard = async (browser, stub, stubUrl) => {
   await page.context().close();
 };
 
-// Approvals: a payment that needs step-up shows what the approver reviews; a write the AI
-// analyzer tightened to "needs a human" is approved. Mock mode cannot verify a one-time code, so
-// the clip approves the action that needs none.
+// Approvals, as the Director sees them: the trace of a 48,000 EUR payment waiting for a human with
+// step-up turns to approved while it is open. The mock world resolves act 5 about 12 s after launch;
+// the capture starts a few seconds before that.
 clips.approvals = async (browser) => {
-  // Both requests are queued before the capture starts: an arrival while a card is open caught the
-  // outgoing and incoming detail cards stacked mid-transition.
-  const { page } = await newPage(browser, { mockWorld: true, reducedMotion: "reduce" });
-  await page.goto(`${ECOSYSTEM}/approvals`, { waitUntil: "networkidle" });
-  await page.evaluate(() => window.__world.launch("act5-human-decides"));
-  await page.evaluate(() => window.__world.launch("act3-hijacked-goal"));
-  await page.getByText("memory.write").first().waitFor({ timeout: 30_000 });
+  const { page } = await newPage(browser, { mockWorld: true, quiet: true });
+  await page.goto(`${DIRECTOR}/`, { waitUntil: "networkidle" });
   await sleep(1500);
+  await page.evaluate(() => window.__world.launch("act5-human-decides"));
+  const pending = await page.waitForFunction(
+    () =>
+      window.__world
+        .traces(300)
+        // Background traffic has payments needing approval too; act 5's goes to nordfreight-supplier.
+        .find((t) => t.capability === "payments.transfer" && t.decision === "require_approval" && JSON.stringify(t).includes("nordfreight"))?.trace_id,
+  );
+  // In-app navigation: a reload would start a new mock world without the pending payment.
+  await goInApp(page, `/traces/${await pending.jsonValue()}`);
+  await page.getByText("Awaiting approval").first().waitFor();
+  await sleep(4500);
   const rec = new Recorder(page, "approvals");
   await rec.start();
-  await sleep(600);
-  await click(page, page.getByText("payments.transfer").first(), { ms: 800 });
-  await sleep(1200);
-  await hover(page, page.getByText("48,000.00 EUR").first(), 700);
-  await sleep(1100);
-  await hover(page, page.getByText("Action hash").first(), 600);
-  await sleep(700);
-  await hover(page, page.getByRole("button", { name: /Approve with step-up/ }), 700);
-  await sleep(1300);
-  await scroll(page, -2000, 900);
-  await sleep(300);
-  await click(page, page.getByText("memory.write").first(), { ms: 800 });
-  await sleep(1300);
-  await hover(page, page.getByText("Why a human").first(), 700);
-  await sleep(1300);
-  await click(page, page.getByRole("button", { name: "Approve", exact: true }), { ms: 700 });
-  await sleep(1800);
-  await scroll(page, -2000, 700);
-  await click(page, page.getByRole("tab", { name: "Decided" }).or(page.getByText("Decided", { exact: true })).first(), { ms: 700 });
-  await sleep(1500);
-  await hover(page, page.getByText("memory.write").first(), 700);
-  await sleep(1200);
-  (await rec.stop(1200)).encode({ poster: 0.12 });
+  await sleep(500);
+  await hover(page, page.getByText("Awaiting approval").first(), 800);
+  await sleep(900);
+  await hover(page, page.getByText("CTL-APR-003").first(), 700);
+  // The trace sentence; the hidden toast reads only "Approved by a human".
+  const approved = page.getByText("Approved by a human with step-up", { exact: true });
+  await approved.waitFor({ timeout: 20_000 });
+  await sleep(1600);
+  await hover(page, approved, 700);
+  await sleep(900);
+  await glide(page, W * 0.55, H * 0.6, 500);
+  await scroll(page, 760, 1300);
+  await sleep(2200);
+  (await rec.stop(1000)).encode({ poster: 0.6 });
   await page.context().close();
 };
 
-// Policy Studio: every guarantee is a named control, attached and readable.
+// Policies and controls, as the Director shows them: what each use case permits and what needs a
+// human, then every named control with the Cedar policies that decide under it.
 clips.policy = async (browser) => {
-  const { page } = await newPage(browser, { mockWorld: true });
-  await page.goto(`${ECOSYSTEM}/policy-studio/controls`, { waitUntil: "networkidle" });
+  const { page } = await newPage(browser, { mockWorld: true, quiet: true });
+  await page.goto(`${DIRECTOR}/configuration`, { waitUntil: "networkidle" });
   await sleep(2000);
   const rec = new Recorder(page, "policy");
   await rec.start();
+  await sleep(500);
+  await hover(page, page.getByText("Invoice processing").first(), 800);
   await sleep(600);
-  await hover(page, page.getByText("CTL-ID-001").first(), 800);
-  await sleep(500);
-  await scroll(page, 380, 1000);
-  await sleep(500);
-  await click(page, page.getByText("CTL-APR-003").first(), { ms: 800 });
-  await sleep(2000);
-  await scroll(page, 320, 900);
-  await sleep(1400);
-  await click(page, page.getByRole("link", { name: "Policies" }).first(), { ms: 800 });
-  await sleep(1800);
-  await scroll(page, 360, 1000);
+  await hover(page, page.getByText("Step-up", { exact: true }).first(), 700);
+  await sleep(1000);
+  await click(page, page.getByText("Policies", { exact: true }).first(), { ms: 800 });
+  await sleep(1500);
+  await hover(page, page.getByText("Payment threshold").first(), 800);
+  await sleep(1000);
+  await hover(page, page.getByText("AI analysis only tightens").first(), 700);
+  await sleep(800);
+  await glide(page, W * 0.55, H * 0.6, 400);
+  await scroll(page, 520, 1100);
   await sleep(1600);
-  (await rec.stop(1000)).encode({ poster: 0.4 });
+  (await rec.stop(1000)).encode({ poster: 0.6 });
   await page.context().close();
 };
 

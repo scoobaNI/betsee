@@ -376,16 +376,28 @@ const common = { deviceScaleFactor: 2, timezoneId: "Europe/Warsaw", locale: "en-
   for (const kind of ["empty", "work-read", "work", "approval", "approved", "guard", "input"]) {
     const page = await deskPage(context, kind);
     const rects = { ...thread };
-    if (kind === "work-read" || kind === "work") rects.toolRead = ["q4-budget.csv", { nth: 0 }];
+    if (kind === "work-read" || kind === "work") {
+      rects.toolRead = ["q4-budget.csv", { nth: 0 }];
+      rects.filterNote = ["Passed the input filter", { up: "self" }];
+      rects.allowedChip = ["Allowed", { exact: true, up: 1 }];
+      rects.ctlRt = ["CTL-RT-001", { exact: true, up: "self" }];
+      rects.toolName = ["Read", { exact: true, up: "self" }];
+    }
     if (kind === "work") rects.answer = ["Q4 budget", { up: 2 }];
     if (kind === "approval" || kind === "approved") rects.toolWrite = ["payment-run-oct.csv", { nth: 1 }];
     if (kind === "guard") {
+      rects.tierChip = ["Denied", { exact: true, up: 1, nth: 0 }];
+      rects.egressChip = ["Denied", { exact: true, up: 1, nth: 1 }];
+      rects.tierReason = ["the request reads confidential content", { up: "self" }];
+      rects.egressReason = ["no network egress", { up: "self" }];
       rects.toolTier = ["salaries-2026.csv", { nth: 1 }];
       rects.toolEgress = ["paste.example.net/upload", { nth: 0 }];
       rects.user = ["Compare our Q4 budget", { up: 1 }];
     }
     if (kind === "input") {
       rects.blocked = ["Not sent:", { up: 3 }];
+      rects.notSent = ["Not sent:", { up: 1 }];
+      rects.withheld = ["Message withheld", { up: 1 }];
       rects.fileOk = ["carrier-rates-2026.pdf", { nth: 0 }];
       rects.fileBlocked = ["rates-export.xlsx", { nth: 0 }];
     }
@@ -409,8 +421,8 @@ const common = { deviceScaleFactor: 2, timezoneId: "Europe/Warsaw", locale: "en-
   await page.getByRole("button", { name: "Assistant and keys" }).click();
   await settle(page, 800);
   await shot(page, "desk-setup", {
-    claude: ["Claude Code", { minW: 300 }],
-    codex: ["Codex", { exact: true, minW: 300 }],
+    claude: ["", { selector: "article", nth: 0 }],
+    codex: ["", { selector: "article", nth: 1 }],
     title: ["Choose your assistant", { up: "self" }],
   });
   await page.close();
@@ -476,6 +488,14 @@ const common = { deviceScaleFactor: 2, timezoneId: "Europe/Warsaw", locale: "en-
         sentence: ["", { selector: "h1" }],
         pipeline: ["Authenticate", { minW: 600 }],
         why: ["Why", { exact: true, minW: 300 }],
+        qWho: ["Maya Chen", { exact: true, nth: 1, up: "self" }],
+        qAgent: ["employee-assistant", { exact: true, nth: 1, up: "self" }],
+        qCap: ["files.read", { exact: true, nth: 1, up: "self" }],
+        qRes: ["salary-bands-2026.xlsx", { nth: 1, up: "self" }],
+        qPolicy: ["forbid-resource-above-session-tier", { exact: true, nth: 1, up: "self" }],
+        detCtl: ["Deterministic controls", { exact: true, minW: 250 }],
+        aiBox: ["AI analysis", { exact: true, minW: 250 }],
+        finalBox: ["Final decision", { exact: true, minW: 250 }],
         how: ["How the Gateway decided", { minW: 300 }],
       },
       { fullPage: true },
@@ -495,6 +515,8 @@ const common = { deviceScaleFactor: 2, timezoneId: "Europe/Warsaw", locale: "en-
       person: "Resolved by a person",
       same: ["Same request, same decision", { up: "self" }],
       can: "What AI analysis can do",
+      detBox: ["Deterministic controls", { minW: 150 }],
+      aiBox: ["May only tighten", { minW: 120 }],
       cannot: "What it cannot do",
     },
     { fullPage: true },
@@ -503,6 +525,9 @@ const common = { deviceScaleFactor: 2, timezoneId: "Europe/Warsaw", locale: "en-
   await goInApp(page, "/graph");
   await settle(page, 2500);
   await shot(page, "dir-graph", {
+    reportBot: ["report-bot", { minW: 200 }],
+    payments: ["payments", { exact: true, minW: 200 }],
+    mayaNode: ["Maya Chen", { minW: 200 }],
     canvas: ["PEOPLE", { minW: 1200 }],
     legend: ["decisions, last hour", { minW: 500 }],
   });
@@ -534,6 +559,9 @@ const common = { deviceScaleFactor: 2, timezoneId: "Europe/Warsaw", locale: "en-
         session: ["Current session", { up: 2 }],
         may: ["What it may do", { up: 2 }],
         derived: ["How this was derived", { minW: 400 }],
+        hDelegated: ["Delegated", { exact: true, up: "self" }],
+        hPermitted: ["Permitted", { exact: true, up: "self" }],
+        hEffective: ["Effective", { exact: true, up: "self" }],
       },
       { fullPage: true },
     );
@@ -541,11 +569,16 @@ const common = { deviceScaleFactor: 2, timezoneId: "Europe/Warsaw", locale: "en-
 
   await goInApp(page, "/access");
   await settle(page, 2000);
-  await shot(page, "dir-access", { matrix: ["", { selector: "table" }] }, { fullPage: true });
+  await shot(
+    page,
+    "dir-access",
+    { suggestion: ["Revoke memory.write", { minW: 300 }], suggestions: ["Suggestions", { exact: true, up: "self" }], agents: ["Agents", { exact: true, up: "self" }] },
+    { fullPage: true },
+  );
 
   await goInApp(page, "/coverage");
   await settle(page, 2000);
-  await shot(page, "dir-coverage", { list: ["Agent goal hijack", { minW: 1000 }], score: ["risks evidenced this run", { up: 2 }] });
+  await shot(page, "dir-coverage", { asi02: ["Tool misuse and exploitation", { minW: 1000 }], list: ["Agent goal hijack", { minW: 1000 }], score: ["risks evidenced this run", { up: 2 }] });
 
   await goInApp(page, "/configuration");
   await settle(page, 2000);
@@ -571,13 +604,24 @@ const common = { deviceScaleFactor: 2, timezoneId: "Europe/Warsaw", locale: "en-
   const open = page.getByText("payments.transfer").first();
   if (await open.count()) await open.click();
   await settle(page, 1500);
-  await shot(page, "eco-approval-detail", { card: ["48,000.00", { minW: 600 }] }, { fullPage: true });
+  await shot(
+    page,
+    "eco-approval-detail",
+    {
+      card: ["48,000.00", { minW: 600 }],
+      amount: ["48,000.00 EUR", { exact: true, up: "self" }],
+      payee: ["payments/nordfreight-supplier", { exact: true, up: "self" }],
+      sessionBy: ["Maya Chen", { exact: true, nth: 1, up: "self" }],
+      approve: ["Approve with step-up", { up: 1 }],
+    },
+    { fullPage: true },
+  );
 
   for (const [path, name, rects] of [
     ["/policy-studio/controls", "eco-controls", { first: ["CTL-ID-001", { minW: 300 }] }],
-    ["/policy-studio/controls/CTL-APR-003", "eco-control-apr003", { card: ["Payment threshold", { minW: 600 }] }],
+    ["/policy-studio/controls/CTL-APR-003", "eco-control-apr003", { card: ["Attachment points", { minW: 600 }], deciding: ["approval-payment-above-threshold", { exact: true, up: "self" }] }],
     ["/policy-studio/policies", "eco-policies", { first: ["", { selector: "pre", nth: 0 }] }],
-    ["/policy-studio/use-cases", "eco-usecases", { invoice: ["Invoice processing", { minW: 400 }] }],
+    ["/policy-studio/use-cases", "eco-usecases", { invoice: ["Invoice processing", { minW: 400 }], rules: ["Approval rules", { exact: true, up: "self" }] }],
   ]) {
     await goInApp(page, path);
     await settle(page, 2000);
@@ -594,6 +638,13 @@ const common = { deviceScaleFactor: 2, timezoneId: "Europe/Warsaw", locale: "en-
   await page.goto("http://auth.betsee.localhost/realms/betsee/account", { waitUntil: "networkidle" }).catch(() => {});
   await settle(page, 1200);
   await shot(page, "kc-login", { card: ["Sign in to your account", { minW: 300 }] });
+  // The light look the Director and Betsee Desk sign in with (the theme's client.js keys it on client_id).
+  await page.goto(
+    "http://auth.betsee.localhost/realms/betsee/protocol/openid-connect/auth?client_id=betsee-desk&redirect_uri=http%3A%2F%2F127.0.0.1%3A8097%2Fcallback&response_type=code&scope=openid&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256",
+    { waitUntil: "networkidle" },
+  );
+  await settle(page, 1200);
+  await shot(page, "kc-light", { card: ["", { selector: ".pf-v5-c-login__main, .card-pf, main" }], title: ["", { selector: "#kc-page-title" }] });
   await page.close();
   await context.close();
 }

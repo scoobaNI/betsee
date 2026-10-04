@@ -1,6 +1,8 @@
 // Content filter on what people type (CTL-IN-001). The Gateway's detectors validate each match
-// (Luhn, IBAN mod-97, PESEL checksum, key formats, catalogued resource names) and pass only the
-// detected classes; Cedar decides. The analyzer may only add a deny.
+// (Luhn, IBAN mod-97, PESEL checksum, key formats, catalogued resource names, email and phone
+// formats) and pass the classes the use case's guardrail profile marks as blocking; Cedar decides.
+// Classes the profile redacts are masked before the agent sees the text (CTL-IN-002). Semantic
+// analysis may only add a deny.
 
 @id("permit-input-from-session-human")
 @reason("the message passed the input filter for {useCase}")
@@ -54,6 +56,18 @@ when { context.detected.contains("pesel") };
 forbid (principal, action == Betsee::Action::"input.submit", resource)
 when { context.detected.contains("secret") };
 
+@id("forbid-input-email")
+@reason("the message contains an email address, which this use case's profile blocks")
+@control("CTL-IN-001")
+forbid (principal, action == Betsee::Action::"input.submit", resource)
+when { context.detected.contains("email") };
+
+@id("forbid-input-phone")
+@reason("the message contains a phone number, which this use case's profile blocks")
+@control("CTL-IN-001")
+forbid (principal, action == Betsee::Action::"input.submit", resource)
+when { context.detected.contains("phone") };
+
 @id("forbid-input-resource-above-tier")
 @reason("the message names a resource above the session ceiling of {session.tierCeiling}")
 @control("CTL-IN-001")
@@ -61,7 +75,7 @@ forbid (principal, action == Betsee::Action::"input.submit", resource)
 when { context.detected.contains("resource_above_tier") };
 
 @id("analyzer-input-malicious")
-@reason("the analyzer (mock model, demo) judged the message malicious")
+@reason("semantic analysis judged the message an injection or jailbreak attempt")
 @control("CTL-AI-001")
 forbid (principal, action == Betsee::Action::"input.submit", resource)
 when { context has analysis && context.analysis.verdict == "malicious" };

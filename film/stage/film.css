@@ -106,14 +106,6 @@ body {
   font-family: "JBMono", ui-monospace, monospace;
   font-stretch: 100%;
 }
-#grain {
-  position: absolute;
-  inset: -64px;
-  pointer-events: none;
-  z-index: 95;
-  opacity: 0.025;
-  mix-blend-mode: multiply;
-}
 #fade {
   position: absolute;
   inset: 0;
@@ -393,6 +385,10 @@ body {
   position: relative;
   overflow: hidden;
 }
+.screen .spot {
+  position: absolute;
+  pointer-events: none;
+}
 .screen .page {
   position: absolute;
   left: 0;
@@ -440,6 +436,14 @@ body {
 .callout .mono {
   font-size: 15px;
   color: var(--accent);
+}
+.callout.sm {
+  padding: 7px 14px;
+  border-radius: 999px;
+}
+.callout.sm b {
+  font-size: 17px;
+  font-weight: 560;
 }
 .ring {
   position: absolute;

@@ -1,0 +1,294 @@
+{
+  "feed": "betsee-baseline",
+  "version": "2026.10.04.1",
+  "published_at": "2026-10-04T00:00:00Z",
+  "description": "Signatures of exploits that worked against AI infrastructure and agents. Ships with the Gateway; the external feed adds to it and can override an entry by id.",
+  "signatures": [
+    {
+      "id": "SIG-EXEC-001",
+      "name": "Remote script piped into a shell",
+      "category": "code_execution",
+      "severity": "critical",
+      "action": "block",
+      "references": ["ShadowRay campaign payload delivery (CVE-2023-48022)"],
+      "description": "A download piped straight into an interpreter, the delivery step of most agent and AI-cluster compromises.",
+      "targets": ["prompt", "parameters", "command", "output"],
+      "match": {
+        "type": "regex",
+        "pattern": "(?i)\\b(curl|wget|iwr|invoke-webrequest)\\b[^\\n|;]{0,300}(\\||-o-?\\s*\\|)\\s*(sudo\\s+)?(ba|z|da|k)?sh\\b|(?i)\\b(curl|wget)\\b[^\\n]{0,300}\\|\\s*(python3?|perl|ruby|node)\\b"
+      }
+    },
+    {
+      "id": "SIG-EXEC-002",
+      "name": "Reverse shell one-liner",
+      "category": "code_execution",
+      "severity": "critical",
+      "action": "block",
+      "references": ["MITRE ATT&CK T1059"],
+      "description": "Interactive shell redirected to a remote host.",
+      "targets": ["prompt", "parameters", "command", "output"],
+      "match": {
+        "type": "regex",
+        "pattern": "(?i)(/dev/tcp/[0-9a-z.\\-]+/[0-9]+|\\bnc(at)?\\b[^\\n]{0,80}\\s-e\\s|socket\\.socket\\([^)]*\\)[^\\n]{0,200}(subprocess|pty\\.spawn|os\\.dup2)|\\bmkfifo\\b[^\\n]{0,120}\\bnc\\b)"
+      }
+    },
+    {
+      "id": "SIG-RAY-001",
+      "name": "Ray Jobs API job submission",
+      "category": "code_execution",
+      "severity": "critical",
+      "action": "block",
+      "references": ["CVE-2023-48022 (ShadowRay)"],
+      "description": "Unauthenticated job submission to a Ray dashboard runs arbitrary code on the AI cluster.",
+      "targets": ["prompt", "parameters", "command"],
+      "match": {
+        "type": "regex",
+        "pattern": "(?i)(/api/jobs/?[^\\n]{0,400}entrypoint|ray\\s+job\\s+submit\\b)"
+      }
+    },
+    {
+      "id": "SIG-OLLAMA-001",
+      "name": "Model registry digest path traversal",
+      "category": "supply_chain",
+      "severity": "critical",
+      "action": "block",
+      "references": ["CVE-2024-37032 (Probllama)"],
+      "description": "A model manifest digest that walks out of the blob directory lets a malicious registry overwrite files on the inference server.",
+      "targets": ["prompt", "parameters", "command"],
+      "match": {
+        "type": "regex",
+        "pattern": "(?i)(sha256[:\\-][^\"'\\s]{0,80}\\.\\.[/\\\\]|\"digest\"\\s*:\\s*\"[^\"]*\\.\\.[/\\\\])"
+      }
+    },
+    {
+      "id": "SIG-LANGFLOW-001",
+      "name": "Langflow code validation endpoint",
+      "category": "code_execution",
+      "severity": "critical",
+      "action": "block",
+      "references": ["CVE-2025-3248"],
+      "description": "The unauthenticated code validation endpoint of Langflow executes Python sent to it.",
+      "targets": ["prompt", "parameters", "command"],
+      "match": {
+        "type": "regex",
+        "pattern": "(?i)/api/v1/validate/code"
+      }
+    },
+    {
+      "id": "SIG-SSRF-001",
+      "name": "Cloud instance metadata endpoint",
+      "category": "credential_access",
+      "severity": "high",
+      "action": "block",
+      "references": ["Capital One 2019 SSRF breach", "MITRE ATT&CK T1552.005"],
+      "description": "Instance metadata hands out cloud credentials to whoever can make the server call it.",
+      "targets": ["prompt", "parameters", "command", "output"],
+      "match": {
+        "type": "regex",
+        "pattern": "(?i)(169\\.254\\.169\\.254|metadata\\.google\\.internal|100\\.100\\.100\\.200|fd00:ec2::254)"
+      }
+    },
+    {
+      "id": "SIG-LOG4J-001",
+      "name": "JNDI lookup string",
+      "category": "code_execution",
+      "severity": "critical",
+      "action": "block",
+      "references": ["CVE-2021-44228 (Log4Shell)"],
+      "description": "Text an agent writes to a ticket, log or email can reach a vulnerable logger.",
+      "targets": ["prompt", "parameters", "output"],
+      "match": {
+        "type": "regex",
+        "pattern": "(?i)\\$\\{\\s*(jndi|\\$\\{lower:j\\}|\\$\\{::-j\\})"
+      }
+    },
+    {
+      "id": "SIG-PATH-001",
+      "name": "Path traversal in tool arguments",
+      "category": "privilege_escalation",
+      "severity": "high",
+      "action": "block",
+      "references": ["CWE-22"],
+      "description": "Arguments that climb out of the directory a tool is meant to work in.",
+      "targets": ["parameters", "command"],
+      "match": {
+        "type": "regex",
+        "pattern": "(?i)(\\.\\./\\.\\./|\\.\\.\\\\\\.\\.\\\\|%2e%2e(%2f|/)|\\.\\.%2f)"
+      }
+    },
+    {
+      "id": "SIG-CRED-001",
+      "name": "Credential store path",
+      "category": "credential_access",
+      "severity": "high",
+      "action": "block",
+      "references": ["MITRE ATT&CK T1552.001"],
+      "description": "Files that hold keys and passwords, named in a tool call or command.",
+      "targets": ["parameters", "command"],
+      "match": {
+        "type": "regex",
+        "pattern": "(?i)(\\.ssh/id_(rsa|dsa|ecdsa|ed25519)\\b|\\.aws/credentials|/etc/shadow\\b|\\.docker/config\\.json|\\.kube/config\\b|(^|[/\\s])\\.env(\\s|$|\\.local))"
+      }
+    },
+    {
+      "id": "SIG-MCP-001",
+      "name": "Hidden instructions in a tool description or result",
+      "category": "prompt_injection",
+      "severity": "high",
+      "action": "review",
+      "references": ["MCP tool poisoning (Invariant Labs, 2025)"],
+      "description": "An <IMPORTANT> block or an instruction to keep something from the user, aimed at the model rather than the person.",
+      "targets": ["prompt", "parameters", "output"],
+      "match": {
+        "type": "regex",
+        "pattern": "(?is)(<important>.{0,600}(do not|don't|never)\\s+(tell|mention|inform|show)|(do not|don't|never)\\s+(tell|mention|inform)\\s+the\\s+user|nie\\s+(mów|mow|informuj|wspominaj)\\s+(o\\s+tym\\s+)?użytkownik)"
+      }
+    },
+    {
+      "id": "SIG-EXFIL-001",
+      "name": "Data in an auto-loading markdown image",
+      "category": "exfiltration",
+      "severity": "high",
+      "action": "block",
+      "references": [
+        "CVE-2025-32711 (EchoLeak)",
+        "Markdown image exfiltration in chat assistants"
+      ],
+      "description": "An image link whose URL carries data leaks it the moment the reply is rendered, with no click.",
+      "targets": ["output", "parameters"],
+      "match": {
+        "type": "regex",
+        "pattern": "(?i)!\\[[^\\]]{0,200}\\]\\(\\s*https?://[^)\\s]{1,300}[?&][^)\\s=]{1,60}=[^)\\s]{8,}\\)?"
+      }
+    },
+    {
+      "id": "SIG-JAILBREAK-001",
+      "name": "Published jailbreak persona",
+      "category": "prompt_injection",
+      "severity": "medium",
+      "action": "review",
+      "references": ["DAN and developer-mode jailbreak families (2023)"],
+      "description": "Named personas from public jailbreak collections.",
+      "targets": ["prompt", "parameters"],
+      "match": {
+        "type": "regex",
+        "pattern": "(?i)(\\bDAN\\b[^\\n]{0,80}(do anything now|no limits|jailbr)|do anything now|developer mode (enabled|on|output)|tryb dewelopera|\\bAIM\\b[^\\n]{0,60}machiavellian|\\bSTAN\\b[^\\n]{0,40}strive to avoid norms)"
+      }
+    },
+    {
+      "id": "SIG-TPL-001",
+      "name": "Template injection in a model chat template",
+      "category": "supply_chain",
+      "severity": "critical",
+      "action": "block",
+      "references": ["CVE-2024-34359 (llama-cpp-python, Llama Drama)"],
+      "description": "A Jinja chat template inside model metadata that reaches Python internals runs code when the model loads.",
+      "targets": ["model_template", "prompt", "parameters"],
+      "match": {
+        "type": "regex",
+        "pattern": "(\\{\\{|\\{%)[^}]{0,400}(__class__|__subclasses__|__globals__|__builtins__|__import__|__mro__|os\\.popen|subprocess)"
+      }
+    },
+    {
+      "id": "SIG-PICKLE-001",
+      "name": "Code execution on pickle load",
+      "category": "unsafe_deserialization",
+      "severity": "critical",
+      "action": "block",
+      "references": [
+        "CVE-2025-32434 (torch.load weights_only bypass)",
+        "Malicious pickle models on public hubs (JFrog, 2024)"
+      ],
+      "description": "A pickle that imports a callable able to run commands, open sockets or load more code executes it during deserialization.",
+      "targets": ["file", "model_file"],
+      "match": {
+        "type": "pickle_imports",
+        "values": [
+          "os.*",
+          "posix.*",
+          "nt.*",
+          "subprocess.*",
+          "builtins.eval",
+          "builtins.exec",
+          "builtins.compile",
+          "builtins.__import__",
+          "builtins.getattr",
+          "builtins.open",
+          "__builtin__.eval",
+          "__builtin__.exec",
+          "__builtin__.__import__",
+          "runpy.*",
+          "socket.*",
+          "shutil.*",
+          "pty.*",
+          "webbrowser.*",
+          "requests.*",
+          "urllib.*",
+          "urllib2.*",
+          "httplib.*",
+          "http.client.*",
+          "sys.*",
+          "importlib.*",
+          "code.*",
+          "commands.*",
+          "pickle.*",
+          "_pickle.*",
+          "marshal.*",
+          "types.CodeType",
+          "types.FunctionType",
+          "ctypes.*",
+          "operator.attrgetter",
+          "torch.load",
+          "numpy.load",
+          "joblib.load"
+        ]
+      }
+    },
+    {
+      "id": "SIG-KERAS-001",
+      "name": "Keras Lambda layer in a model file",
+      "category": "unsafe_deserialization",
+      "severity": "critical",
+      "action": "block",
+      "references": ["CVE-2024-3660"],
+      "description": "A Lambda layer carries serialized Python bytecode that runs when the model is loaded.",
+      "targets": ["model_file"],
+      "match": {
+        "type": "regex",
+        "pattern": "\"class_name\"\\s*:\\s*\"Lambda\""
+      }
+    },
+    {
+      "id": "SIG-HUB-001",
+      "name": "Model repository reported as malicious",
+      "category": "supply_chain",
+      "severity": "critical",
+      "action": "block",
+      "references": [
+        "JFrog security research on malicious Hugging Face models, 2024"
+      ],
+      "description": "Repositories removed from public hubs after carrying code-execution payloads.",
+      "targets": ["model_ref"],
+      "match": {
+        "type": "exact",
+        "values": ["baller423/goober2"]
+      }
+    },
+    {
+      "id": "SIG-HASH-001",
+      "name": "Known-bad file",
+      "category": "malware",
+      "severity": "high",
+      "action": "block",
+      "references": ["EICAR test file"],
+      "description": "Files whose SHA-256 is on the feed's blocklist.",
+      "targets": ["file", "model_file"],
+      "match": {
+        "type": "sha256",
+        "values": [
+          "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f"
+        ]
+      }
+    }
+  ]
+}

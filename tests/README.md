@@ -87,3 +87,22 @@ override the base addresses for another demo deployment.
 
 F17 is complete only after the full live suite passes with no pending cases. F18 additionally needs
 a cold startup and the actual acts in `docs/demo-script.md`; neither is proved by local self-tests.
+
+## AI control layer
+
+Twelve catalog cases run model calls and model loads as the test-only `research-peer` in the
+`model-onboarding` use case (balanced profile, 500 cents, 3000 tokens): an allowlisted external
+model priced from its usage, a model switched off in `guardrails.yaml`, a call whose worst case
+exceeds the token budget, prompt redaction, output redaction of a contact card, removal of a
+data-carrying image link, a Polish injection sent to approval, a Ray Jobs API payload, and four
+`model.load` supply-chain cases. Plans may add `checks` per step (`path` plus `equals`, `contains`,
+`excludes` or `at_least`) to assert fields beyond the decision.
+
+`guardrails_live.py` adds ten checks outside the action envelope, with Maya's and Daniel's real
+browser tokens: input redaction under the balanced profile and refusal under strict, a Polish
+paraphrased injection, a base64-encoded injection, an ordinary Polish request, a Langflow exploit
+URL, a malicious pickle at file intake, a GGUF chat template in the artifact scanner, and live
+reconfiguration. `guardrails_hot_reload` edits `policies/guardrails.yaml` (assignment change, then a
+broken value that must be rejected) and `threat_feed_hot_update` adds a canary signature to
+`infra/threat-feed/feed.json`; both restore the file in a `finally` and wait until the Gateway
+reports the original version again. Select them like catalog cases (`--case guardrails_hot_reload`).

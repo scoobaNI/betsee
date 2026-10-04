@@ -12,6 +12,7 @@ base64.workspace = true
 axum.workspace = true
 chrono.workspace = true
 jsonwebtoken.workspace = true
+regex.workspace = true
 reqwest.workspace = true
 rmcp.workspace = true
 serde.workspace = true

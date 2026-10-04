@@ -8,70 +8,94 @@
       name="description"
       content="Betsee is the control plane for enterprise AI agents. Every agent action passes one deterministic boundary, is decided by explicit policy, and leaves a trace you can read."
     />
-    <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#040504" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#ffffff" />
     <meta property="og:title" content="Betsee - Better see what your agents do" />
-    <meta property="og:description" content="Probabilistic AI. Deterministic control." />
+    <meta property="og:description" content="Non-deterministic AI. Deterministic control." />
     <meta property="og:image" content="media/director.webp" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-    <link rel="preload" href="fonts/plus-jakarta-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="tokens.css" />
+    <link rel="preload" href="fonts/inter-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="styles.css" />
+    <script src="vendor/gsap/gsap.min.js" defer></script>
+    <script src="vendor/gsap/ScrollTrigger.min.js" defer></script>
+    <script src="vendor/gsap/ScrollSmoother.min.js" defer></script>
+    <script src="vendor/gsap/SplitText.min.js" defer></script>
     <script src="main.js" defer></script>
   </head>
   <body>
     <svg class="sprite" aria-hidden="true">
       <symbol id="mark" viewBox="0 0 100 100"><path fill="currentColor" fill-rule="evenodd" d="M46.67 92.36C46.49 92.33 45.79 92.26 45.12 92.19C35.66 91.27 26.61 87.42 18.88 81.05C17.18 79.64 13.51 75.89 12.11 74.12C6.90 67.55 3.16 59.57 2.10 52.76C1.88 51.33 1.88 51.23 2.14 51.81C2.55 52.69 4.01 54.76 5.06 55.93C8.55 59.83 15.24 64.30 22.50 67.60C26.87 69.59 32.91 71.56 38.41 72.79C44.12 74.07 50.69 74.75 53.59 74.35C55.74 74.06 57.02 73.66 58.87 72.69C61.48 71.33 63.15 70.21 65.25 68.40C69.33 64.88 72.19 60.11 73.18 55.15C73.47 53.73 73.53 50.64 73.30 49.09C72.70 44.99 70.86 41.47 67.64 38.24C65.11 35.71 62.09 33.73 58.89 32.52L57.90 32.15L58.78 31.96C61.56 31.35 65.45 31.24 68.58 31.69C72.71 32.29 76.49 33.55 80.94 35.80C88.62 39.69 94.32 44.88 96.71 50.19C97.97 52.98 98.36 55.73 97.86 58.37C97.73 59.07 97.52 59.97 97.39 60.37C95.52 66.17 90.73 73.20 84.98 78.57C79.11 84.04 72.51 87.83 64.53 90.31C62.36 90.98 59.12 91.66 56.21 92.05C54.40 92.29 53.60 92.34 50.55 92.37C48.60 92.38 46.86 92.38 46.67 92.36ZM48.31 68.57C45.59 68.31 42.56 67.17 40.40 65.58C39.19 64.69 37.53 63.01 36.67 61.81C34.70 59.06 33.59 55.32 33.79 52.08C33.95 49.51 34.44 47.58 35.44 45.63C36.26 44.05 37.01 43.03 38.35 41.68C41.48 38.55 45.52 36.82 50.11 36.67C51.60 36.62 52.11 36.65 53.26 36.85C55.74 37.27 57.67 38.04 59.76 39.43C64.97 42.90 67.61 49.34 66.35 55.52C66.04 57.05 65.80 57.75 65.03 59.32C63.47 62.53 60.99 65.05 57.83 66.67C55.24 68.00 53.36 68.49 50.50 68.62C49.86 68.65 48.88 68.62 48.31 68.57ZM20.39 60.18C19.34 59.44 15.96 57.28 13.57 55.81C7.88 52.30 5.46 50.25 4.15 47.83C2.93 45.55 2.83 42.83 3.86 39.65C4.67 37.16 7.18 32.81 10.23 28.60C13.80 23.68 18.37 19.30 23.29 16.09C29.44 12.08 36.33 9.39 43.57 8.20C48.21 7.43 54.16 7.38 59.04 8.09C66.91 9.22 74.82 12.52 81.27 17.35C84.24 19.57 85.61 20.80 88.27 23.64C90.56 26.08 92.55 28.57 94.10 30.92C95.27 32.71 95.79 33.58 96.56 35.08C98.05 38.00 98.05 37.99 96.78 36.64C94.75 34.49 91.75 32.09 88.93 30.37C81.26 25.70 72.06 24.02 62.59 25.55C55.54 26.69 45.74 29.95 39.52 33.22C36.50 34.81 33.15 36.94 30.87 38.73C29.36 39.91 27.35 41.38 25.66 42.53C21.57 45.31 17.74 47.07 14.12 47.85C13.20 48.05 12.60 48.10 11.24 48.10C10.29 48.10 9.31 48.05 9.05 47.98C8.79 47.91 8.58 47.90 8.58 47.94C8.58 47.99 8.86 48.42 9.20 48.90C11.93 52.72 16.03 56.80 20.31 59.96C21.18 60.61 21.44 60.83 21.30 60.81C21.29 60.81 20.88 60.52 20.39 60.18Z" /></symbol>
-      <symbol id="i-play" viewBox="0 0 16 16"><path fill="currentColor" d="M4.5 2.8v10.4c0 .5.6.8 1 .5l8-5.2a.6.6 0 0 0 0-1L5.5 2.3c-.4-.3-1 0-1 .5Z" /></symbol>
+      <symbol id="i-play" viewBox="0 0 16 16"><path fill="currentColor" d="M4 2.5v11l9-5.5z" /></symbol>
       <symbol id="i-pause" viewBox="0 0 16 16"><path fill="currentColor" d="M4 2.5h2.6v11H4zM9.4 2.5H12v11H9.4z" /></symbol>
-      <symbol id="i-expand" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9" /></symbol>
-      <symbol id="i-copy" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.4" d="M5.5 5.5h7v8h-7zM3.5 10.5v-8h7" /></symbol>
-      <symbol id="i-close" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="m3.5 3.5 9 9m0-9-9 9" /></symbol>
+      <symbol id="i-expand" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9" /></symbol>
+      <symbol id="i-close" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.6" d="m3.5 3.5 9 9m0-9-9 9" /></symbol>
     </svg>
 
+    <div class="curtain" aria-hidden="true">
+      <svg class="eye eye-curtain" viewBox="0 0 100 100" aria-hidden="true"><g class="eye-lids"><path class="lid" d="M20.39 60.18C19.34 59.44 15.96 57.28 13.57 55.81C7.88 52.30 5.46 50.25 4.15 47.83C2.93 45.55 2.83 42.83 3.86 39.65C4.67 37.16 7.18 32.81 10.23 28.60C13.80 23.68 18.37 19.30 23.29 16.09C29.44 12.08 36.33 9.39 43.57 8.20C48.21 7.43 54.16 7.38 59.04 8.09C66.91 9.22 74.82 12.52 81.27 17.35C84.24 19.57 85.61 20.80 88.27 23.64C90.56 26.08 92.55 28.57 94.10 30.92C95.27 32.71 95.79 33.58 96.56 35.08C98.05 38.00 98.05 37.99 96.78 36.64C94.75 34.49 91.75 32.09 88.93 30.37C81.26 25.70 72.06 24.02 62.59 25.55C55.54 26.69 45.74 29.95 39.52 33.22C36.50 34.81 33.15 36.94 30.87 38.73C29.36 39.91 27.35 41.38 25.66 42.53C21.57 45.31 17.74 47.07 14.12 47.85C13.20 48.05 12.60 48.10 11.24 48.10C10.29 48.10 9.31 48.05 9.05 47.98C8.79 47.91 8.58 47.90 8.58 47.94C8.58 47.99 8.86 48.42 9.20 48.90C11.93 52.72 16.03 56.80 20.31 59.96C21.18 60.61 21.44 60.83 21.30 60.81C21.29 60.81 20.88 60.52 20.39 60.18Z" /><path class="lid" d="M46.67 92.36C46.49 92.33 45.79 92.26 45.12 92.19C35.66 91.27 26.61 87.42 18.88 81.05C17.18 79.64 13.51 75.89 12.11 74.12C6.90 67.55 3.16 59.57 2.10 52.76C1.88 51.33 1.88 51.23 2.14 51.81C2.55 52.69 4.01 54.76 5.06 55.93C8.55 59.83 15.24 64.30 22.50 67.60C26.87 69.59 32.91 71.56 38.41 72.79C44.12 74.07 50.69 74.75 53.59 74.35C55.74 74.06 57.02 73.66 58.87 72.69C61.48 71.33 63.15 70.21 65.25 68.40C69.33 64.88 72.19 60.11 73.18 55.15C73.47 53.73 73.53 50.64 73.30 49.09C72.70 44.99 70.86 41.47 67.64 38.24C65.11 35.71 62.09 33.73 58.89 32.52L57.90 32.15L58.78 31.96C61.56 31.35 65.45 31.24 68.58 31.69C72.71 32.29 76.49 33.55 80.94 35.80C88.62 39.69 94.32 44.88 96.71 50.19C97.97 52.98 98.36 55.73 97.86 58.37C97.73 59.07 97.52 59.97 97.39 60.37C95.52 66.17 90.73 73.20 84.98 78.57C79.11 84.04 72.51 87.83 64.53 90.31C62.36 90.98 59.12 91.66 56.21 92.05C54.40 92.29 53.60 92.34 50.55 92.37C48.60 92.38 46.86 92.38 46.67 92.36Z" /></g><path class="pupil" d="M48.31 68.57C45.59 68.31 42.56 67.17 40.40 65.58C39.19 64.69 37.53 63.01 36.67 61.81C34.70 59.06 33.59 55.32 33.79 52.08C33.95 49.51 34.44 47.58 35.44 45.63C36.26 44.05 37.01 43.03 38.35 41.68C41.48 38.55 45.52 36.82 50.11 36.67C51.60 36.62 52.11 36.65 53.26 36.85C55.74 37.27 57.67 38.04 59.76 39.43C64.97 42.90 67.61 49.34 66.35 55.52C66.04 57.05 65.80 57.75 65.03 59.32C63.47 62.53 60.99 65.05 57.83 66.67C55.24 68.00 53.36 68.49 50.50 68.62C49.86 68.65 48.88 68.62 48.31 68.57Z" /></svg>
+      <p class="curtain-meta"><span>Betsee</span><span class="curtain-n">00</span></p>
+    </div>
     <a class="skip" href="#main">Skip to content</a>
+    <div class="progress" aria-hidden="true"></div>
 
     <header class="nav">
-      <div class="wrap nav-inner">
+      <div class="frame nav-inner">
         <a class="brand" href="#top" aria-label="Betsee, back to top">
           <svg class="brand-mark" aria-hidden="true"><use href="#mark" /></svg>
           <span>Betsee</span>
         </a>
         <nav class="nav-links" aria-label="Sections">
-          <a href="#how">How it works</a>
-          <a href="#product">Product</a>
-          <a href="#principles">Principles</a>
-          <a href="#security">Security</a>
+          <a href="#how"><i>01</i>How it works</a>
+          <a href="#product"><i>02</i>Product</a>
+          <a href="#principles"><i>03</i>Principles</a>
+          <a href="#security"><i>04</i>Security</a>
         </nav>
-        <a class="btn btn-small" href="#run">Run it</a>
+        <a class="btn btn-small" href="#run">Run the stack</a>
       </div>
     </header>
 
-    <main id="main">
-      <section class="hero" id="top">
-        <div class="hero-grid" aria-hidden="true"></div>
-        <div class="wrap hero-copy">
-          <p class="eyebrow"><span class="live-dot" aria-hidden="true"></span>Enterprise agent control</p>
-          <h1>Better see what your agents&nbsp;do.</h1>
-          <p class="lede">
-            Betsee sits between your AI agents and everything they can touch. Every action passes one deterministic
-            boundary, is decided by explicit policy, and leaves a trace that says who asked, which agent acted, and the
-            exact rule that decided.
-          </p>
-          <div class="cta">
-            <a class="btn" href="#run">Run the stack</a>
-            <a class="btn btn-ghost" href="#how">See how it decides</a>
-          </div>
-        </div>
-        <div class="wrap wrap-wide">
-          <figure class="clip clip-hero">
-            <div class="frame">
-              <div class="frame-bar">
-                <span class="frame-lights" aria-hidden="true"><i></i><i></i><i></i></span>
-                <span class="frame-url">director.betsee.localhost</span>
-                <span class="frame-live">Live</span>
+    <div id="smooth-wrapper">
+      <div id="smooth-content">
+        <main id="main">
+          <section class="hero" id="top">
+            <div class="aurora" aria-hidden="true"><i class="blob b-blue"></i><i class="blob b-ok"></i><i class="blob b-ai"></i><i class="blob b-wait"></i></div>
+            <div class="columns" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
+            <div class="frame hero-meta">
+              <p><span class="sq ok" aria-hidden="true"></span>Enterprise agent control</p>
+              <p>Gateway / Director / Desk / Approvals</p>
+              <p>Cedar &middot; Keycloak &middot; Rust</p>
+            </div>
+
+            <h1 class="frame hero-title">
+              <span class="hl hl-1">Better see</span>
+              <span class="hl hl-2">what your</span>
+              <span class="hl hl-3">agents do.</span>
+            </h1>
+
+            <div class="frame hero-foot">
+              <div class="hero-copy">
+                <p class="lede">Every agent action passes one deterministic boundary, is decided by explicit policy, and leaves a trace that says why.</p>
+                <div class="cta">
+                  <a class="btn" href="#run">Run the stack <span aria-hidden="true">&rarr;</span></a>
+                  <a class="link-small" href="#how">See how it decides</a>
+                </div>
               </div>
-              <div class="frame-media">
+              <div class="feed" aria-label="Example decisions">
+                <p class="feed-head"><span>Decision feed</span><span>demo data</span></p>
+                <ol class="feed-rows">
+                  <li><time>10:12:04</time><b>invoice-assistant</b><code>files.read</code><em class="ok">Allowed</em></li>
+                  <li><time>10:12:03</time><b>research-agent</b><code>email.send</code><em class="bad">Denied</em></li>
+                  <li><time>10:12:01</time><b>ops-runner</b><code>shell.exec</code><em class="verify">Step-up</em></li>
+                  <li><time>10:11:58</time><b>support-triage</b><code>memory.write</code><em class="ai">Tightened by AI</em></li>
+                  <li><time>10:11:56</time><b>employee-assistant</b><code>Write</code><em class="wait">Awaiting approval</em></li>
+                  <li><time>10:11:52</time><b>report-bot</b><code>crm.read</code><em class="quar">Quarantined</em></li>
+                </ol>
+              </div>
+            </div>
+
+            <figure class="clip film hero-film">
+              <div class="film-media">
                 <video
                   muted
                   loop
@@ -82,456 +106,352 @@
                   aria-label="The Director: live counts of agent actions and denials, the activity feed, then one denied request opened down to the policy that denied it"
                 ></video>
                 <div class="clip-controls">
-                  <button class="clip-btn" type="button" data-toggle aria-label="Pause video">
-                    <svg aria-hidden="true"><use href="#i-pause" /></svg>
-                  </button>
-                  <button class="clip-btn" type="button" data-expand aria-label="Watch larger">
-                    <svg aria-hidden="true"><use href="#i-expand" /></svg>
-                  </button>
+                  <button class="clip-btn" type="button" data-toggle aria-label="Pause video"><svg aria-hidden="true"><use href="#i-pause" /></svg></button>
+                  <button class="clip-btn" type="button" data-expand aria-label="Watch larger"><svg aria-hidden="true"><use href="#i-expand" /></svg></button>
+                </div>
+              </div>
+              <figcaption class="frame caption">
+                <span>Fig. 01</span><span>Director, the live control room</span><span>director.betsee.localhost</span>
+              </figcaption>
+            </figure>
+          </section>
+
+          <section class="band" aria-label="The fifteen stages, in short">
+            <div class="band-row band-big">
+              <p class="band-track">
+                <span class="tone-blue">Identity</span><span class="tone-ok o">Capability</span><span class="tone-verify">Cedar</span><span class="tone-ai o">Tier</span><span class="tone-wait">Budget</span><span class="tone-blue o">Approval</span><span class="tone-verify">Step-up</span><span class="tone-ok o">Audit</span>
+              </p>
+            </div>
+            <div class="band-row band-small band-reverse">
+              <p class="band-track">
+                <span>CTL-IN-001 Input content filter</span><span>CTL-TIER-001 Resource tier ceiling</span><span>CTL-CAP-001 Effective capability intersection</span><span>CTL-AI-001 AI analysis only tightens</span><span>CTL-APR-003 Payment threshold</span><span>CTL-TOOL-001 Pinned MCP tool descriptors</span><span>CTL-POL-001 Fail closed</span>
+              </p>
+            </div>
+          </section>
+
+          <section class="thesis" aria-label="Thesis">
+            <div class="frame split-grid">
+              <p class="label">Why Betsee</p>
+              <div>
+                <p class="thesis-line">The model can suggest. Betsee decides what may execute.</p>
+                <p class="thesis-sub">Non-deterministic AI. Deterministic control.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="figures" aria-label="In numbers">
+            <ul class="frame figures-row">
+              <li class="tone-blue"><strong data-lag="0.12"><span data-count="15">15</span></strong><p>Pipeline stages, in a fixed order, on every action</p></li>
+              <li class="tone-ai"><strong data-lag="0.12"><span data-count="0" data-from="12">0</span></strong><p>Decisions an AI model can loosen</p></li>
+              <li class="tone-ok"><strong data-lag="0.12"><span data-count="10">10</span><small>/10</small></strong><p>OWASP agentic risks mapped to a primitive</p></li>
+              <li class="tone-verify"><strong data-lag="0.12"><span data-count="37">37</span></strong><p>Security cases against the live stack, under a minute</p></li>
+            </ul>
+          </section>
+
+          <section class="how" id="how" aria-labelledby="how-title">
+            <div class="how-pin">
+              <div class="frame">
+                <header class="how-head">
+                  <p class="label">(01) How it works</p>
+                  <h2 id="how-title" class="split">One request. Fifteen checks. One answer.</h2>
+                </header>
+                <div class="request">
+                  <p class="request-line">
+                    <b>invoice-assistant</b> asks to send <b>48,000.00 EUR</b> to <code>nordfreight-supplier</code>, for Maya
+                    Chen.
+                  </p>
+                  <p class="request-status" aria-hidden="true">
+                    <span class="st st-check"><i class="sq ink"></i>Checking</span>
+                    <span class="st st-wait"><i class="sq wait"></i>Awaiting approval</span>
+                    <span class="st st-verify"><i class="sq verify"></i>Step-up</span>
+                    <span class="st st-ok"><i class="sq ok"></i>Allowed</span>
+                  </p>
+                </div>
+                <ol class="stages" aria-label="The fifteen Gateway stages and what each found">
+                  <li class="tone-blue" data-group="Ingress"><span class="n">01</span><span class="name">Authenticate</span><span class="res"><i class="sq ok"></i>agent token</span><i class="wipe"></i></li>
+                  <li class="tone-blue"><span class="n">02</span><span class="name">Resolve context</span><span class="res"><i class="sq ok"></i>session found</span><i class="wipe"></i></li>
+                  <li class="tone-ok" data-group="Deterministic controls"><span class="n">03</span><span class="name">Identity</span><span class="res"><i class="sq ok"></i>passed</span><i class="wipe"></i></li>
+                  <li class="tone-ok"><span class="n">04</span><span class="name">Capability</span><span class="res"><i class="sq ok"></i>delegated and permitted</span><i class="wipe"></i></li>
+                  <li class="tone-ok"><span class="n">05</span><span class="name">Cedar authz</span><span class="res"><i class="sq ok"></i>permit</span><i class="wipe"></i></li>
+                  <li class="tone-ok"><span class="n">06</span><span class="name">Information tier</span><span class="res"><i class="sq ok"></i>internal, within ceiling</span><i class="wipe"></i></li>
+                  <li class="tone-ok"><span class="n">07</span><span class="name">Command validation</span><span class="res"><i class="sq ok"></i>not a command</span><i class="wipe"></i></li>
+                  <li class="tone-ok"><span class="n">08</span><span class="name">Budget</span><span class="res"><i class="sq ok"></i>within budget</span><i class="wipe"></i></li>
+                  <li class="tone-ai" data-group="Analysis and decision"><span class="n">09</span><span class="name">AI analysis <em>may only tighten</em></span><span class="res"><i class="sq ai"></i>nothing to tighten</span><i class="wipe"></i></li>
+                  <li class="tone-wait"><span class="n">10</span><span class="name">Decision</span><span class="res"><i class="sq wait"></i>require_approval</span><i class="wipe"></i></li>
+                  <li class="tone-wait"><span class="n">11</span><span class="name">Approval</span><span class="res"><i class="sq wait"></i>Daniel Ortiz approved</span><i class="wipe"></i></li>
+                  <li class="tone-verify"><span class="n">12</span><span class="name">Step-up</span><span class="res"><i class="sq verify"></i>fresh one-time code, acr 2</span><i class="wipe"></i></li>
+                  <li class="tone-blue" data-group="Execution and audit"><span class="n">13</span><span class="name">Connector</span><span class="res"><i class="sq ok"></i>executed</span><i class="wipe"></i></li>
+                  <li class="tone-blue"><span class="n">14</span><span class="name">Output controls</span><span class="res"><i class="sq ok"></i>passed</span><i class="wipe"></i></li>
+                  <li class="tone-blue"><span class="n">15</span><span class="name">Audit</span><span class="res"><i class="sq ok"></i>recorded</span><i class="wipe"></i></li>
+                </ol>
+              </div>
+            </div>
+          </section>
+
+          <section class="story" id="product" aria-labelledby="product-title">
+            <div class="frame">
+              <header class="story-head split-grid">
+                <p class="label">(02) Product</p>
+                <div>
+                  <h2 id="product-title" class="split">Watch it work.</h2>
+                  <p class="sub">Recorded from the real interfaces. Acme Logistics demo, simulated traffic.</p>
+                </div>
+              </header>
+
+              <div class="story-grid">
+                <div class="story-steps">
+                  <article class="story-step" data-tone="blue">
+                    <p class="step-n">02.1</p>
+                    <p class="label">Betsee Desk</p>
+                    <h3>Claude Code and Codex for every employee. Governed.</h3>
+                    <p>Real Claude Code and Codex. Every tool call is decided by the Gateway before it runs.</p>
+                    <ul class="facts">
+                      <li>Reads by information tier</li>
+                      <li>Writes after a human says yes</li>
+                      <li>No network egress, fails closed</li>
+                    </ul>
+                    <figure class="clip film story-clip">
+                      <div class="film-media">
+                        <video muted loop playsinline preload="none" poster="media/desk.webp" data-src="media/desk.webm" aria-label="Betsee Desk: Maya asks for a budget summary, the file read is allowed, then a write waits for an approver and is approved"></video>
+                        <div class="clip-controls">
+                          <button class="clip-btn" type="button" data-toggle aria-label="Pause video"><svg aria-hidden="true"><use href="#i-pause" /></svg></button>
+                          <button class="clip-btn" type="button" data-expand aria-label="Watch larger"><svg aria-hidden="true"><use href="#i-expand" /></svg></button>
+                        </div>
+                      </div>
+                      <figcaption class="caption"><span>Fig. 02</span><span>Desk: a read is allowed, a write waits for a human</span></figcaption>
+                    </figure>
+                  </article>
+
+                  <article class="story-step" data-tone="bad">
+                    <p class="step-n">02.2</p>
+                    <p class="label">Content and runtime controls</p>
+                    <h3>Sensitive data stops at the boundary.</h3>
+                    <p>Cards, IBANs, PESEL and keys never reach the model. Confidential files stay above the ceiling.</p>
+                    <ul class="facts">
+                      <li><code>CTL-IN-001</code> Input content filter</li>
+                      <li><code>CTL-TIER-001</code> Resource tier ceiling</li>
+                      <li><code>CTL-FILE-001</code> File intake and release</li>
+                    </ul>
+                    <figure class="clip film story-clip">
+                      <div class="film-media">
+                        <video muted loop playsinline preload="none" poster="media/guard.webp" data-src="media/guard.webm" aria-label="Betsee Desk: a message with an IBAN is not sent, then a read of a confidential salary file and an upload to the internet are both denied"></video>
+                        <div class="clip-controls">
+                          <button class="clip-btn" type="button" data-toggle aria-label="Pause video"><svg aria-hidden="true"><use href="#i-pause" /></svg></button>
+                          <button class="clip-btn" type="button" data-expand aria-label="Watch larger"><svg aria-hidden="true"><use href="#i-expand" /></svg></button>
+                        </div>
+                      </div>
+                      <figcaption class="caption"><span>Fig. 03</span><span>Desk: an IBAN is held back, a confidential read and an upload are denied</span></figcaption>
+                    </figure>
+                  </article>
+
+                  <article class="story-step" data-tone="wait">
+                    <p class="step-n">02.3</p>
+                    <p class="label">Approvals</p>
+                    <h3>A human decides. With proof of who they are.</h3>
+                    <p>High-impact actions wait for a human who sees exactly what the Gateway stored.</p>
+                    <ul class="facts">
+                      <li>Bound to the hash of the request</li>
+                      <li>Approved by someone else</li>
+                      <li>Fresh one-time code when it matters</li>
+                    </ul>
+                    <figure class="clip film story-clip">
+                      <div class="film-media">
+                        <video muted loop playsinline preload="none" poster="media/approvals.webp" data-src="media/approvals.webm" aria-label="The Director: a 48,000 EUR payment waits for approval with step-up, then turns to approved by a human while the trace is open"></video>
+                        <div class="clip-controls">
+                          <button class="clip-btn" type="button" data-toggle aria-label="Pause video"><svg aria-hidden="true"><use href="#i-pause" /></svg></button>
+                          <button class="clip-btn" type="button" data-expand aria-label="Watch larger"><svg aria-hidden="true"><use href="#i-expand" /></svg></button>
+                        </div>
+                      </div>
+                      <figcaption class="caption"><span>Fig. 04</span><span>Director: a 48,000 EUR payment turns from waiting to approved</span></figcaption>
+                    </figure>
+                  </article>
+
+                  <article class="story-step" data-tone="verify">
+                    <p class="step-n">02.4</p>
+                    <p class="label">Policies and controls</p>
+                    <h3>Every guarantee is a named control.</h3>
+                    <p>Each use case says what it permits and what needs a human. Each control names its Cedar policies.</p>
+                    <ul class="facts">
+                      <li>Cedar, validated in strict mode</li>
+                      <li>An invalid policy stops the Gateway</li>
+                      <li>Any evaluation error is a deny</li>
+                    </ul>
+                    <figure class="clip film story-clip">
+                      <div class="film-media">
+                        <video muted loop playsinline preload="none" poster="media/policy.webp" data-src="media/policy.webm" aria-label="The Director configuration: use cases with what they permit and what needs a human, then the named controls with the Cedar policies under each"></video>
+                        <div class="clip-controls">
+                          <button class="clip-btn" type="button" data-toggle aria-label="Pause video"><svg aria-hidden="true"><use href="#i-pause" /></svg></button>
+                          <button class="clip-btn" type="button" data-expand aria-label="Watch larger"><svg aria-hidden="true"><use href="#i-expand" /></svg></button>
+                        </div>
+                      </div>
+                      <figcaption class="caption"><span>Fig. 05</span><span>Director: use cases, then every control with its Cedar policies</span></figcaption>
+                    </figure>
+                  </article>
+
+                  <article class="story-step" data-tone="ok">
+                    <p class="step-n">02.5</p>
+                    <p class="label">Identity</p>
+                    <h3>Every agent is a principal, not a borrowed login.</h3>
+                    <p>Each agent has its own identity, under the person who runs it.</p>
+                    <ul class="facts">
+                      <li>Delegate only what you hold</li>
+                      <li>Never the human's whole privilege set</li>
+                      <li>A message is not a delegation</li>
+                    </ul>
+                    <figure class="clip film story-clip">
+                      <div class="film-media">
+                        <video muted loop playsinline preload="none" poster="media/agents.webp" data-src="media/agents.webm" aria-label="The Director's org chart: people and the agents they run, then one agent's profile showing how its permissions were derived"></video>
+                        <div class="clip-controls">
+                          <button class="clip-btn" type="button" data-toggle aria-label="Pause video"><svg aria-hidden="true"><use href="#i-pause" /></svg></button>
+                          <button class="clip-btn" type="button" data-expand aria-label="Watch larger"><svg aria-hidden="true"><use href="#i-expand" /></svg></button>
+                        </div>
+                      </div>
+                      <figcaption class="caption"><span>Fig. 06</span><span>Director: the org chart, then how one agent's permissions were derived</span></figcaption>
+                    </figure>
+                  </article>
+                </div>
+
+                <div class="story-media">
+                  <p class="story-index" aria-hidden="true"><span class="story-now">01</span><span class="story-of">/05</span></p>
+                  <div class="story-stage"></div>
+                  <div class="story-bar" aria-hidden="true"><i></i></div>
                 </div>
               </div>
             </div>
-            <figcaption>
-              The Director, the live control room. Every number, row and trace here is a decision the Gateway made.
-            </figcaption>
-          </figure>
-        </div>
-      </section>
+          </section>
 
-      <section class="thesis" aria-label="Thesis">
-        <div class="wrap">
-          <p class="thesis-line">
-            The model can suggest. <span>Betsee decides what may execute.</span>
-          </p>
-          <ul class="thesis-facts">
-            <li><strong>15</strong> pipeline stages, in a fixed order, on every action</li>
-            <li><strong>0</strong> decisions an AI model can loosen</li>
-            <li><strong>10 / 10</strong> OWASP agentic risks mapped to a primitive</li>
-            <li><strong>37</strong> security cases against the live stack, under a minute</li>
-          </ul>
-        </div>
-      </section>
+          <section class="gallery" aria-labelledby="gallery-title">
+            <div class="gallery-pin">
+              <p class="gallery-word" aria-hidden="true">Inside the Director</p>
+              <div class="frame gallery-head split-grid">
+                <p class="label">Inside the Director</p>
+                <h2 id="gallery-title" class="split">Every agent. Every action. Every decision.</h2>
+              </div>
+              <div class="gallery-track">
+                <figure class="shot">
+                  <div class="shot-img"><img src="media/still-graph.webp" alt="The Director graph: people, agents and tools, with denied, tightened and quarantined paths drawn" loading="lazy" width="2400" height="1500" /></div>
+                  <figcaption class="caption"><span>Fig. 07</span><span>Graph: who touched what, in the last hour</span></figcaption>
+                </figure>
+                <figure class="shot">
+                  <div class="shot-img"><img src="media/still-determinism.webp" alt="The Director determinism view: decisions by policy, tightened by AI, loosened by AI (none) and resolved by a person" loading="lazy" width="2400" height="1500" /></div>
+                  <figcaption class="caption"><span>Fig. 08</span><span>Determinism: same request, same decision; loosened by AI, zero</span></figcaption>
+                </figure>
+                <figure class="shot">
+                  <div class="shot-img"><img src="media/still-coverage.webp" alt="The Director coverage view: OWASP agentic risks with the evidence from this run" loading="lazy" width="2400" height="1500" /></div>
+                  <figcaption class="caption"><span>Fig. 09</span><span>Coverage: OWASP agentic risks, with evidence from the run</span></figcaption>
+                </figure>
+              </div>
+            </div>
+          </section>
 
-      <section class="section" id="how" aria-labelledby="how-title">
-        <div class="wrap">
-          <header class="section-head">
-            <p class="eyebrow">How it works</p>
-            <h2 id="how-title">One request. One boundary. One answer you can read.</h2>
-          </header>
-          <ol class="steps">
-            <li class="step">
-              <span class="step-n">01</span>
-              <h3>An agent asks.</h3>
-              <p>
-                A tool call, a file read, a payment or a message to another agent becomes one small request to the
-                Betsee Gateway, made with the agent's own identity. Never its human's.
-              </p>
-            </li>
-            <li class="step">
-              <span class="step-n">02</span>
-              <h3>Policy decides.</h3>
-              <p>
-                Cedar policies, the information tier, budgets and command rules decide first. AI analysis runs after
-                them and may only make the answer stricter.
-              </p>
-            </li>
-            <li class="step">
-              <span class="step-n">03</span>
-              <h3>You see why.</h3>
-              <p>
-                Allow, deny, approval or step-up, with the control and policy that decided it. Live in the Director,
-                append-only in the audit trail.
-              </p>
-            </li>
-          </ol>
-
-          <div class="pipeline" role="img" aria-label="The fifteen Gateway stages in order, grouped as ingress, deterministic controls, analysis and decision, execution and audit">
-            <div class="pipe-group">
-              <p class="pipe-label">Ingress</p>
-              <ol class="pipe-stages">
-                <li><span>01</span>Authenticate</li>
-                <li><span>02</span>Resolve context</li>
+          <section class="principles" id="principles" aria-labelledby="principles-title">
+            <div class="frame">
+              <header class="split-grid section-head">
+                <p class="label">(03) Principles</p>
+                <h2 id="principles-title" class="split">Rules the code enforces, not promises.</h2>
+              </header>
+              <ol class="rules">
+                <li class="tone-blue"><span class="n">I</span><h3>Humans and agents are distinct principals.</h3><p>Agent tokens work only on agent routes, human tokens only on human routes.</p></li>
+                <li class="tone-ok">
+                  <span class="n">II</span>
+                  <h3>
+                    Capability is delegated
+                    <svg class="cap" viewBox="0 0 12 14" role="img" aria-label="intersected with"><path d="M2 13V7a4 4 0 0 1 8 0v6" /></svg>
+                    permitted.
+                  </h3>
+                  <p>A human reaches nothing through an agent that policy denies them.</p>
+                </li>
+                <li class="tone-verify"><span class="n">III</span><h3>Deterministic first.</h3><p>The same request under the same conditions always gets the same answer.</p></li>
+                <li class="tone-ai"><span class="n">IV</span><h3>AI analysis may only tighten.</h3><p>It can raise allow to approval or deny. No permit policy reads its output.</p></li>
+                <li class="tone-wait"><span class="n">V</span><h3>Approval binds to the exact request.</h3><p>Change one parameter and the approval no longer applies.</p></li>
+                <li class="tone-blue"><span class="n">VI</span><h3>Every action leaves a trace.</h3><p>W3C trace context, one span per stage, append-only audit rows.</p></li>
               </ol>
             </div>
-            <div class="pipe-group">
-              <p class="pipe-label">Deterministic controls</p>
-              <ol class="pipe-stages">
-                <li><span>03</span>Identity</li>
-                <li><span>04</span>Capability</li>
-                <li><span>05</span>Cedar authz</li>
-                <li><span>06</span>Information tier</li>
-                <li><span>07</span>Command validation</li>
-                <li><span>08</span>Budget</li>
+          </section>
+
+          <section class="owasp" id="security" aria-labelledby="security-title">
+            <div class="frame owasp-grid">
+              <div class="owasp-side">
+                <p class="label">(04) OWASP Top 10 for Agentic Applications, 2026</p>
+                <h2 id="security-title" class="split">Nine primitives. One pipeline. Ten risks.</h2>
+                <p class="owasp-count" aria-hidden="true"><span class="owasp-n">10</span><small>/10</small></p>
+              </div>
+              <ol class="risks">
+                <li><code>ASI01</code><b>Agent goal hijack</b><span>Information tiers and taint, no write-down</span></li>
+                <li><code>ASI02</code><b>Tool misuse and exploitation</b><span>Capability intersection and Cedar authorization</span></li>
+                <li><code>ASI03</code><b>Identity and privilege abuse</b><span>Agent identity and delegation</span></li>
+                <li><code>ASI04</code><b>Agentic supply chain</b><span>Tool integrity, pinned MCP descriptors</span></li>
+                <li><code>ASI05</code><b>Unexpected code execution</b><span>Command validation</span></li>
+                <li><code>ASI06</code><b>Memory and context poisoning</b><span>Information tiers and taint; AI analysis tightens</span></li>
+                <li><code>ASI07</code><b>Insecure inter-agent communication</b><span>Mediated agent-to-agent channel</span></li>
+                <li><code>ASI08</code><b>Cascading failures</b><span>Budget, circuit breaker and quarantine</span></li>
+                <li><code>ASI09</code><b>Human-agent trust exploitation</b><span>Human approval and step-up</span></li>
+                <li><code>ASI10</code><b>Rogue agents</b><span>Budget, circuit breaker and quarantine</span></li>
               </ol>
             </div>
-            <div class="pipe-group">
-              <p class="pipe-label">Analysis and decision</p>
-              <ol class="pipe-stages">
-                <li class="pipe-ai"><span>09</span>AI analysis <em>may only tighten</em></li>
-                <li><span>10</span>Decision</li>
-                <li><span>11</span>Approval</li>
-                <li><span>12</span>Step-up</li>
-              </ol>
-            </div>
-            <div class="pipe-group">
-              <p class="pipe-label">Execution and audit</p>
-              <ol class="pipe-stages">
-                <li><span>13</span>Connector</li>
-                <li><span>14</span>Output controls</li>
-                <li><span>15</span>Audit</li>
-              </ol>
-            </div>
-          </div>
-          <div class="outcomes" aria-label="Possible outcomes">
-            <span class="chip chip-allow">Allowed</span>
-            <span class="chip chip-deny">Denied</span>
-            <span class="chip chip-approval">Awaiting approval</span>
-            <span class="chip chip-stepup">Step-up</span>
-            <span class="chip chip-ai">Tightened by AI</span>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      <section class="section" id="product" aria-labelledby="product-title">
-        <div class="wrap">
-          <header class="section-head">
-            <p class="eyebrow">Product</p>
-            <h2 id="product-title">Watch it work.</h2>
-            <p class="section-sub">
-              Recorded from the real interfaces, running the Acme Logistics demo organisation with simulated traffic.
-            </p>
-          </header>
-
-          <article class="feature">
-            <div class="feature-copy">
-              <p class="eyebrow">Betsee Desk</p>
-              <h3>Claude Code and Codex for every employee. Governed.</h3>
-              <p>
-                Desk is a desktop app where people work with real Claude Code or Codex. Every tool call the runtime
-                attempts goes to the Gateway as the agent <code>employee-assistant</code> and is decided before it
-                runs.
-              </p>
-              <ul class="facts">
-                <li>Reads of catalogued files by information tier</li>
-                <li>Writes only after an approver says yes</li>
-                <li>No network egress; denied when the Gateway is unreachable</li>
-              </ul>
-            </div>
-            <figure class="clip">
-              <div class="frame">
-                <div class="frame-media">
-                  <video
-                    muted
-                    loop
-                    playsinline
-                    preload="none"
-                    poster="media/desk.webp"
-                    data-src="media/desk.webm"
-                    aria-label="Betsee Desk: Maya asks for a budget summary, the file read is allowed, then a write waits for an approver and is approved"
-                  ></video>
-                  <div class="clip-controls">
-                    <button class="clip-btn" type="button" data-toggle aria-label="Pause video">
-                      <svg aria-hidden="true"><use href="#i-pause" /></svg>
-                    </button>
-                    <button class="clip-btn" type="button" data-expand aria-label="Watch larger">
-                      <svg aria-hidden="true"><use href="#i-expand" /></svg>
-                    </button>
-                  </div>
+          <section class="run" id="run" aria-labelledby="run-title">
+            <div class="frame">
+              <header class="split-grid section-head">
+                <p class="label">(05) Run it</p>
+                <div>
+                  <h2 id="run-title" class="split">One command. The whole stack.</h2>
+                  <p class="sub">Docker Compose 2.20 or newer, port 80 free. The demo organisation comes seeded.</p>
                 </div>
+              </header>
+              <div class="term">
+                <p class="term-cmd"><span class="term-prompt" aria-hidden="true">$</span><span class="term-typed">docker compose up</span></p>
+                <button class="term-copy" type="button" data-copy="docker compose up">Copy</button>
+                <pre class="term-out"><code><span>[+] Running 10/10</span>
+<span> Container betsee-postgres-1     <b>Healthy</b></span>
+<span> Container betsee-keycloak-1     <b>Healthy</b></span>
+<span> Container betsee-gateway-1      <b>Healthy</b></span>
+<span> Container betsee-caddy-1        <b>Started</b></span></code></pre>
               </div>
-              <figcaption>A read is allowed on the spot. A write waits for a human, then the same policy allows it.</figcaption>
-            </figure>
-          </article>
-
-          <article class="feature feature-flip">
-            <div class="feature-copy">
-              <p class="eyebrow">Content and runtime controls</p>
-              <h3>Sensitive data stops at the boundary.</h3>
-              <p>
-                What people type is checked before the model sees it: card numbers by Luhn, IBANs by mod-97, PESEL by
-                checksum, API and private keys. What the model reaches for is checked against the session's ceiling.
-              </p>
-              <ul class="facts">
-                <li><code>CTL-IN-001</code> keeps secrets and personal data out of the prompt</li>
-                <li><code>CTL-TIER-001</code> keeps confidential files above the session ceiling</li>
-                <li><code>CTL-FILE-001</code> scans every upload and download by its bytes</li>
-              </ul>
+              <dl class="hosts">
+                <div><dt>director.betsee.localhost</dt><dd>Director, the live control room</dd></div>
+                <div><dt>betsee.localhost</dt><dd>Approvals, Policy Studio, Identity, Connect</dd></div>
+                <div><dt>auth.betsee.localhost</dt><dd>Sign-in and step-up</dd></div>
+                <div><dt>api.betsee.localhost</dt><dd>Gateway API for agents and scripts</dd></div>
+              </dl>
             </div>
-            <figure class="clip">
-              <div class="frame">
-                <div class="frame-media">
-                  <video
-                    muted
-                    loop
-                    playsinline
-                    preload="none"
-                    poster="media/guard.webp"
-                    data-src="media/guard.webm"
-                    aria-label="Betsee Desk: a message with an IBAN is not sent, then a read of a confidential salary file and an upload to the internet are both denied"
-                  ></video>
-                  <div class="clip-controls">
-                    <button class="clip-btn" type="button" data-toggle aria-label="Pause video">
-                      <svg aria-hidden="true"><use href="#i-pause" /></svg>
-                    </button>
-                    <button class="clip-btn" type="button" data-expand aria-label="Watch larger">
-                      <svg aria-hidden="true"><use href="#i-expand" /></svg>
-                    </button>
-                  </div>
-                </div>
+          </section>
+
+          <section class="outro" aria-labelledby="outro-title">
+            <div class="frame outro-inner">
+              <svg class="eye eye-outro" viewBox="0 0 100 100" aria-hidden="true"><g class="eye-lids"><path class="lid" d="M20.39 60.18C19.34 59.44 15.96 57.28 13.57 55.81C7.88 52.30 5.46 50.25 4.15 47.83C2.93 45.55 2.83 42.83 3.86 39.65C4.67 37.16 7.18 32.81 10.23 28.60C13.80 23.68 18.37 19.30 23.29 16.09C29.44 12.08 36.33 9.39 43.57 8.20C48.21 7.43 54.16 7.38 59.04 8.09C66.91 9.22 74.82 12.52 81.27 17.35C84.24 19.57 85.61 20.80 88.27 23.64C90.56 26.08 92.55 28.57 94.10 30.92C95.27 32.71 95.79 33.58 96.56 35.08C98.05 38.00 98.05 37.99 96.78 36.64C94.75 34.49 91.75 32.09 88.93 30.37C81.26 25.70 72.06 24.02 62.59 25.55C55.54 26.69 45.74 29.95 39.52 33.22C36.50 34.81 33.15 36.94 30.87 38.73C29.36 39.91 27.35 41.38 25.66 42.53C21.57 45.31 17.74 47.07 14.12 47.85C13.20 48.05 12.60 48.10 11.24 48.10C10.29 48.10 9.31 48.05 9.05 47.98C8.79 47.91 8.58 47.90 8.58 47.94C8.58 47.99 8.86 48.42 9.20 48.90C11.93 52.72 16.03 56.80 20.31 59.96C21.18 60.61 21.44 60.83 21.30 60.81C21.29 60.81 20.88 60.52 20.39 60.18Z" /><path class="lid" d="M46.67 92.36C46.49 92.33 45.79 92.26 45.12 92.19C35.66 91.27 26.61 87.42 18.88 81.05C17.18 79.64 13.51 75.89 12.11 74.12C6.90 67.55 3.16 59.57 2.10 52.76C1.88 51.33 1.88 51.23 2.14 51.81C2.55 52.69 4.01 54.76 5.06 55.93C8.55 59.83 15.24 64.30 22.50 67.60C26.87 69.59 32.91 71.56 38.41 72.79C44.12 74.07 50.69 74.75 53.59 74.35C55.74 74.06 57.02 73.66 58.87 72.69C61.48 71.33 63.15 70.21 65.25 68.40C69.33 64.88 72.19 60.11 73.18 55.15C73.47 53.73 73.53 50.64 73.30 49.09C72.70 44.99 70.86 41.47 67.64 38.24C65.11 35.71 62.09 33.73 58.89 32.52L57.90 32.15L58.78 31.96C61.56 31.35 65.45 31.24 68.58 31.69C72.71 32.29 76.49 33.55 80.94 35.80C88.62 39.69 94.32 44.88 96.71 50.19C97.97 52.98 98.36 55.73 97.86 58.37C97.73 59.07 97.52 59.97 97.39 60.37C95.52 66.17 90.73 73.20 84.98 78.57C79.11 84.04 72.51 87.83 64.53 90.31C62.36 90.98 59.12 91.66 56.21 92.05C54.40 92.29 53.60 92.34 50.55 92.37C48.60 92.38 46.86 92.38 46.67 92.36Z" /></g><path class="pupil" d="M48.31 68.57C45.59 68.31 42.56 67.17 40.40 65.58C39.19 64.69 37.53 63.01 36.67 61.81C34.70 59.06 33.59 55.32 33.79 52.08C33.95 49.51 34.44 47.58 35.44 45.63C36.26 44.05 37.01 43.03 38.35 41.68C41.48 38.55 45.52 36.82 50.11 36.67C51.60 36.62 52.11 36.65 53.26 36.85C55.74 37.27 57.67 38.04 59.76 39.43C64.97 42.90 67.61 49.34 66.35 55.52C66.04 57.05 65.80 57.75 65.03 59.32C63.47 62.53 60.99 65.05 57.83 66.67C55.24 68.00 53.36 68.49 50.50 68.62C49.86 68.65 48.88 68.62 48.31 68.57Z" /></svg>
+              <h2 id="outro-title" class="outro-title">Better see what your <span>agents do.</span></h2>
+              <div class="outro-cta">
+                <button class="btn" type="button" data-copy="docker compose up">Copy docker compose up</button>
+                <a class="link-small" href="#top">Back to top</a>
               </div>
-              <figcaption>An IBAN never leaves the composer. A confidential read and an upload are denied, with the control that did it.</figcaption>
-            </figure>
-          </article>
-
-          <article class="feature">
-            <div class="feature-copy">
-              <p class="eyebrow">Approvals</p>
-              <h3>A human decides. With proof of who they are.</h3>
-              <p>
-                High-impact actions wait for an approver who sees the exact parameters the Gateway stored, not the
-                agent's summary. The approval binds to the hash of that request.
-              </p>
-              <ul class="facts">
-                <li>The approver must be someone other than the session's human</li>
-                <li>The most sensitive actions need a fresh one-time code</li>
-                <li>Agent-supplied values are shown apart, marked unverified</li>
-              </ul>
             </div>
-            <figure class="clip">
-              <div class="frame">
-                <div class="frame-media">
-                  <video
-                    muted
-                    loop
-                    playsinline
-                    preload="none"
-                    poster="media/approvals.webp"
-                    data-src="media/approvals.webm"
-                    aria-label="Approvals: a 48,000 EUR payment waits for approval with step-up, then a memory write tightened by AI analysis is reviewed and approved"
-                  ></video>
-                  <div class="clip-controls">
-                    <button class="clip-btn" type="button" data-toggle aria-label="Pause video">
-                      <svg aria-hidden="true"><use href="#i-pause" /></svg>
-                    </button>
-                    <button class="clip-btn" type="button" data-expand aria-label="Watch larger">
-                      <svg aria-hidden="true"><use href="#i-expand" /></svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <figcaption>The payment shows the amount and action hash as the Gateway recorded them.</figcaption>
-            </figure>
-          </article>
+          </section>
 
-          <article class="feature feature-flip">
-            <div class="feature-copy">
-              <p class="eyebrow">Policy Studio</p>
-              <h3>Every guarantee is a named control.</h3>
-              <p>
-                Each control says in plain language what it guarantees, which OWASP risks it mitigates and where it
-                attaches: organisation, team, user, agent, use case, tool, model or information tier.
-              </p>
-              <ul class="facts">
-                <li>Policies are Cedar, validated in strict mode at startup</li>
-                <li>An invalid policy stops the Gateway from starting</li>
-                <li>Any evaluation error is a deny</li>
-              </ul>
+          <footer class="footer">
+            <div class="footer-row">
+              <a class="brand" href="#top" aria-label="Betsee, back to top">
+                <svg class="brand-mark" aria-hidden="true"><use href="#mark" /></svg>
+                <span>Betsee</span>
+              </a>
+              <nav class="footer-links" aria-label="Sections">
+                <a href="#how">How it works</a>
+                <a href="#product">Product</a>
+                <a href="#principles">Principles</a>
+                <a href="#security">Security</a>
+                <a href="#run">Run it</a>
+              </nav>
+              <p>Non-deterministic AI. Deterministic control.</p>
             </div>
-            <figure class="clip">
-              <div class="frame">
-                <div class="frame-media">
-                  <video
-                    muted
-                    loop
-                    playsinline
-                    preload="none"
-                    poster="media/policy.webp"
-                    data-src="media/policy.webm"
-                    aria-label="Policy Studio: the controls catalogue, the payment threshold control, then the Cedar policies"
-                  ></video>
-                  <div class="clip-controls">
-                    <button class="clip-btn" type="button" data-toggle aria-label="Pause video">
-                      <svg aria-hidden="true"><use href="#i-pause" /></svg>
-                    </button>
-                    <button class="clip-btn" type="button" data-expand aria-label="Watch larger">
-                      <svg aria-hidden="true"><use href="#i-expand" /></svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <figcaption>Controls, Cedar policies and use cases in one place.</figcaption>
-            </figure>
-          </article>
-
-          <article class="feature">
-            <div class="feature-copy">
-              <p class="eyebrow">Identity</p>
-              <h3>Every agent is a principal, not a borrowed login.</h3>
-              <p>
-                Each agent has its own identity and sits under the person who runs it. What it may do is what that
-                person delegated, intersected with what policy permits for the use case.
-              </p>
-              <ul class="facts">
-                <li>A human can delegate only what they hold</li>
-                <li>An agent never inherits its human's whole privilege set</li>
-                <li>Agent-to-agent messages are mediated and never delegate authority</li>
-              </ul>
-            </div>
-            <figure class="clip">
-              <div class="frame">
-                <div class="frame-media">
-                  <video
-                    muted
-                    loop
-                    playsinline
-                    preload="none"
-                    poster="media/agents.webp"
-                    data-src="media/agents.webm"
-                    aria-label="The Director's org chart: people and the agents they run, then one agent's profile showing how its permissions were derived"
-                  ></video>
-                  <div class="clip-controls">
-                    <button class="clip-btn" type="button" data-toggle aria-label="Pause video">
-                      <svg aria-hidden="true"><use href="#i-pause" /></svg>
-                    </button>
-                    <button class="clip-btn" type="button" data-expand aria-label="Watch larger">
-                      <svg aria-hidden="true"><use href="#i-expand" /></svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <figcaption>The org chart, then one agent's effective permissions and how they were derived.</figcaption>
-            </figure>
-          </article>
-
-          <div class="stills">
-            <figure>
-              <img src="media/still-graph.webp" alt="The Director graph: people, agents and tools, with denied, tightened and quarantined paths drawn" loading="lazy" width="2400" height="1500" />
-              <figcaption><strong>Graph.</strong> Who touched what, in the last hour.</figcaption>
-            </figure>
-            <figure>
-              <img src="media/still-determinism.webp" alt="The Director determinism view: decisions by policy, tightened by AI, loosened by AI (none) and resolved by a person" loading="lazy" width="2400" height="1500" />
-              <figcaption><strong>Determinism.</strong> Same request, same decision.</figcaption>
-            </figure>
-            <figure>
-              <img src="media/still-coverage.webp" alt="The Director coverage view: OWASP agentic risks with the evidence from this run" loading="lazy" width="2400" height="1500" />
-              <figcaption><strong>Coverage.</strong> OWASP agentic risks, with evidence.</figcaption>
-            </figure>
-          </div>
-        </div>
-      </section>
-
-      <section class="section" id="principles" aria-labelledby="principles-title">
-        <div class="wrap">
-          <header class="section-head">
-            <p class="eyebrow">Principles</p>
-            <h2 id="principles-title">Rules the code enforces, not promises.</h2>
-          </header>
-          <ul class="principles">
-            <li>
-              <h3>Humans and agents are distinct principals.</h3>
-              <p>Agent tokens work only on agent routes, human tokens only on human routes.</p>
-            </li>
-            <li>
-              <h3>
-                Effective capability is delegated
-                <svg class="cap" viewBox="0 0 12 14" role="img" aria-label="intersected with"><path d="M2 13V7a4 4 0 0 1 8 0v6" /></svg>
-                permitted.
-              </h3>
-              <p>A human reaches nothing through an agent that policy denies them.</p>
-            </li>
-            <li>
-              <h3>Deterministic first.</h3>
-              <p>The same request under the same conditions always gets the same answer.</p>
-            </li>
-            <li>
-              <h3>AI analysis may only tighten.</h3>
-              <p>It can raise allow to approval or deny. No permit policy reads its output.</p>
-            </li>
-            <li>
-              <h3>Approval binds to the exact request.</h3>
-              <p>Change one parameter and the approval no longer applies.</p>
-            </li>
-            <li>
-              <h3>Every action leaves a trace.</h3>
-              <p>W3C trace context, one span per stage, append-only audit rows.</p>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <section class="section" id="security" aria-labelledby="security-title">
-        <div class="wrap">
-          <header class="section-head">
-            <p class="eyebrow">OWASP Top 10 for Agentic Applications, 2026</p>
-            <h2 id="security-title">Nine primitives. One pipeline. Ten risks.</h2>
-            <p class="section-sub">
-              Each risk maps to the primitive that answers it, and each primitive has positive and negative cases in the
-              security suite.
-            </p>
-          </header>
-          <div class="risk-table" role="table" aria-label="OWASP agentic risks and the Betsee primitive for each">
-            <div class="risk-row risk-head" role="row">
-              <span role="columnheader">Risk</span>
-              <span role="columnheader">Primary Betsee primitive</span>
-            </div>
-            <div class="risk-row" role="row"><span role="cell"><code>ASI01</code>Agent goal hijack</span><span role="cell">Information tiers and taint, no write-down</span></div>
-            <div class="risk-row" role="row"><span role="cell"><code>ASI02</code>Tool misuse and exploitation</span><span role="cell">Capability intersection and Cedar authorization</span></div>
-            <div class="risk-row" role="row"><span role="cell"><code>ASI03</code>Identity and privilege abuse</span><span role="cell">Agent identity and delegation</span></div>
-            <div class="risk-row" role="row"><span role="cell"><code>ASI04</code>Agentic supply chain</span><span role="cell">Tool integrity, pinned MCP descriptors</span></div>
-            <div class="risk-row" role="row"><span role="cell"><code>ASI05</code>Unexpected code execution</span><span role="cell">Command validation</span></div>
-            <div class="risk-row" role="row"><span role="cell"><code>ASI06</code>Memory and context poisoning</span><span role="cell">Information tiers and taint; AI analysis tightens</span></div>
-            <div class="risk-row" role="row"><span role="cell"><code>ASI07</code>Insecure inter-agent communication</span><span role="cell">Mediated agent-to-agent channel</span></div>
-            <div class="risk-row" role="row"><span role="cell"><code>ASI08</code>Cascading failures</span><span role="cell">Budget, circuit breaker and quarantine</span></div>
-            <div class="risk-row" role="row"><span role="cell"><code>ASI09</code>Human-agent trust exploitation</span><span role="cell">Human approval and step-up</span></div>
-            <div class="risk-row" role="row"><span role="cell"><code>ASI10</code>Rogue agents</span><span role="cell">Budget, circuit breaker and quarantine</span></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section run" id="run" aria-labelledby="run-title">
-        <div class="wrap run-inner">
-          <div>
-            <p class="eyebrow">Run it</p>
-            <h2 id="run-title">One command. The whole stack.</h2>
-            <p class="section-sub">
-              Gateway, Director, Approvals, Policy Studio, Keycloak and PostgreSQL, seeded with the Acme Logistics demo
-              organisation. Docker Compose 2.20 or newer, port 80 free.
-            </p>
-          </div>
-          <div class="run-card">
-            <div class="term">
-              <code><span class="term-prompt" aria-hidden="true">$</span> docker compose up</code>
-              <button class="clip-btn term-copy" type="button" data-copy="docker compose up" aria-label="Copy the command">
-                <svg aria-hidden="true"><use href="#i-copy" /></svg>
-              </button>
-            </div>
-            <dl class="hosts">
-              <div><dt>director.betsee.localhost</dt><dd>Director, the live control room</dd></div>
-              <div><dt>betsee.localhost</dt><dd>Approvals, Policy Studio, Identity, Connect</dd></div>
-              <div><dt>auth.betsee.localhost</dt><dd>Sign-in and step-up</dd></div>
-              <div><dt>api.betsee.localhost</dt><dd>Gateway API for agents and scripts</dd></div>
-            </dl>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <footer class="footer">
-      <div class="wrap footer-inner">
-        <a class="brand" href="#top" aria-label="Betsee, back to top">
-          <svg class="brand-mark" aria-hidden="true"><use href="#mark" /></svg>
-          <span>Betsee</span>
-        </a>
-        <p class="footer-line">Probabilistic AI. Deterministic control.</p>
-        <p class="footer-fine">Interfaces shown use icons by Streamline (streamlinehq.com), CC BY 4.0.</p>
+          </footer>
+        </main>
       </div>
-    </footer>
+    </div>
 
     <dialog class="viewer" aria-label="Video">
       <div class="viewer-inner">
-        <button class="clip-btn viewer-close" type="button" aria-label="Close">
-          <svg aria-hidden="true"><use href="#i-close" /></svg>
-        </button>
+        <button class="clip-btn viewer-close" type="button" aria-label="Close"><svg aria-hidden="true"><use href="#i-close" /></svg></button>
         <video controls playsinline muted></video>
       </div>
     </dialog>

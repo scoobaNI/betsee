@@ -2,7 +2,7 @@
 // t seconds; the renderer (film/render/render.mjs) steps it frame by frame. ?t=12.5 previews one
 // frame in a browser, ?play plays in real time. Scenes time themselves against their narration
 // (ctx.vo / ctx.phrase) and register sound cues (ctx.cue), which the renderer exports for the mix.
-import { el, loadCaptures, loadIcons, rng, W, H } from "./lib.js";
+import { el, loadCaptures, loadIcons } from "./lib.js";
 import { open } from "./scenes/open.js";
 import { product } from "./scenes/product.js";
 import { depth } from "./scenes/depth.js";
@@ -17,15 +17,16 @@ await Promise.all([
     "desk-setup", "desk-empty", "desk-work", "desk-approval", "desk-approved", "desk-guard", "desk-input",
     "dir-overview", "dir-activity", "dir-graph", "dir-orgchart", "dir-person", "dir-access", "dir-config",
     "dir-agent-invoice-assistant", "dir-agent-employee-assistant", "dir-determinism", "dir-coverage",
-    "dir-trace-tier", "dir-trace-approval", "dir-trace-tool",
+    "dir-trace-tier", "dir-trace-approval", "dir-trace-tool", "dir-trace-tightened",
     "eco-home", "eco-approvals", "eco-approval-detail", "eco-controls", "eco-control-apr003", "eco-policies", "eco-usecases",
-    "kc-login",
+    "kc-login", "kc-light",
   ]),
   document.fonts.load('700 100px "Mona"'),
   document.fonts.load('500 20px "JBMono"'),
 ]);
 await document.fonts.ready;
 
+const clips = await (await fetch("../captures/live/clips.json")).json().catch(() => ({}));
 const builders = { ...open, ...product, ...depth, ...proof };
 const cues = [];
 const scenes = timeline.acts.map((act) => {
@@ -37,6 +38,7 @@ const scenes = timeline.acts.map((act) => {
   const ctx = {
     act,
     timeline,
+    clips,
     length: act.end - act.start,
     /** A narration line in act-local seconds: { at, end, dur }. */
     vo(id) {
@@ -51,48 +53,53 @@ const scenes = timeline.acts.map((act) => {
       const p = v.phrases[i] ?? 0;
       return v.at - act.start + p;
     },
+    /** Act-local time at which a word of a line is spoken: ctx.word("n25", "Underneath"). */
+    word(id, needle) {
+      const v = lines.get(id);
+      const text = (timeline.lines ?? {})[id] ?? "";
+      const at = text.toLowerCase().indexOf(needle.toLowerCase());
+      if (at < 0) throw new Error(`"${needle}" is not in line ${id}`);
+      let time = 0;
+      for (const [index, t] of v.words) if (index <= at) time = t;
+      return v.at - act.start + time;
+    },
     cue(local, kind) {
       cues.push({ at: Math.round((act.start + local) * 1000) / 1000, kind });
     },
   };
   const scene = make(root, ctx);
-  return { ...act, root, pre: scene.pre ?? 0, post: scene.post ?? 0, update: scene.update, z: scene.z ?? 0 };
+  return { ...act, root, update: scene.update, push: scene.push !== false };
 });
+// Every act hands over with the same move: the outgoing scene drifts toward the viewer and dissolves
+// while the next one settles in underneath it.
+const HANDOVER = 0.7;
 window.filmCues = cues.sort((a, b) => a.at - b.at);
 
-// A whisper of grain so flat white never bands; seeded per frame, identical on every render.
-const grain = el("canvas", "", stage);
-grain.id = "grain";
-grain.width = W + 128;
-grain.height = H + 128;
-{
-  const g = grain.getContext("2d");
-  const img = g.createImageData(grain.width, grain.height);
-  const r = rng(99);
-  for (let i = 0; i < img.data.length; i += 4) {
-    const v = 128 + (r() - 0.5) * 255;
-    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
-    img.data[i + 3] = 255;
-  }
-  g.putImageData(img, 0, 0);
-}
 const fade = el("div", "", stage);
 fade.id = "fade";
 
-window.renderAt = (t) => {
-  for (const s of scenes) {
-    const on = t >= s.start - s.pre && t < s.end + s.post;
+window.renderAt = async (t) => {
+  window.__pending = [];
+  scenes.forEach((s, i) => {
+    const last = i === scenes.length - 1;
+    const on = t >= s.start && (t < s.end + (last ? 0 : HANDOVER));
     s.root.style.display = on ? "block" : "none";
-    if (on) {
-      s.root.style.zIndex = 10 + s.z + (t >= s.start ? 1 : 0);
-      s.update(t - s.start, t);
-    }
-  }
-  const frame = Math.round(t * timeline.fps);
-  const jr = rng(frame + 1);
-  grain.style.transform = `translate(${-Math.floor(jr() * 128)}px, ${-Math.floor(jr() * 128)}px)`;
+    if (!on) return;
+    const out = last ? 0 : Math.min(1, Math.max(0, (t - s.end) / HANDOVER));
+    const into = Math.min(1, Math.max(0, (t - s.start) / HANDOVER));
+    const e = (p) => 1 - Math.pow(1 - p, 3);
+    // Outgoing: forward and away. Incoming: a touch from below scale.
+    const scale = out > 0 ? 1 + 0.06 * e(out) : i > 0 ? 0.97 + 0.03 * e(into) : 1;
+    s.root.style.zIndex = out > 0 ? 30 : 10;
+    s.root.style.opacity = out > 0 ? 1 - e(out) : 1;
+    s.root.style.filter = out > 0.01 ? `blur(${6 * out}px)` : "none";
+    s.root.style.transform = s.push ? `scale(${scale})` : "none";
+    s.update(t - s.start, t);
+  });
   const end = timeline.duration;
   fade.style.opacity = t < 0.6 ? 1 - t / 0.6 : t > end - 1.2 ? Math.min(1, (t - (end - 1.2)) / 1.2) : 0;
+  // Live frames swap images; wait until they are decoded so no frame is captured half-drawn.
+  await Promise.all(window.__pending);
 };
 
 window.filmDuration = timeline.duration;
@@ -102,10 +109,9 @@ const params = new URLSearchParams(location.search);
 if (params.has("play")) {
   const t0 = performance.now() - parseFloat(params.get("play") || "0") * 1000;
   const loop = () => {
-    window.renderAt(((performance.now() - t0) / 1000) % timeline.duration);
-    requestAnimationFrame(loop);
+    window.renderAt(((performance.now() - t0) / 1000) % timeline.duration).then(() => requestAnimationFrame(loop));
   };
   loop();
-} else window.renderAt(parseFloat(params.get("t") ?? "0"));
+} else await window.renderAt(parseFloat(params.get("t") ?? "0"));
 
 window.filmReady = true;

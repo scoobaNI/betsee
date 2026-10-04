@@ -1,8 +1,8 @@
-use betsee_decision::Engine;
 use betsee_server::{
     api,
     auth::Auth,
     connectors::{McpConnector, OpenAiCompatible, validate_url},
+    guardrails::Runtime,
     pipeline::Gateway,
     store::Store,
 };
@@ -23,8 +23,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
     let policies =
         PathBuf::from(std::env::var("POLICIES_DIR").unwrap_or_else(|_| "../policies".into()));
-    let engine = Engine::load(&policies)?;
-    let catalog = serde_yaml::from_str(&std::fs::read_to_string(policies.join("controls.yaml"))?)?;
+    let runtime = Runtime::load(policies.clone())?;
     let http_hosts: Vec<_> = std::env::var("CONNECTOR_HTTP_ALLOWED_HOSTS")
         .unwrap_or_else(|_| "mock-llm,betsee-mcp,mcp".into())
         .split(',')
@@ -54,8 +53,7 @@ async fn main() -> anyhow::Result<()> {
                 "http://keycloak:8080/realms/betsee/protocol/openid-connect/certs",
             ),
         )?,
-        engine,
-        catalog,
+        runtime: runtime.clone(),
         llm: OpenAiCompatible::new(
             llm_url,
             std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "mock-model-demo".into()),
@@ -65,6 +63,40 @@ async fn main() -> anyhow::Result<()> {
         action_gate: Arc::new(Mutex::new(())),
     });
     gateway.seed_runtime(&policies).await?;
+    // CTL-CFG-001: policies, guardrails, the classifier and the signature baseline reload live; the
+    // external threat feed is polled. Both report through security events.
+    let events = gateway.clone();
+    runtime.clone().watch(move |kind, detail| {
+        let events = events.clone();
+        async move {
+            let severity = if kind.ends_with("rejected") { "high" } else { "info" };
+            let message = if kind.ends_with("rejected") {
+                "Policy change rejected; the last good configuration stays active"
+            } else {
+                "Policy configuration reloaded without a restart"
+            };
+            let trace = uuid::Uuid::new_v4().simple().to_string();
+            if let Err(error) = events.security(kind, severity, &trace, message, detail).await {
+                tracing::warn!(%error, "could not record policy reload event");
+            }
+        }
+    });
+    let events = gateway.clone();
+    runtime.poll_feed(move |kind, detail| {
+        let events = events.clone();
+        async move {
+            let severity = if kind.ends_with("rejected") { "medium" } else { "info" };
+            let message = if kind.ends_with("rejected") {
+                "Threat feed unavailable or invalid; the last good signatures stay active"
+            } else {
+                "Threat feed updated"
+            };
+            let trace = uuid::Uuid::new_v4().simple().to_string();
+            if let Err(error) = events.security(kind, severity, &trace, message, detail).await {
+                tracing::warn!(%error, "could not record threat feed event");
+            }
+        }
+    });
     let watcher = gateway.clone();
     tokio::spawn(async move {
         loop {

@@ -7,6 +7,8 @@ import unittest
 from pathlib import Path
 
 from catalog import CASES
+from guardrails_live import CHECKS as GUARDRAIL_CHECKS
+from guardrails_live import checks as guardrail_checks
 from harness import HttpClient, LiveCase, validate_config
 
 
@@ -66,13 +68,17 @@ def main():
     if args.self_test:
         result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.discover(str(Path(__file__).parent), pattern="test_harness.py"))
         return 0 if result.wasSuccessful() else 1
-    unknown = set(args.case) - {case.id for case in CASES}
+    guardrail_ids = {check_id for check_id, _ in GUARDRAIL_CHECKS}
+    unknown = set(args.case) - {case.id for case in CASES} - guardrail_ids
     if unknown:
         parser.error(f"Unknown case ids: {', '.join(sorted(unknown))}")
     cases = [case for case in CASES if not args.case or case.id in args.case]
     if args.list:
         for case in cases:
             print(f"{case.id:28} {' '.join(case.asi):18} {case.title}")
+        for check_id, title in GUARDRAIL_CHECKS:
+            if not args.case or check_id in args.case:
+                print(f"{check_id:28} {'guardrails':18} {title}")
         return 0
     try:
         if args.fixtures.exists():
@@ -95,7 +101,8 @@ def main():
         demo_quarantined, payments_drifted = cast_state(client)
     config["demo_quarantined"] = sorted(demo_quarantined) if demo_quarantined else []
     checks = [LiveCase(case, config, client) for case in cases]
-    suite = unittest.TestSuite(checks)
+    extra = guardrail_checks(client, set(args.case))
+    suite = unittest.TestSuite(checks + extra)
     baseline_pending = pending_approval_ids(client) if full_run else None
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     cast_stable = True
@@ -121,14 +128,15 @@ def main():
     failed = {getattr(test, "test_case", test).id() for test, _ in result.failures + result.errors}
     pending = {test.id(): reason for test, reason in result.skipped}
     passed = result.testsRun - len(failed) - len(pending)
-    print(f"Live stack: {passed} passed, {len(failed)} failed, {len(pending)} pending; {len(cases)} selected of {len(CASES)} catalog cases.")
+    print(f"Live stack: {passed} passed, {len(failed)} failed, {len(pending)} pending; {len(cases) + len(extra)} selected of {len(CASES) + len(GUARDRAIL_CHECKS)} catalog cases.")
     if pending:
         print("PENDING is incomplete coverage; no pending check counts as a live pass.")
     if args.report:
         args.report.write_text(json.dumps({
-            "mode": "live", "api": args.api, "selected": len(cases), "catalog_total": len(CASES),
+            "mode": "live", "api": args.api, "selected": len(cases) + len(extra), "catalog_total": len(CASES) + len(GUARDRAIL_CHECKS),
             "passed": passed, "failed": len(failed), "pending": len(pending), "pending_approvals_stable": pending_stable, "cast_state_stable": cast_stable,
-            "cases": [{"id": check.case.id, "asi": list(check.case.asi), "status": "failed" if check.case.id in failed else "pending" if check.case.id in pending else "passed", "reason": pending.get(check.case.id), "observations": check.observations} for check in checks],
+            "cases": [{"id": check.case.id, "asi": list(check.case.asi), "status": "failed" if check.case.id in failed else "pending" if check.case.id in pending else "passed", "reason": pending.get(check.case.id), "observations": check.observations} for check in checks]
+            + [{"id": check.check_id, "asi": ["guardrails"], "status": "failed" if check.check_id in failed else "passed", "reason": None, "observations": check.observations} for check in extra],
         }, indent=2) + "\n")
     if not result.wasSuccessful() or not pending_stable or not cast_stable:
         return 1

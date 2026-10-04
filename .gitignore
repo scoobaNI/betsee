@@ -19,3 +19,8 @@ film/out/*
 !film/out/vo/
 !film/out/music/
 !film/out/sfx/
+# The live Director recordings: hundreds of MB of frames, re-recorded by film/capture/live.mjs.
+film/captures/live/
+
+# Public training datasets for the semantic classifier (tools/semantic-classifier/fetch_datasets.sh).
+tools/semantic-classifier/corpus/public/

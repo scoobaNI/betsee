@@ -8,6 +8,7 @@ export const STAGES: readonly { id: StageId; label: string; icon: string; group:
   { id: 'cedar_authz', label: 'Cedar authz', icon: 'streamline-flex:justice-scale-1', group: 'controls' },
   { id: 'information_tier', label: 'Information tier', icon: 'streamline-flex:layers-1', group: 'controls' },
   { id: 'command_validation', label: 'Command validation', icon: 'streamline-flex:code-analysis', group: 'controls' },
+  { id: 'threat_signatures', label: 'Threat signatures', icon: 'streamline-flex:shield-cross', group: 'controls' },
   { id: 'budget', label: 'Budget', icon: 'streamline-flex:dashboard-gauge-1', group: 'controls' },
   { id: 'ai_analysis', label: 'AI analysis', icon: 'streamline-flex:ai-scanner-robot', group: 'decision' },
   { id: 'decision', label: 'Decision', icon: 'streamline-flex:arrow-roadmap', group: 'decision' },

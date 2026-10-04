@@ -1,0 +1,36 @@
+{
+  "feed": "acme-soc-threat-intel",
+  "version": "2026.10.04.2",
+  "published_at": "2026-10-04T06:00:00Z",
+  "description": "Demo external feed, served by Caddy at http://caddy:8090/feed.json as a stand-in for a SOC or vendor threat-intelligence service. Edit and save it: the Gateway picks the change up on its next poll.",
+  "signatures": [
+    {
+      "id": "SIG-ACME-001",
+      "name": "Finance approval-override lure",
+      "category": "social_engineering",
+      "severity": "high",
+      "action": "block",
+      "references": ["Acme SOC advisory 2026-09 (demo entry)"],
+      "description": "Wording from a phishing wave against the finance team that tells the reader, or an assistant reading for them, to pay without the approval step.",
+      "targets": ["prompt", "parameters", "output"],
+      "match": {
+        "type": "regex",
+        "pattern": "(?i)(cfo (has )?(already )?approved[^\\n]{0,80}(skip|bypass|without)[^\\n]{0,40}approv|dyrektor finansowy (już )?zatwierdził[^\\n]{0,80}(pomiń|pomin|bez)[^\\n]{0,40}zatwierdz)"
+      }
+    },
+    {
+      "id": "SIG-ACME-002",
+      "name": "Attacker-controlled drop domain",
+      "category": "exfiltration",
+      "severity": "high",
+      "action": "block",
+      "references": ["Acme SOC advisory 2026-09 (demo entry)"],
+      "description": "A domain seen receiving stolen data in the same campaign.",
+      "targets": ["prompt", "parameters", "command", "output"],
+      "match": {
+        "type": "regex",
+        "pattern": "(?i)\\b(evil-mail\\.com|zla-poczta\\.pl|exfil\\.example)\\b"
+      }
+    }
+  ]
+}

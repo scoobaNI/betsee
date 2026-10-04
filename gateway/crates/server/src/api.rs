@@ -92,6 +92,12 @@ pub fn router(gateway: Arc<Gateway>) -> Router {
         .route("/api/v1/coverage", get(coverage))
         .route("/api/v1/security-events", get(security_events))
         .route("/api/v1/summary", get(overview))
+        .route("/api/v1/guardrails", get(guardrails_status))
+        .route("/api/v1/guardrails/evaluate", post(guardrails_evaluate))
+        .route(
+            "/api/v1/artifacts/scan",
+            post(artifact_scan).layer(axum::extract::DefaultBodyLimit::max(FILE_BODY_LIMIT)),
+        )
         .route("/api/v1/events/stream", get(events))
         .layer(middleware::from_fn_with_state(
             gateway.clone(),
@@ -236,7 +242,7 @@ async fn health(State(gateway): State<Arc<Gateway>>) -> ApiResult {
         .await
         .map_err(|e| ApiError::unavailable(e.into(), "health"))?;
     Ok(Json(
-        json!({"status":"ok","service":"betsee-gateway","policy_engine":"Cedar 4.13","model_label":MODEL_LABEL}),
+        json!({"status":"ok","service":"betsee-gateway","policy_engine":"Cedar 4.13","model_label":MODEL_LABEL,"policy_version":gateway.state().version,"classifier":crate::guard::label(&gateway.state()),"signatures":gateway.threats().len()}),
     ))
 }
 async fn me(Extension(claims): Extension<Claims>, Extension(human): Extension<Human>) -> ApiResult {
@@ -282,9 +288,12 @@ async fn use_cases(
         .entities()
         .await
         .map_err(|e| ApiError::unavailable(e, &id.0))?;
+    let state = gateway.state();
     let items:Vec<_>=entities.as_array().unwrap().iter().filter(|e|e["uid"]["type"]=="Betsee::UseCase").map(|entity|{
         let attrs=&entity["attrs"];let id=text(&entity["uid"],"id");
-        json!({"id":id,"name":use_case_name(id),"permitted":refs(&attrs["permitted"]),"tier_ceiling":tier(attrs["tierCeiling"].as_i64().unwrap_or(0)),"approval_required":refs(&attrs["approvalRequired"]),"step_up_required":refs(&attrs["stepUpRequired"]),"approval_threshold_cents":attrs["approvalThresholdCents"],"budget":{"limit":if id=="weekly-reporting" {2000} else {5000},"used":0,"unit":"cents"},"agent_ids":refs(&attrs["agents"]),"peer_ids":refs(&attrs["peers"])})
+        let budget=state.guardrails.session_budget(id);
+        let (profile,_)=state.guardrails.profile_for(id);
+        json!({"id":id,"name":use_case_name(id),"permitted":refs(&attrs["permitted"]),"tier_ceiling":tier(attrs["tierCeiling"].as_i64().unwrap_or(0)),"approval_required":refs(&attrs["approvalRequired"]),"step_up_required":refs(&attrs["stepUpRequired"]),"approval_threshold_cents":attrs["approvalThresholdCents"],"budget":{"limit":budget.cents,"used":0,"unit":"cents","tokens_limit":budget.tokens},"guardrail_profile":profile,"agent_ids":refs(&attrs["agents"]),"peer_ids":refs(&attrs["peers"])})
     }).collect();
     Ok(Json(json!({"items":items})))
 }
@@ -307,6 +316,7 @@ fn use_case_name(id: &str) -> &str {
         "regression-a2a-sender" => "A2A sender (test-only)",
         "regression-a2a-receiver" => "A2A receiver (test-only)",
         "employee-assistance" => "Employee assistance",
+        "model-onboarding" => "Model onboarding (test-only)",
         _ => id,
     }
 }
@@ -338,17 +348,14 @@ async fn create_session(
     let _gate = gateway.action_gate.lock().await;
     let rank = tier_rank(&body.tier_ceiling)
         .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "Invalid information tier", &id.0))?;
-    let budget = body
-        .budget_cents
-        .unwrap_or(if body.use_case_id == "weekly-reporting" {
-            2000
-        } else {
-            5000
-        });
-    if !(1..=5000).contains(&budget) {
+    let state = gateway.state();
+    let defaults = state.guardrails.session_budget(&body.use_case_id).clone();
+    let maximum = state.guardrails.budgets.max_session_cents;
+    let budget = body.budget_cents.unwrap_or(defaults.cents.min(maximum));
+    if !(1..=maximum).contains(&budget) {
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
-            "Demo session budget must be between 1 and 5000 cents",
+            format!("Session budget must be between 1 and {maximum} cents (guardrails.yaml budgets.max_session_cents)"),
             &id.0,
         ));
     }
@@ -389,8 +396,8 @@ async fn create_session(
     }
     let session_id = uuid::Uuid::new_v4().to_string();
     let expires = Utc::now() + chrono::Duration::hours(2);
-    let session = json!({"id":session_id,"human":{"sub":claims.sub,"display_name":human.0["display_name"]},"agent_id":body.agent_id,"use_case":{"id":body.use_case_id,"name":use_case_name(&body.use_case_id)},"delegated":body.delegated,"effective":effective(&body.delegated,&refs(&use_case["attrs"]["permitted"])),"tier_ceiling":body.tier_ceiling,"budget":{"limit":budget,"used":0,"unit":"cents"},"approval_state":"none","status":"active","started_at":now(),"expires_at":expires.to_rfc3339()});
-    let entity = json!({"uid":{"type":"Betsee::AgentSession","id":session_id},"attrs":{"human":entity_ref("Human",human_id),"agent":entity_ref("Agent",&body.agent_id),"useCase":entity_ref("UseCase",&body.use_case_id),"delegated":body.delegated.iter().map(|cap|entity_ref("Capability",cap)).collect::<Vec<_>>(),"tierCeiling":rank,"taint":0,"untrustedInput":false,"status":"active","expiresAt":expires.timestamp(),"budgetCents":budget,"spentCents":0},"parents":[]});
+    let session = json!({"id":session_id,"human":{"sub":claims.sub,"display_name":human.0["display_name"]},"agent_id":body.agent_id,"use_case":{"id":body.use_case_id,"name":use_case_name(&body.use_case_id)},"delegated":body.delegated,"effective":effective(&body.delegated,&refs(&use_case["attrs"]["permitted"])),"tier_ceiling":body.tier_ceiling,"budget":{"limit":budget,"used":0,"unit":"cents","tokens_limit":defaults.tokens,"tokens_used":0},"guardrail_profile":state.guardrails.profile_for(&body.use_case_id).0,"approval_state":"none","status":"active","started_at":now(),"expires_at":expires.to_rfc3339()});
+    let entity = json!({"uid":{"type":"Betsee::AgentSession","id":session_id},"attrs":{"human":entity_ref("Human",human_id),"agent":entity_ref("Agent",&body.agent_id),"useCase":entity_ref("UseCase",&body.use_case_id),"delegated":body.delegated.iter().map(|cap|entity_ref("Capability",cap)).collect::<Vec<_>>(),"tierCeiling":rank,"taint":0,"untrustedInput":false,"status":"active","expiresAt":expires.timestamp(),"budgetCents":budget,"spentCents":0,"tokenBudget":defaults.tokens,"tokensUsed":0},"parents":[]});
     gateway
         .store
         .put_entity(&entity)
@@ -1056,7 +1063,7 @@ async fn attachments(
     ))
 }
 fn catalog_controls(gateway: &Gateway, attachments: &[Value]) -> Vec<Value> {
-    gateway.catalog["controls"].as_array().into_iter().flatten().map(|control|json!({"id":control["id"],"name":control["name"],"description":control["explanation"],"primitive":control["primitive"],"asi":control["asi"],"attachment_points":control["attach"],"enforcement":control["enforced_by"],"policy_ids":control.get("policies").cloned().unwrap_or(json!([])),"attachments":attachments.iter().filter(|attachment|attachment["control_id"]==control["id"]).collect::<Vec<_>>()})).collect()
+    gateway.state().catalog["controls"].as_array().into_iter().flatten().map(|control|json!({"id":control["id"],"name":control["name"],"description":control["explanation"],"primitive":control["primitive"],"asi":control["asi"],"attachment_points":control["attach"],"enforcement":control["enforced_by"],"policy_ids":control.get("policies").cloned().unwrap_or(json!([])),"attachments":attachments.iter().filter(|attachment|attachment["control_id"]==control["id"]).collect::<Vec<_>>()})).collect()
 }
 async fn controls(
     State(gateway): State<Arc<Gateway>>,
@@ -1094,7 +1101,8 @@ async fn attach_control(
         ));
     }
     let _gate = gateway.action_gate.lock().await;
-    let control = gateway.catalog["controls"]
+    let state = gateway.state();
+    let control = state.catalog["controls"]
         .as_array()
         .and_then(|controls| {
             controls
@@ -1232,7 +1240,7 @@ async fn attach_control(
             items.retain(|e| e["uid"] != entity["uid"]);
             items.push(entity.clone());
         }
-        gateway
+        state
             .engine
             .validate_entities(candidate)
             .map_err(|e| ApiError::new(StatusCode::BAD_REQUEST, e.to_string(), &id.0))?;
@@ -1266,8 +1274,9 @@ async fn attach_control(
     Ok((StatusCode::CREATED, Json(attachment)))
 }
 fn policy_items(gateway: &Gateway) -> Vec<Value> {
-    let mut items:Vec<_>=gateway.engine.policies.policies().map(|policy|json!({"id":policy.id().to_string(),"name":policy.id().to_string(),"cedar":policy.to_string(),"control_ids":[policy.annotation("control").unwrap_or("")]})).collect();
-    items.extend(gateway.engine.policies.templates().map(|template|json!({"id":template.id().to_string(),"name":template.id().to_string(),"cedar":template.to_string(),"control_ids":[template.annotation("control").unwrap_or("")]})));
+    let state = gateway.state();
+    let mut items:Vec<_>=state.engine.policies.policies().map(|policy|json!({"id":policy.id().to_string(),"name":policy.id().to_string(),"cedar":policy.to_string(),"control_ids":[policy.annotation("control").unwrap_or("")]})).collect();
+    items.extend(state.engine.policies.templates().map(|template|json!({"id":template.id().to_string(),"name":template.id().to_string(),"cedar":template.to_string(),"control_ids":[template.annotation("control").unwrap_or("")]})));
     items
 }
 async fn policies(State(gateway): State<Arc<Gateway>>) -> ApiResult {
@@ -1409,7 +1418,7 @@ async fn coverage(
     let items:Vec<_>=(1..=10).map(|index|{
         let asi=format!("ASI{index:02}");let matched:Vec<_>=controls.iter().filter(|control|control["asi"].as_array().is_some_and(|risks|risks.iter().any(|risk|risk==&asi))).collect();
         let primitive_ids:BTreeSet<_>=matched.iter().filter_map(|control|control["primitive"].as_str()).collect();
-        let primitives:Vec<_>=gateway.catalog["primitives"].as_array().into_iter().flatten().filter(|primitive|primitive_ids.contains(text(primitive,"id"))).map(|primitive|json!({"id":primitive["id"],"name":primitive["name"]})).collect();
+        let primitives:Vec<_>=gateway.state().catalog["primitives"].as_array().into_iter().flatten().filter(|primitive|primitive_ids.contains(text(primitive,"id"))).map(|primitive|json!({"id":primitive["id"],"name":primitive["name"]})).collect();
         let evidence:Vec<_>=traces.iter().filter(|trace|trace["control_ids"].as_array().is_some_and(|ids|ids.iter().any(|id|matched.iter().any(|control|control["id"]==*id)))).collect();
         let mut counts=json!({"allow":0,"deny":0,"require_approval":0,"require_step_up":0});for trace in &evidence{let decision=text(trace,"decision");if let Some(count)=counts.get_mut(decision){*count=json!(count.as_i64().unwrap_or(0)+1);}}
         json!({"asi_id":asi,"name":names[index-1],"primitives":primitives,"controls":matched,"evidence_count":evidence.len(),"decision_counts":counts})
@@ -1481,10 +1490,200 @@ async fn overview(
         .iter()
         .filter(|a| a["state"] == "pending" && can_read(&claims, &a["action"]))
         .count();
+    let count = |f: &dyn Fn(&Value) -> bool| traces.iter().filter(|t| f(t)).count();
+    let mut latencies: Vec<f64> = traces.iter().filter_map(|t| t["latency_ms"].as_f64()).filter(|l| *l > 0.0).collect();
+    latencies.sort_by(f64::total_cmp);
+    let percentile = |p: f64| latencies.get(((latencies.len() as f64 - 1.0) * p).round() as usize).map(|l| (l * 10.0).round() / 10.0);
+    let guardrails = json!({
+        "redactions_last_15m": traces.iter().map(|t| t["guardrails"]["redactions"].as_array().map_or(0, Vec::len) + t["output_filter"]["redactions"].as_array().map_or(0, Vec::len)).sum::<usize>(),
+        "signature_hits_last_15m": count(&|t| t["guardrails"]["signatures"].as_array().is_some_and(|s| !s.is_empty()) || t["output_filter"]["signatures"].as_array().is_some_and(|s| !s.is_empty())),
+        "semantic_flags_last_15m": count(&|t| matches!(t["analyzer"]["verdict"].as_str(), Some("suspicious" | "malicious"))),
+        // An empty f64 sum is -0.0; adding 0.0 normalizes it so the dashboard never shows "-0.00".
+        "spent_cents_last_15m": (traces.iter().filter_map(|t| t["cost"]["cents"].as_f64()).sum::<f64>() * 100.0).round() / 100.0 + 0.0,
+        "tokens_last_15m": traces.iter().filter_map(|t| t["cost"]["tokens"].as_i64()).sum::<i64>(),
+        "latency_ms": {"p50": percentile(0.5), "p95": percentile(0.95), "samples": latencies.len()},
+        "policy_version": gateway.state().version,
+    });
     Ok(Json(
-        json!({"agents_active":active,"actions_last_15m":traces.len(),"denied_last_15m":traces.iter().filter(|trace|trace["decision"]=="deny").count(),"awaiting_human":waiting,"stage_counts":stage_counts}),
+        json!({"agents_active":active,"actions_last_15m":traces.len(),"denied_last_15m":traces.iter().filter(|trace|trace["decision"]=="deny").count(),"awaiting_human":waiting,"stage_counts":stage_counts,"guardrails":guardrails}),
     ))
 }
+/// CTL-CFG-001: what is in force right now, where it came from, and whether the last change was
+/// accepted.
+async fn guardrails_status(
+    State(gateway): State<Arc<Gateway>>,
+    Extension(claims): Extension<Claims>,
+    Extension(id): Extension<Correlation>,
+) -> ApiResult {
+    if !privileged(&claims) {
+        return Err(ApiError::new(StatusCode::FORBIDDEN, "Security role required", &id.0));
+    }
+    let state = gateway.state();
+    let threats = gateway.threats();
+    let reload = gateway.runtime.reload.lock().expect("reload lock").clone();
+    let feed = gateway.runtime.feed.lock().expect("feed lock").clone();
+    Ok(Json(json!({
+        "policy": state.summary(),
+        "reload": reload,
+        "guardrails": state.guardrails,
+        "classifier": state.classifier.card(),
+        "signatures": threats.summary(),
+        "feed": feed,
+    })))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Evaluate {
+    text: String,
+    /// input (what a person types) or output (what a model or tool returns).
+    #[serde(default = "input_direction")]
+    direction: String,
+    use_case_id: Option<String>,
+    profile: Option<String>,
+}
+
+fn input_direction() -> String {
+    "input".into()
+}
+
+/// The guardrail playground: runs the same detectors, profile actions, signatures and classifier
+/// the enforced paths run, on text a security officer types, without an agent or a session.
+async fn guardrails_evaluate(
+    State(gateway): State<Arc<Gateway>>,
+    Extension(claims): Extension<Claims>,
+    Extension(id): Extension<Correlation>,
+    Json(body): Json<Evaluate>,
+) -> ApiResult {
+    use crate::{content, guard, guardrails::Action};
+    if !privileged(&claims) {
+        return Err(ApiError::new(StatusCode::FORBIDDEN, "Security role required", &id.0));
+    }
+    if body.text.is_empty() || body.text.chars().count() > 20_000 {
+        return Err(ApiError::new(StatusCode::BAD_REQUEST, "Text must be 1 to 20000 characters", &id.0));
+    }
+    let started = std::time::Instant::now();
+    let state = gateway.state();
+    let threats = gateway.threats();
+    let (profile_name, profile) = match (&body.profile, &body.use_case_id) {
+        (Some(name), _) => (
+            name.as_str(),
+            state.guardrails.profiles.get(name).ok_or_else(|| {
+                ApiError::new(StatusCode::BAD_REQUEST, "Unknown guardrail profile", &id.0)
+            })?,
+        ),
+        (None, Some(use_case)) => state.guardrails.profile_for(use_case),
+        (None, None) => state.guardrails.profile_for(""),
+    };
+    let output = match body.direction.as_str() {
+        "input" => false,
+        "output" => true,
+        _ => return Err(ApiError::new(StatusCode::BAD_REQUEST, "direction is input or output", &id.0)),
+    };
+    let semantic = gateway
+        .semantic(&state, profile_name, profile, &body.text, if output { guard::Kind::Output } else { guard::Kind::Input })
+        .await;
+    let (decision, findings, forwarded, hits, withheld) = if output {
+        let mut value = json!(body.text);
+        let report = guard::filter_output(profile, &threats, &mut value);
+        let findings: Vec<Value> = content::detect_all(&body.text, &[])
+            .into_iter()
+            .filter(|f| content::OUTPUT_CLASSES.contains(&f.class))
+            .map(|f| json!({"class":f.class,"label":f.label,"masked":f.masked,"action":profile.output_action(f.class)}))
+            .collect();
+        let decision = if !report.withheld.is_empty() {
+            "withhold"
+        } else if report.untrusted || semantic.verdict != "clean" {
+            "flag_untrusted"
+        } else if !report.redactions.is_empty() || report.hits.iter().any(|h| h.action == "block") {
+            "allow_redacted"
+        } else {
+            "allow"
+        };
+        (decision, findings, value.as_str().unwrap_or_default().to_owned(), report.hits, report.withheld)
+    } else {
+        let all = content::detect_all(&body.text, &[]);
+        let redact: Vec<&str> = all.iter().filter(|f| profile.input_action(f.class) == Action::Redact).map(|f| f.class).collect();
+        let blocking = all.iter().any(|f| profile.input_action(f.class) == Action::Block);
+        let (forwarded, applied) = content::redact(&body.text, &all, &redact);
+        let mut hits = threats.scan_text("prompt", &body.text);
+        crate::threats::dedup(&mut hits);
+        let decision = if blocking || hits.iter().any(|h| h.action == "block") || semantic.verdict == "malicious" {
+            "block"
+        } else if semantic.verdict == "suspicious" || hits.iter().any(|h| h.action == "review") {
+            "flag_untrusted"
+        } else if !applied.is_empty() {
+            "allow_redacted"
+        } else {
+            "allow"
+        };
+        let findings = all
+            .iter()
+            .map(|f| json!({"class":f.class,"label":f.label,"masked":f.masked,"action":profile.input_action(f.class)}))
+            .collect();
+        (decision, findings, forwarded, hits, Vec::new())
+    };
+    Ok(Json(json!({
+        "decision": decision,
+        "direction": body.direction,
+        "profile": profile_name,
+        "policy_version": state.version,
+        "findings": findings,
+        "forwarded_text": forwarded,
+        "withheld_classes": withheld,
+        "signatures": hits,
+        "semantic": semantic.record,
+        "latency_ms": (started.elapsed().as_secs_f64() * 1000.0 * 100.0).round() / 100.0,
+    })))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ArtifactScan {
+    name: String,
+    content_base64: String,
+}
+
+/// CTL-FILE-002 and CTL-SUP-001: inspect a model or data artifact without loading it.
+async fn artifact_scan(
+    State(gateway): State<Arc<Gateway>>,
+    Extension(claims): Extension<Claims>,
+    Extension(id): Extension<Correlation>,
+    Json(body): Json<ArtifactScan>,
+) -> ApiResult {
+    use base64::Engine as _;
+    if !privileged(&claims) {
+        return Err(ApiError::new(StatusCode::FORBIDDEN, "Security role required", &id.0));
+    }
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(body.content_base64.as_bytes())
+        .map_err(|_| ApiError::new(StatusCode::BAD_REQUEST, "content_base64 is not base64", &id.0))?;
+    let started = std::time::Instant::now();
+    let sha = format!("sha256:{:x}", <sha2::Sha256 as sha2::Digest>::digest(&bytes));
+    let (hits, inspection) = gateway.threats().scan_artifact("model_file", &bytes, &sha);
+    let verdict = if hits.iter().any(|h| h.action == "block") {
+        "block"
+    } else if hits.is_empty() {
+        "clean"
+    } else {
+        "review"
+    };
+    let result = json!({"name":body.name,"size":bytes.len(),"sha256":sha,"verdict":verdict,"artifact":inspection,"signatures":hits,"latency_ms":(started.elapsed().as_secs_f64()*1000.0*100.0).round()/100.0});
+    if verdict != "clean" {
+        gateway
+            .security(
+                "artifact_blocked",
+                "high",
+                &uuid::Uuid::new_v4().simple().to_string(),
+                "A model artifact would run code when loaded",
+                json!({"human_sub":claims.sub,"name":body.name,"sha256":sha,"signatures":result["signatures"],"artifact":result["artifact"]}),
+            )
+            .await
+            .map_err(|e| ApiError::unavailable(e, &id.0))?;
+    }
+    Ok(Json(result))
+}
+
 async fn events(
     State(gateway): State<Arc<Gateway>>,
     Extension(claims): Extension<Claims>,

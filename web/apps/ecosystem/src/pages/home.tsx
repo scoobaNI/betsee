@@ -25,6 +25,7 @@ const stages = [
   ["cedar_authz", "Cedar authz", "justice-scale-1"],
   ["information_tier", "Tier", "layers-1"],
   ["command_validation", "Commands", "code-analysis"],
+  ["threat_signatures", "Signatures", "shield-cross"],
   ["budget", "Budget", "dashboard-gauge-1"],
   ["ai_analysis", "AI analysis", "ai-scanner-robot"],
   ["decision", "Decision", "arrow-roadmap"],

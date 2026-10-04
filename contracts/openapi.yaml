@@ -1819,6 +1819,251 @@
                 },
             },
         },
+      "/api/v1/guardrails":
+        {
+          "get":
+            {
+              "operationId": "get__api_v1_guardrails",
+              "summary": "Guardrail configuration in force (CTL-CFG-001): policy files and version, hot-reload status, profiles, models, budgets, classifier card, threat signatures and feed status. security-officer or org-admin.",
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Success",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "$ref": "#/components/schemas/GuardrailsStatus",
+                                },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Missing or invalid authentication",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Security role required",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "Dependency unavailable",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/api/v1/guardrails/evaluate":
+        {
+          "post":
+            {
+              "operationId": "post__api_v1_guardrails_evaluate",
+              "summary": "Guardrail playground: evaluate text under a profile with the detectors, signatures and classifier the enforced paths use. Records no trace. security-officer or org-admin.",
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/GuardrailEvaluate",
+                            },
+                        },
+                    },
+                },
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Success",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                {
+                                  "$ref": "#/components/schemas/GuardrailEvaluation",
+                                },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "Empty or oversized text, unknown profile or direction",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Missing or invalid authentication",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Security role required",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "Dependency unavailable",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+      "/api/v1/artifacts/scan":
+        {
+          "post":
+            {
+              "operationId": "post__api_v1_artifacts_scan",
+              "summary": "Inspect a model or data artifact without loading it (CTL-FILE-002, CTL-SUP-001). A verdict other than clean records a security event. security-officer or org-admin.",
+              "requestBody":
+                {
+                  "required": true,
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/ArtifactScanRequest",
+                            },
+                        },
+                    },
+                },
+              "responses":
+                {
+                  "200":
+                    {
+                      "description": "Success",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/ArtifactScan" },
+                            },
+                        },
+                    },
+                  "400":
+                    {
+                      "description": "content_base64 is not base64",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "401":
+                    {
+                      "description": "Missing or invalid authentication",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "403":
+                    {
+                      "description": "Security role required",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "413":
+                    {
+                      "description": "Artifact larger than 8 MiB",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                  "503":
+                    {
+                      "description": "Dependency unavailable",
+                      "content":
+                        {
+                          "application/json":
+                            {
+                              "schema":
+                                { "$ref": "#/components/schemas/Error" },
+                            },
+                        },
+                    },
+                },
+            },
+        },
       "/api/v1/agents/{id}/release":
         {
           "post":
@@ -3330,6 +3575,34 @@
                   "limit": { "type": "integer" },
                   "used": { "type": "integer" },
                   "unit": { "type": "string", "enum": ["cents"] },
+                  "tokens_limit":
+                    {
+                      "type": "integer",
+                      "description": "Model tokens the session may use (CTL-RUN-005).",
+                    },
+                  "tokens_used":
+                    { "type": "integer", "description": "Sessions only." },
+                  "used_exact":
+                    {
+                      "type": "number",
+                      "description": "Sessions only: spend in fractional cents; used rounds it up.",
+                    },
+                  "by_model":
+                    {
+                      "type": "object",
+                      "description": "Sessions only: model calls per model id.",
+                      "additionalProperties":
+                        {
+                          "type": "object",
+                          "properties":
+                            {
+                              "calls": { "type": "integer" },
+                              "tokens": { "type": "integer" },
+                              "cents": { "type": "number" },
+                            },
+                          "required": ["calls", "tokens", "cents"],
+                        },
+                    },
                 },
               "required": ["limit", "used", "unit"],
             },
@@ -3406,8 +3679,1031 @@
                       "type": "string",
                       "description": "Mock analyzer finding, always displayed together with model_label.",
                     },
+                  "score":
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "Semantic classifier score (CTL-AI-002).",
+                    },
+                  "profile":
+                    {
+                      "type": "string",
+                      "description": "Guardrail profile whose thresholds applied.",
+                    },
+                  "thresholds":
+                    {
+                      "type": "object",
+                      "properties":
+                        {
+                          "review_at":
+                            { "type": "number", "minimum": 0, "maximum": 1 },
+                          "block_at":
+                            { "type": "number", "minimum": 0, "maximum": 1 },
+                        },
+                      "required": ["review_at", "block_at"],
+                    },
+                  "classifier":
+                    {
+                      "type": "object",
+                      "properties":
+                        {
+                          "id": { "type": "string" },
+                          "version": { "type": "string" },
+                          "latency_ms": { "type": "number" },
+                          "detail":
+                            {
+                              "type": "object",
+                              "properties":
+                                {
+                                  "score": { "type": "number" },
+                                  "variant":
+                                    {
+                                      "type": "string",
+                                      "enum":
+                                        [
+                                          "plain",
+                                          "leetspeak",
+                                          "spaced_letters",
+                                          "decoded",
+                                        ],
+                                      "description": "The reading of the text that scored highest.",
+                                    },
+                                  "terms":
+                                    {
+                                      "type": "array",
+                                      "items":
+                                        {
+                                          "type": "object",
+                                          "properties":
+                                            {
+                                              "term": { "type": "string" },
+                                              "weight": { "type": "number" },
+                                            },
+                                          "required": ["term", "weight"],
+                                        },
+                                    },
+                                  "intents":
+                                    {
+                                      "type": "array",
+                                      "items": { "type": "string" },
+                                    },
+                                },
+                              "required":
+                                ["score", "variant", "terms", "intents"],
+                            },
+                        },
+                      "required": ["id", "version", "latency_ms", "detail"],
+                    },
+                  "llm_judge":
+                    {
+                      "anyOf":
+                        [
+                          { "type": "object", "additionalProperties": true },
+                          { "type": "null" },
+                        ],
+                    },
                 },
               "required": ["verdict", "rationale", "model_label"],
+            },
+          "Hit":
+            {
+              "type": "object",
+              "description": "A known-exploit signature that matched (CTL-SIG-001). evidence is the matched text, cut at 80 characters.",
+              "properties":
+                {
+                  "id": { "type": "string" },
+                  "name": { "type": "string" },
+                  "category": { "type": "string" },
+                  "severity": { "type": "string" },
+                  "action": { "type": "string", "enum": ["block", "review"] },
+                  "references":
+                    { "type": "array", "items": { "type": "string" } },
+                  "target":
+                    {
+                      "type": "string",
+                      "description": "What was scanned: prompt, parameters, command, output, file, model_file, model_template or model_ref.",
+                    },
+                  "source": { "type": "string", "enum": ["baseline", "feed"] },
+                  "evidence": { "type": "string" },
+                },
+              "required":
+                [
+                  "id",
+                  "name",
+                  "category",
+                  "severity",
+                  "action",
+                  "references",
+                  "target",
+                  "source",
+                  "evidence",
+                ],
+            },
+          "MaskedValue":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "class": { "type": "string" },
+                  "masked":
+                    {
+                      "type": "string",
+                      "description": "Masked value; the matched text is never returned or stored.",
+                    },
+                },
+              "required": ["class", "masked"],
+            },
+          "TraceGuardrails":
+            {
+              "type": "object",
+              "description": "The guardrail profile and content checks applied to this request. Actions carry signatures, model_check and model_call; input checks carry redactions, recorded and flagged_untrusted.",
+              "properties":
+                {
+                  "profile": { "type": "string" },
+                  "policy_version": { "type": "string" },
+                  "signatures":
+                    {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Hit" },
+                    },
+                  "model_check":
+                    {
+                      "anyOf":
+                        [
+                          { "type": "object", "additionalProperties": true },
+                          { "type": "null" },
+                        ],
+                    },
+                  "model_call":
+                    {
+                      "anyOf":
+                        [
+                          { "type": "object", "additionalProperties": true },
+                          { "type": "null" },
+                        ],
+                    },
+                  "redactions":
+                    {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/MaskedValue" },
+                    },
+                  "recorded":
+                    {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/MaskedValue" },
+                      "description": "Findings the profile allows: recorded in the trace, nothing else.",
+                    },
+                  "flagged_untrusted": { "type": "boolean" },
+                },
+              "required": ["profile", "policy_version"],
+            },
+          "ActionCost":
+            {
+              "type": "object",
+              "description": "What the action cost against the session budget (CTL-RUN-001, CTL-RUN-005).",
+              "properties":
+                {
+                  "cents": { "type": "number" },
+                  "tokens": { "type": "integer" },
+                  "seconds": { "type": "number" },
+                  "session_used_cents": { "type": "number" },
+                  "session_tokens_used": { "type": "integer" },
+                },
+              "required": ["cents", "tokens"],
+            },
+          "OutputFilter":
+            {
+              "type": "object",
+              "description": "What the output filter did to a connector result (CTL-OUT-002).",
+              "properties":
+                {
+                  "redactions":
+                    {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/MaskedValue" },
+                    },
+                  "recorded":
+                    {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/MaskedValue" },
+                    },
+                  "withheld":
+                    { "type": "array", "items": { "type": "string" } },
+                  "signatures":
+                    {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Hit" },
+                    },
+                  "indirect_injection_suspected": { "type": "boolean" },
+                  "semantic":
+                    {
+                      "anyOf":
+                        [
+                          {
+                            "type": "object",
+                            "properties":
+                              {
+                                "score": { "type": "number" },
+                                "verdict": { "type": "string" },
+                                "rationale": { "type": "string" },
+                              },
+                            "additionalProperties": true,
+                          },
+                          { "type": "null" },
+                        ],
+                    },
+                },
+              "required":
+                [
+                  "redactions",
+                  "recorded",
+                  "withheld",
+                  "signatures",
+                  "indirect_injection_suspected",
+                  "semantic",
+                ],
+            },
+          "SummaryGuardrails":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "redactions_last_15m": { "type": "integer" },
+                  "signature_hits_last_15m": { "type": "integer" },
+                  "semantic_flags_last_15m": { "type": "integer" },
+                  "spent_cents_last_15m": { "type": "number" },
+                  "tokens_last_15m": { "type": "integer" },
+                  "latency_ms":
+                    {
+                      "type": "object",
+                      "properties":
+                        {
+                          "p50": { "type": ["number", "null"] },
+                          "p95": { "type": ["number", "null"] },
+                          "samples": { "type": "integer" },
+                        },
+                      "required": ["p50", "p95", "samples"],
+                    },
+                  "policy_version": { "type": "string" },
+                },
+              "required":
+                [
+                  "redactions_last_15m",
+                  "signature_hits_last_15m",
+                  "semantic_flags_last_15m",
+                  "spent_cents_last_15m",
+                  "tokens_last_15m",
+                  "latency_ms",
+                  "policy_version",
+                ],
+            },
+          "GuardrailProfile":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "description": { "type": "string" },
+                  "input":
+                    {
+                      "type": "object",
+                      "description": "Action per input detector class; a class not listed blocks.",
+                      "properties":
+                        {
+                          "payment_card":
+                            {
+                              "type": "string",
+                              "enum": ["block", "redact", "allow"],
+                            },
+                          "iban":
+                            {
+                              "type": "string",
+                              "enum": ["block", "redact", "allow"],
+                            },
+                          "pesel":
+                            {
+                              "type": "string",
+                              "enum": ["block", "redact", "allow"],
+                            },
+                          "secret":
+                            {
+                              "type": "string",
+                              "enum": ["block", "redact", "allow"],
+                            },
+                          "email":
+                            {
+                              "type": "string",
+                              "enum": ["block", "redact", "allow"],
+                            },
+                          "phone":
+                            {
+                              "type": "string",
+                              "enum": ["block", "redact", "allow"],
+                            },
+                          "resource_above_tier":
+                            {
+                              "type": "string",
+                              "enum": ["block", "redact", "allow"],
+                            },
+                        },
+                      "additionalProperties":
+                        {
+                          "type": "string",
+                          "enum": ["block", "redact", "allow"],
+                        },
+                    },
+                  "output":
+                    {
+                      "type": "object",
+                      "description": "Action per output detector class; a class not listed is redacted.",
+                      "properties":
+                        {
+                          "payment_card":
+                            {
+                              "type": "string",
+                              "enum": ["block", "redact", "allow"],
+                            },
+                          "iban":
+                            {
+                              "type": "string",
+                              "enum": ["block", "redact", "allow"],
+                            },
+                          "pesel":
+                            {
+                              "type": "string",
+                              "enum": ["block", "redact", "allow"],
+                            },
+                          "secret":
+                            {
+                              "type": "string",
+                              "enum": ["block", "redact", "allow"],
+                            },
+                          "email":
+                            {
+                              "type": "string",
+                              "enum": ["block", "redact", "allow"],
+                            },
+                          "phone":
+                            {
+                              "type": "string",
+                              "enum": ["block", "redact", "allow"],
+                            },
+                        },
+                      "additionalProperties":
+                        {
+                          "type": "string",
+                          "enum": ["block", "redact", "allow"],
+                        },
+                    },
+                  "semantic":
+                    {
+                      "type": "object",
+                      "properties":
+                        {
+                          "review_at":
+                            { "type": "number", "minimum": 0, "maximum": 1 },
+                          "block_at":
+                            { "type": "number", "minimum": 0, "maximum": 1 },
+                        },
+                      "required": ["review_at", "block_at"],
+                    },
+                },
+              "required": ["description", "input", "output", "semantic"],
+            },
+          "ModelPrice":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "id": { "type": "string" },
+                  "label": { "type": "string" },
+                  "provider":
+                    { "type": "string", "enum": ["local", "external"] },
+                  "enabled": { "type": "boolean" },
+                  "input_cents_per_1k": { "type": "number" },
+                  "output_cents_per_1k": { "type": "number" },
+                  "compute_cents_per_second": { "type": "number" },
+                  "max_output_tokens": { "type": "integer" },
+                },
+              "required":
+                [
+                  "id",
+                  "label",
+                  "provider",
+                  "enabled",
+                  "input_cents_per_1k",
+                  "output_cents_per_1k",
+                  "compute_cents_per_second",
+                  "max_output_tokens",
+                ],
+            },
+          "SessionBudgetDefault":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "cents": { "type": "integer" },
+                  "tokens": { "type": "integer" },
+                },
+              "required": ["cents", "tokens"],
+            },
+          "GuardrailsConfig":
+            {
+              "type": "object",
+              "description": "policies/guardrails.yaml as the Gateway parsed it.",
+              "properties":
+                {
+                  "version": { "type": "integer" },
+                  "profiles":
+                    {
+                      "type": "object",
+                      "additionalProperties":
+                        { "$ref": "#/components/schemas/GuardrailProfile" },
+                    },
+                  "assignments":
+                    {
+                      "type": "object",
+                      "properties":
+                        {
+                          "default": { "type": "string" },
+                          "use_cases":
+                            {
+                              "type": "object",
+                              "additionalProperties": { "type": "string" },
+                            },
+                        },
+                      "required": ["default", "use_cases"],
+                    },
+                  "semantic":
+                    {
+                      "type": "object",
+                      "properties":
+                        {
+                          "model": { "type": "string" },
+                          "llm_judge": { "type": "boolean" },
+                          "scan_tool_output": { "type": "boolean" },
+                        },
+                      "required": ["model", "llm_judge", "scan_tool_output"],
+                    },
+                  "signatures":
+                    {
+                      "type": "object",
+                      "properties":
+                        {
+                          "baseline": { "type": "string" },
+                          "feed_url": { "type": ["string", "null"] },
+                          "poll_seconds": { "type": "integer" },
+                        },
+                      "required": ["baseline", "feed_url", "poll_seconds"],
+                    },
+                  "models":
+                    {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/ModelPrice" },
+                    },
+                  "budgets":
+                    {
+                      "type": "object",
+                      "properties":
+                        {
+                          "max_session_cents": { "type": "integer" },
+                          "sessions":
+                            {
+                              "type": "object",
+                              "properties":
+                                {
+                                  "default":
+                                    {
+                                      "$ref": "#/components/schemas/SessionBudgetDefault",
+                                    },
+                                  "use_cases":
+                                    {
+                                      "type": "object",
+                                      "additionalProperties":
+                                        {
+                                          "$ref": "#/components/schemas/SessionBudgetDefault",
+                                        },
+                                    },
+                                },
+                              "required": ["default", "use_cases"],
+                            },
+                          "action_cost_cents":
+                            {
+                              "type": "object",
+                              "description": 'Cents per capability; "default" prices the rest.',
+                              "additionalProperties": { "type": "number" },
+                            },
+                        },
+                      "required":
+                        ["max_session_cents", "sessions", "action_cost_cents"],
+                    },
+                  "supply_chain":
+                    {
+                      "type": "object",
+                      "properties":
+                        {
+                          "allowed_orgs":
+                            { "type": "array", "items": { "type": "string" } },
+                          "safe_formats":
+                            { "type": "array", "items": { "type": "string" } },
+                          "unsafe_formats":
+                            { "type": "array", "items": { "type": "string" } },
+                          "require_pinned_revision": { "type": "boolean" },
+                          "forbid_trust_remote_code": { "type": "boolean" },
+                          "typosquat_distance": { "type": "integer" },
+                        },
+                      "required":
+                        [
+                          "allowed_orgs",
+                          "safe_formats",
+                          "unsafe_formats",
+                          "require_pinned_revision",
+                          "forbid_trust_remote_code",
+                          "typosquat_distance",
+                        ],
+                    },
+                },
+              "required":
+                [
+                  "version",
+                  "profiles",
+                  "assignments",
+                  "semantic",
+                  "signatures",
+                  "models",
+                  "budgets",
+                  "supply_chain",
+                ],
+            },
+          "ClassifierMetric":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "threshold": { "type": "number" },
+                  "precision": { "type": "number" },
+                  "recall": { "type": "number" },
+                  "false_positive_rate": { "type": "number" },
+                  "tp": { "type": "integer" },
+                  "fp": { "type": "integer" },
+                  "fn": { "type": "integer" },
+                  "tn": { "type": "integer" },
+                },
+              "required":
+                [
+                  "threshold",
+                  "precision",
+                  "recall",
+                  "false_positive_rate",
+                  "tp",
+                  "fp",
+                  "fn",
+                  "tn",
+                ],
+            },
+          "ClassifierCard":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "id": { "type": "string" },
+                  "version": { "type": "string" },
+                  "sha256": { "type": "string" },
+                  "format": { "type": "string" },
+                  "features": { "type": "integer" },
+                  "training":
+                    {
+                      "type": "object",
+                      "properties":
+                        {
+                          "examples": { "type": "integer" },
+                          "handwritten":
+                            {
+                              "type": "object",
+                              "properties":
+                                {
+                                  "attack": { "type": "integer" },
+                                  "benign": { "type": "integer" },
+                                },
+                              "required": ["attack", "benign"],
+                            },
+                          "templated":
+                            {
+                              "type": "object",
+                              "properties":
+                                {
+                                  "attack": { "type": "integer" },
+                                  "benign": { "type": "integer" },
+                                },
+                              "required": ["attack", "benign"],
+                            },
+                          "public_datasets":
+                            {
+                              "type": "object",
+                              "properties":
+                                {
+                                  "attack": { "type": "integer" },
+                                  "benign": { "type": "integer" },
+                                  "sources":
+                                    {
+                                      "type": "array",
+                                      "items": { "type": "string" },
+                                    },
+                                },
+                              "required": ["attack", "benign", "sources"],
+                            },
+                          "languages":
+                            { "type": "array", "items": { "type": "string" } },
+                          "algorithm": { "type": "string" },
+                        },
+                      "additionalProperties": true,
+                    },
+                  "evaluation":
+                    {
+                      "type": "object",
+                      "properties":
+                        {
+                          "cross_validated_handwritten":
+                            {
+                              "type": "array",
+                              "items":
+                                {
+                                  "$ref": "#/components/schemas/ClassifierMetric",
+                                },
+                            },
+                          "holdout":
+                            {
+                              "type": "array",
+                              "items":
+                                {
+                                  "$ref": "#/components/schemas/ClassifierMetric",
+                                },
+                            },
+                        },
+                      "additionalProperties": true,
+                    },
+                },
+              "required":
+                [
+                  "id",
+                  "version",
+                  "sha256",
+                  "format",
+                  "features",
+                  "training",
+                  "evaluation",
+                ],
+            },
+          "Signature":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "id": { "type": "string" },
+                  "name": { "type": "string" },
+                  "category": { "type": "string" },
+                  "severity": { "type": "string" },
+                  "action": { "type": "string", "enum": ["block", "review"] },
+                  "references":
+                    { "type": "array", "items": { "type": "string" } },
+                  "description": { "type": "string" },
+                  "targets": { "type": "array", "items": { "type": "string" } },
+                  "source": { "type": "string", "enum": ["baseline", "feed"] },
+                },
+              "required":
+                [
+                  "id",
+                  "name",
+                  "category",
+                  "severity",
+                  "action",
+                  "references",
+                  "description",
+                  "targets",
+                  "source",
+                ],
+            },
+          "GuardrailsStatus":
+            {
+              "type": "object",
+              "description": "CTL-CFG-001: the configuration in force, where it came from, and whether the last change was accepted.",
+              "properties":
+                {
+                  "policy":
+                    {
+                      "type": "object",
+                      "properties":
+                        {
+                          "version":
+                            {
+                              "type": "string",
+                              "description": "First 12 hex digits of a SHA-256 over every policy file.",
+                            },
+                          "loaded_at":
+                            { "type": "string", "format": "date-time" },
+                          "files":
+                            {
+                              "type": "array",
+                              "items":
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    {
+                                      "path": { "type": "string" },
+                                      "sha256": { "type": "string" },
+                                    },
+                                  "required": ["path", "sha256"],
+                                },
+                            },
+                        },
+                      "required": ["version", "loaded_at", "files"],
+                    },
+                  "reload":
+                    {
+                      "type": "object",
+                      "description": "Hot reload of policies/: a change that does not validate is rejected and the last good version stays active.",
+                      "properties":
+                        {
+                          "active_version": { "type": "string" },
+                          "loaded_at": { "type": "string" },
+                          "reloads": { "type": "integer" },
+                          "last_checked_at": { "type": ["string", "null"] },
+                          "last_rejected_at": { "type": ["string", "null"] },
+                          "last_error": { "type": ["string", "null"] },
+                        },
+                      "required":
+                        [
+                          "active_version",
+                          "loaded_at",
+                          "reloads",
+                          "last_checked_at",
+                          "last_rejected_at",
+                          "last_error",
+                        ],
+                    },
+                  "guardrails":
+                    { "$ref": "#/components/schemas/GuardrailsConfig" },
+                  "classifier":
+                    { "$ref": "#/components/schemas/ClassifierCard" },
+                  "signatures":
+                    {
+                      "type": "object",
+                      "properties":
+                        {
+                          "count": { "type": "integer" },
+                          "baseline":
+                            {
+                              "type": "object",
+                              "properties":
+                                {
+                                  "feed": { "type": "string" },
+                                  "version": { "type": "string" },
+                                  "signatures": { "type": "integer" },
+                                },
+                              "required": ["feed", "version", "signatures"],
+                            },
+                          "external":
+                            {
+                              "anyOf":
+                                [
+                                  {
+                                    "type": "object",
+                                    "properties":
+                                      {
+                                        "feed": { "type": "string" },
+                                        "version": { "type": "string" },
+                                        "published_at":
+                                          { "type": ["string", "null"] },
+                                        "signatures": { "type": "integer" },
+                                      },
+                                    "required":
+                                      [
+                                        "feed",
+                                        "version",
+                                        "published_at",
+                                        "signatures",
+                                      ],
+                                  },
+                                  { "type": "null" },
+                                ],
+                            },
+                          "signatures":
+                            {
+                              "type": "array",
+                              "items":
+                                { "$ref": "#/components/schemas/Signature" },
+                            },
+                        },
+                      "required":
+                        ["count", "baseline", "external", "signatures"],
+                    },
+                  "feed":
+                    {
+                      "type": "object",
+                      "properties":
+                        {
+                          "url": { "type": ["string", "null"] },
+                          "last_fetch_at": { "type": ["string", "null"] },
+                          "last_success_at": { "type": ["string", "null"] },
+                          "last_error": { "type": ["string", "null"] },
+                          "version": { "type": ["string", "null"] },
+                          "sha256": { "type": ["string", "null"] },
+                          "updates": { "type": "integer" },
+                        },
+                      "required":
+                        [
+                          "url",
+                          "last_fetch_at",
+                          "last_success_at",
+                          "last_error",
+                          "version",
+                          "sha256",
+                          "updates",
+                        ],
+                    },
+                },
+              "required":
+                [
+                  "policy",
+                  "reload",
+                  "guardrails",
+                  "classifier",
+                  "signatures",
+                  "feed",
+                ],
+            },
+          "GuardrailEvaluate":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "text":
+                    { "type": "string", "minLength": 1, "maxLength": 20000 },
+                  "direction":
+                    {
+                      "type": "string",
+                      "enum": ["input", "output"],
+                      "default": "input",
+                    },
+                  "use_case_id": { "type": "string" },
+                  "profile":
+                    {
+                      "type": "string",
+                      "description": "Wins over use_case_id; without either the default profile applies.",
+                    },
+                },
+              "required": ["text"],
+              "additionalProperties": false,
+            },
+          "GuardrailFinding":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "class":
+                    {
+                      "type": "string",
+                      "enum":
+                        [
+                          "payment_card",
+                          "iban",
+                          "pesel",
+                          "secret",
+                          "email",
+                          "phone",
+                          "resource_above_tier",
+                        ],
+                    },
+                  "label": { "type": "string" },
+                  "masked":
+                    {
+                      "type": "string",
+                      "description": "Masked value; the matched text is never returned or stored.",
+                    },
+                  "action":
+                    { "type": "string", "enum": ["block", "redact", "allow"] },
+                },
+              "required": ["class", "label", "masked", "action"],
+            },
+          "GuardrailEvaluation":
+            {
+              "type": "object",
+              "description": "The playground runs the detectors, profile actions, signatures and classifier of the enforced paths, without an agent or a session.",
+              "properties":
+                {
+                  "decision":
+                    {
+                      "type": "string",
+                      "enum":
+                        [
+                          "allow",
+                          "allow_redacted",
+                          "flag_untrusted",
+                          "block",
+                          "withhold",
+                        ],
+                    },
+                  "direction":
+                    { "type": "string", "enum": ["input", "output"] },
+                  "profile": { "type": "string" },
+                  "policy_version": { "type": "string" },
+                  "findings":
+                    {
+                      "type": "array",
+                      "items":
+                        { "$ref": "#/components/schemas/GuardrailFinding" },
+                    },
+                  "forwarded_text":
+                    {
+                      "type": "string",
+                      "description": "The text as it would go on, with [REDACTED:<class>] and [REMOVED:<signature id>] in place of what was taken out.",
+                    },
+                  "withheld_classes":
+                    { "type": "array", "items": { "type": "string" } },
+                  "signatures":
+                    {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Hit" },
+                    },
+                  "semantic": { "$ref": "#/components/schemas/Analyzer" },
+                  "latency_ms": { "type": "number" },
+                },
+              "required":
+                [
+                  "decision",
+                  "direction",
+                  "profile",
+                  "policy_version",
+                  "findings",
+                  "forwarded_text",
+                  "withheld_classes",
+                  "signatures",
+                  "semantic",
+                  "latency_ms",
+                ],
+            },
+          "ArtifactScanRequest":
+            {
+              "type": "object",
+              "properties":
+                {
+                  "name": { "type": "string" },
+                  "content_base64":
+                    {
+                      "type": "string",
+                      "description": "The file, base64; at most 8 MiB decoded.",
+                    },
+                },
+              "required": ["name", "content_base64"],
+              "additionalProperties": false,
+            },
+          "ArtifactScan":
+            {
+              "type": "object",
+              "description": "CTL-FILE-002 and CTL-SUP-001: what the Gateway read out of a model or data artifact without loading it.",
+              "properties":
+                {
+                  "name": { "type": "string" },
+                  "size": { "type": "integer" },
+                  "sha256": { "type": "string", "description": "sha256:<hex>" },
+                  "verdict":
+                    { "type": "string", "enum": ["block", "review", "clean"] },
+                  "artifact":
+                    {
+                      "type": "object",
+                      "properties":
+                        {
+                          "format": { "type": "string" },
+                          "pickle_imports":
+                            { "type": "array", "items": { "type": "string" } },
+                          "chat_templates": { "type": "integer" },
+                          "members_scanned": { "type": "integer" },
+                        },
+                      "required":
+                        [
+                          "format",
+                          "pickle_imports",
+                          "chat_templates",
+                          "members_scanned",
+                        ],
+                    },
+                  "signatures":
+                    {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Hit" },
+                    },
+                  "latency_ms": { "type": "number" },
+                },
+              "required":
+                [
+                  "name",
+                  "size",
+                  "sha256",
+                  "verdict",
+                  "artifact",
+                  "signatures",
+                  "latency_ms",
+                ],
             },
           "ChatInput":
             {
@@ -3435,6 +4731,8 @@
                           "iban",
                           "pesel",
                           "secret",
+                          "email",
+                          "phone",
                           "resource_above_tier",
                         ],
                     },
@@ -3461,6 +4759,11 @@
                             "type": "array",
                             "items":
                               { "$ref": "#/components/schemas/InputFinding" },
+                          },
+                        "forwarded_text":
+                          {
+                            "type": "string",
+                            "description": "The message as forwarded to the agent, with [REDACTED:<class>] in place of redacted values; only when it was allowed.",
                           },
                       },
                     "required": ["findings"],
@@ -3607,6 +4910,11 @@
                   "caller_trace_id":
                     { "anyOf": [{ "type": "string" }, { "type": "null" }] },
                   "analysis": { "$ref": "#/components/schemas/Analyzer" },
+                  "guardrails":
+                    { "$ref": "#/components/schemas/TraceGuardrails" },
+                  "cost": { "$ref": "#/components/schemas/ActionCost" },
+                  "output_filter":
+                    { "$ref": "#/components/schemas/OutputFilter" },
                 },
               "required":
                 [
@@ -3652,6 +4960,7 @@
                           "cedar_authz",
                           "information_tier",
                           "command_validation",
+                          "threat_signatures",
                           "budget",
                           "ai_analysis",
                           "decision",
@@ -3694,6 +5003,7 @@
                           "cedar_authz",
                           "information_tier",
                           "command_validation",
+                          "threat_signatures",
                           "budget",
                           "ai_analysis",
                           "decision",
@@ -3801,6 +5111,11 @@
                   "execution_context":
                     { "type": "object", "additionalProperties": true },
                   "analysis": { "$ref": "#/components/schemas/Analyzer" },
+                  "guardrails":
+                    { "$ref": "#/components/schemas/TraceGuardrails" },
+                  "cost": { "$ref": "#/components/schemas/ActionCost" },
+                  "output_filter":
+                    { "$ref": "#/components/schemas/OutputFilter" },
                 },
               "required":
                 [
@@ -3852,6 +5167,11 @@
                     },
                   "started_at": { "type": "string", "format": "date-time" },
                   "expires_at": { "type": "string", "format": "date-time" },
+                  "guardrail_profile":
+                    {
+                      "type": "string",
+                      "description": "Guardrail profile of the use case at session start.",
+                    },
                 },
               "required":
                 [
@@ -3946,6 +5266,11 @@
                     { "type": "array", "items": { "type": "string" } },
                   "peer_ids":
                     { "type": "array", "items": { "type": "string" } },
+                  "guardrail_profile":
+                    {
+                      "type": "string",
+                      "description": "Guardrail profile assigned in policies/guardrails.yaml.",
+                    },
                 },
               "required":
                 [
@@ -4453,6 +5778,8 @@
                   "awaiting_human": { "type": "integer" },
                   "stage_counts":
                     { "type": "object", "additionalProperties": true },
+                  "guardrails":
+                    { "$ref": "#/components/schemas/SummaryGuardrails" },
                 },
               "required":
                 [

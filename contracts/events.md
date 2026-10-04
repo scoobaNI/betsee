@@ -60,8 +60,8 @@ they store masked findings only, never the matched text. Agent-runtime capabilit
 `files.read`, `files.write`, `shell.exec`, `web.egress` and `runtime.unmapped`.
 
 Trace detail uses these stages, in order: `authenticate`, `resolve_context`, `identity`,
-`capability`, `cedar_authz`, `information_tier`, `command_validation`, `budget`,
-`ai_analysis`, `decision`, `approval`, `step_up`, `connector`, `output_controls`, `audit`.
+`capability`, `cedar_authz`, `information_tier`, `command_validation`, `threat_signatures`,
+`budget`, `ai_analysis`, `decision`, `approval`, `step_up`, `connector`, `output_controls`, `audit`.
 Span status is `passed | denied | tightened | pending | skipped`. Missing spans mean the stage
 was not reached. Approval and step_up attributes include approver sub/name, decided_at and acr.
 Every audit record retains the resolved execution context for later OpenTelemetry export.

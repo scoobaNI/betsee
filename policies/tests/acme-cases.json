@@ -444,6 +444,12 @@
               "type": "Betsee::Capability",
               "id": "llm.complete"
             }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "model.load"
+            }
           }
         ]
       },
@@ -522,6 +528,12 @@
             "__entity": {
               "type": "Betsee::Capability",
               "id": "llm.complete"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "model.load"
             }
           }
         ]
@@ -2004,6 +2016,201 @@
           "id": "runtime-files"
         }
       ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Capability",
+        "id": "model.load"
+      },
+      "attrs": {},
+      "parents": []
+    },
+    {
+      "uid": {
+        "type": "Betsee::Connector",
+        "id": "model-registry"
+      },
+      "attrs": {
+        "kind": "model-hub"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Tool",
+        "id": "model-hub"
+      },
+      "attrs": {
+        "pinnedDescriptorHash": "gateway:model-hub"
+      },
+      "parents": [
+        {
+          "type": "Betsee::Connector",
+          "id": "model-registry"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Resource",
+        "id": "models/huggingface"
+      },
+      "attrs": {
+        "kind": "model_registry",
+        "tier": 0,
+        "external": true
+      },
+      "parents": [
+        {
+          "type": "Betsee::Tool",
+          "id": "model-hub"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Model",
+        "id": "gpt-4o-mini"
+      },
+      "attrs": {
+        "provider": "OpenAI (external, demo mock)",
+        "maxTier": 0
+      },
+      "parents": [
+        {
+          "type": "Betsee::Connector",
+          "id": "openai-compatible"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Model",
+        "id": "claude-sonnet"
+      },
+      "attrs": {
+        "provider": "Anthropic (external, demo mock)",
+        "maxTier": 0
+      },
+      "parents": [
+        {
+          "type": "Betsee::Connector",
+          "id": "openai-compatible"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::Model",
+        "id": "unvetted-model"
+      },
+      "attrs": {
+        "provider": "Community model (not reviewed)",
+        "maxTier": 0
+      },
+      "parents": [
+        {
+          "type": "Betsee::Connector",
+          "id": "openai-compatible"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::UseCase",
+        "id": "model-onboarding"
+      },
+      "attrs": {
+        "agents": [
+          {
+            "__entity": {
+              "type": "Betsee::Agent",
+              "id": "research-peer"
+            }
+          }
+        ],
+        "permitted": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "model.load"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "llm.complete"
+            }
+          }
+        ],
+        "tierCeiling": 1,
+        "approvalRequired": [],
+        "stepUpRequired": [],
+        "approvalThresholdCents": 0,
+        "maxActionsPerMinute": 30,
+        "peers": []
+      },
+      "parents": [
+        {
+          "type": "Betsee::Organization",
+          "id": "acme"
+        }
+      ]
+    },
+    {
+      "uid": {
+        "type": "Betsee::AgentSession",
+        "id": "s-model"
+      },
+      "attrs": {
+        "human": {
+          "__entity": {
+            "type": "Betsee::Human",
+            "id": "priya"
+          }
+        },
+        "agent": {
+          "__entity": {
+            "type": "Betsee::Agent",
+            "id": "research-peer"
+          }
+        },
+        "useCase": {
+          "__entity": {
+            "type": "Betsee::UseCase",
+            "id": "model-onboarding"
+          }
+        },
+        "delegated": [
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "model.load"
+            }
+          },
+          {
+            "__entity": {
+              "type": "Betsee::Capability",
+              "id": "llm.complete"
+            }
+          }
+        ],
+        "tierCeiling": 1,
+        "taint": 0,
+        "untrustedInput": false,
+        "status": "active",
+        "expiresAt": 1791050400,
+        "budgetCents": 500,
+        "spentCents": 0,
+        "tokenBudget": 3000,
+        "tokensUsed": 2500
+      },
+      "parents": []
     }
   ],
   "cases": [
@@ -5308,6 +5515,590 @@
       },
       "expect": "deny",
       "expect_reason": "forbid-file-secret"
+    },
+    {
+      "name": "model.load pinned safetensors from a trusted publisher",
+      "step": "sup.1",
+      "principal": "Betsee::Agent::\"research-peer\"",
+      "action": "Betsee::Action::\"model.load\"",
+      "resource": "Betsee::Resource::\"models/huggingface\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-model"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "model.load"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 1,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "modelCheck": {
+          "pinned": true,
+          "trustRemoteCode": false,
+          "unsafeFormat": false,
+          "orgAllowed": true,
+          "typosquat": false,
+          "knownBad": false
+        }
+      },
+      "expect": "allow",
+      "expect_reason": "permit-effective-capability"
+    },
+    {
+      "name": "model.load on a branch name",
+      "step": "sup.2",
+      "principal": "Betsee::Agent::\"research-peer\"",
+      "action": "Betsee::Action::\"model.load\"",
+      "resource": "Betsee::Resource::\"models/huggingface\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-model"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "model.load"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 1,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "modelCheck": {
+          "pinned": false,
+          "trustRemoteCode": false,
+          "unsafeFormat": false,
+          "orgAllowed": true,
+          "typosquat": false,
+          "knownBad": false
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-model-revision-not-pinned"
+    },
+    {
+      "name": "model.load with trust_remote_code",
+      "step": "sup.3",
+      "principal": "Betsee::Agent::\"research-peer\"",
+      "action": "Betsee::Action::\"model.load\"",
+      "resource": "Betsee::Resource::\"models/huggingface\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-model"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "model.load"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 1,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "modelCheck": {
+          "pinned": true,
+          "trustRemoteCode": true,
+          "unsafeFormat": false,
+          "orgAllowed": true,
+          "typosquat": false,
+          "knownBad": false
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-model-remote-code"
+    },
+    {
+      "name": "model.load of pickle weights",
+      "step": "sup.4",
+      "principal": "Betsee::Agent::\"research-peer\"",
+      "action": "Betsee::Action::\"model.load\"",
+      "resource": "Betsee::Resource::\"models/huggingface\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-model"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "model.load"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 1,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "modelCheck": {
+          "pinned": true,
+          "trustRemoteCode": false,
+          "unsafeFormat": true,
+          "orgAllowed": true,
+          "typosquat": false,
+          "knownBad": false
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-model-unsafe-format"
+    },
+    {
+      "name": "model.load from a typosquatted publisher",
+      "step": "sup.5",
+      "principal": "Betsee::Agent::\"research-peer\"",
+      "action": "Betsee::Action::\"model.load\"",
+      "resource": "Betsee::Resource::\"models/huggingface\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-model"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "model.load"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 1,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "modelCheck": {
+          "pinned": true,
+          "trustRemoteCode": false,
+          "unsafeFormat": false,
+          "orgAllowed": false,
+          "typosquat": true,
+          "knownBad": false
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-model-org-typosquat"
+    },
+    {
+      "name": "model.load of a repository on the threat feed",
+      "step": "sup.6",
+      "principal": "Betsee::Agent::\"research-peer\"",
+      "action": "Betsee::Action::\"model.load\"",
+      "resource": "Betsee::Resource::\"models/huggingface\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-model"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "model.load"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 1,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "modelCheck": {
+          "pinned": true,
+          "trustRemoteCode": false,
+          "unsafeFormat": false,
+          "orgAllowed": true,
+          "typosquat": false,
+          "knownBad": true
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-model-known-bad"
+    },
+    {
+      "name": "model.load without a Gateway check",
+      "step": "sup.7",
+      "principal": "Betsee::Agent::\"research-peer\"",
+      "action": "Betsee::Action::\"model.load\"",
+      "resource": "Betsee::Resource::\"models/huggingface\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-model"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "model.load"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 1,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-model-load-without-check"
+    },
+    {
+      "name": "llm.complete on an allowlisted model within the token budget",
+      "step": "tok.1",
+      "principal": "Betsee::Agent::\"research-peer\"",
+      "action": "Betsee::Action::\"llm.complete\"",
+      "resource": "Betsee::Model::\"mock-llm\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-model"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "llm.complete"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 1,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "modelAllowed": true,
+        "tokens": 400
+      },
+      "expect": "allow",
+      "expect_reason": "permit-effective-capability"
+    },
+    {
+      "name": "llm.complete on a model switched off in guardrails",
+      "step": "tok.2",
+      "principal": "Betsee::Agent::\"research-peer\"",
+      "action": "Betsee::Action::\"llm.complete\"",
+      "resource": "Betsee::Model::\"unvetted-model\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-model"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "llm.complete"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 1,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "modelAllowed": false,
+        "tokens": 400
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-model-not-allowlisted"
+    },
+    {
+      "name": "llm.complete that could exceed the token budget",
+      "step": "tok.3",
+      "principal": "Betsee::Agent::\"research-peer\"",
+      "action": "Betsee::Action::\"llm.complete\"",
+      "resource": "Betsee::Model::\"mock-llm\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-model"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "llm.complete"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 1,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "modelAllowed": true,
+        "tokens": 600
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-token-budget-exceeded"
+    },
+    {
+      "name": "llm.complete whose prompt matches a blocking exploit signature",
+      "step": "sig.1",
+      "principal": "Betsee::Agent::\"research-peer\"",
+      "action": "Betsee::Action::\"llm.complete\"",
+      "resource": "Betsee::Model::\"mock-llm\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-model"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "llm.complete"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 1,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "modelAllowed": true,
+        "tokens": 100,
+        "threat": {
+          "block": true,
+          "review": false
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-known-exploit-signature"
+    },
+    {
+      "name": "llm.complete whose prompt matches a reviewing signature",
+      "step": "sig.2",
+      "principal": "Betsee::Agent::\"research-peer\"",
+      "action": "Betsee::Action::\"llm.complete\"",
+      "resource": "Betsee::Model::\"mock-llm\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-model"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "llm.complete"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 1,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "modelAllowed": true,
+        "tokens": 100,
+        "threat": {
+          "block": false,
+          "review": true
+        }
+      },
+      "expect": "require_approval",
+      "expect_reason": "review-exploit-signature"
+    },
+    {
+      "name": "in maya's profile blocks email addresses",
+      "step": "in.9",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"input.submit\"",
+      "resource": "Betsee::AgentSession::\"s-assistant\"",
+      "context": {
+        "detected": ["email"],
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-input-email"
+    },
+    {
+      "name": "in maya's profile blocks phone numbers",
+      "step": "in.10",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"input.submit\"",
+      "resource": "Betsee::AgentSession::\"s-assistant\"",
+      "context": {
+        "detected": ["phone"],
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-input-phone"
+    },
+    {
+      "name": "in a message matching a known exploit",
+      "step": "in.11",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"input.submit\"",
+      "resource": "Betsee::AgentSession::\"s-assistant\"",
+      "context": {
+        "detected": [],
+        "now": 1791043200,
+        "threat": {
+          "block": true,
+          "review": false
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-input-exploit-signature"
+    },
+    {
+      "name": "in redacted classes never reach Cedar: plain allow",
+      "step": "in.12",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"input.submit\"",
+      "resource": "Betsee::AgentSession::\"s-assistant\"",
+      "context": {
+        "detected": [],
+        "now": 1791043200,
+        "analysis": {
+          "verdict": "suspicious",
+          "analyzer": "betsee-injection-ngram",
+          "score": 72
+        }
+      },
+      "expect": "allow",
+      "expect_reason": "permit-input-from-session-human"
+    },
+    {
+      "name": "file a pickle that imports os.system",
+      "step": "file.12",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"file.submit\"",
+      "resource": "Betsee::Resource::\"workspace/uploads\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "detected": ["unsafe_deserialization"],
+        "tier": 1,
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-file-unsafe-deserialization"
+    },
+    {
+      "name": "file a GGUF whose chat template reaches Python internals",
+      "step": "file.13",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"file.submit\"",
+      "resource": "Betsee::Resource::\"workspace/uploads\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "detected": ["model_code_execution"],
+        "tier": 1,
+        "now": 1791043200
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-file-model-code-execution"
+    },
+    {
+      "name": "file matching a blocklisted hash",
+      "step": "file.14",
+      "principal": "Betsee::Human::\"maya\"",
+      "action": "Betsee::Action::\"file.submit\"",
+      "resource": "Betsee::Resource::\"workspace/uploads\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-assistant"
+          }
+        },
+        "detected": [],
+        "tier": 1,
+        "now": 1791043200,
+        "threat": {
+          "block": true,
+          "review": false
+        }
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-file-exploit-signature"
+    },
+    {
+      "name": "llm.complete whose prompt carries a class the profile blocks",
+      "step": "tok.4",
+      "principal": "Betsee::Agent::\"research-peer\"",
+      "action": "Betsee::Action::\"llm.complete\"",
+      "resource": "Betsee::Model::\"mock-llm\"",
+      "context": {
+        "session": {
+          "__entity": {
+            "type": "Betsee::AgentSession",
+            "id": "s-model"
+          }
+        },
+        "capability": {
+          "__entity": {
+            "type": "Betsee::Capability",
+            "id": "llm.complete"
+          }
+        },
+        "now": 1791043200,
+        "costCents": 1,
+        "actionsLastMinute": 1,
+        "approval": {
+          "granted": false,
+          "stepUp": false
+        },
+        "modelAllowed": true,
+        "tokens": 400,
+        "detected": ["payment_card"]
+      },
+      "expect": "deny",
+      "expect_reason": "forbid-prompt-sensitive-data"
     }
   ]
 }

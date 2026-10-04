@@ -7,6 +7,7 @@ import { mockMode } from "./auth";
 import { configureApi } from "@betsee/api";
 import { App } from "./app";
 import "@betsee/ui/styles.css";
+import "./theme.css";
 import "./styles.css";
 
 const queryClient = new QueryClient({

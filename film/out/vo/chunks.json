@@ -1,0 +1,215 @@
+[
+ {
+  "id": "n01",
+  "act": "company",
+  "lines": [
+   "n01",
+   "n02"
+  ]
+ },
+ {
+  "id": "n04",
+  "act": "problem",
+  "lines": [
+   "n04",
+   "n05"
+  ]
+ },
+ {
+  "id": "n06",
+  "act": "problem",
+  "lines": [
+   "n06"
+  ]
+ },
+ {
+  "id": "n07",
+  "act": "problem",
+  "lines": [
+   "n07"
+  ]
+ },
+ {
+  "id": "n08",
+  "act": "hero",
+  "lines": [
+   "n08"
+  ]
+ },
+ {
+  "id": "n09",
+  "act": "desk",
+  "lines": [
+   "n09"
+  ]
+ },
+ {
+  "id": "n10",
+  "act": "desk",
+  "lines": [
+   "n10"
+  ]
+ },
+ {
+  "id": "n11",
+  "act": "desk",
+  "lines": [
+   "n11"
+  ]
+ },
+ {
+  "id": "n12",
+  "act": "gateway",
+  "lines": [
+   "n12",
+   "n13"
+  ]
+ },
+ {
+  "id": "n14",
+  "act": "gateway",
+  "lines": [
+   "n14"
+  ]
+ },
+ {
+  "id": "n15",
+  "act": "gateway",
+  "lines": [
+   "n15"
+  ]
+ },
+ {
+  "id": "n16",
+  "act": "same",
+  "lines": [
+   "n16"
+  ]
+ },
+ {
+  "id": "n17",
+  "act": "same",
+  "lines": [
+   "n17"
+  ]
+ },
+ {
+  "id": "n18",
+  "act": "aisecond",
+  "lines": [
+   "n18"
+  ]
+ },
+ {
+  "id": "n18b",
+  "act": "aisecond",
+  "lines": [
+   "n18b"
+  ]
+ },
+ {
+  "id": "n19",
+  "act": "director",
+  "lines": [
+   "n19"
+  ]
+ },
+ {
+  "id": "n20",
+  "act": "director",
+  "lines": [
+   "n20"
+  ]
+ },
+ {
+  "id": "n20b",
+  "act": "director",
+  "lines": [
+   "n20b"
+  ]
+ },
+ {
+  "id": "n20c",
+  "act": "director",
+  "lines": [
+   "n20c"
+  ]
+ },
+ {
+  "id": "n21",
+  "act": "director",
+  "lines": [
+   "n21"
+  ]
+ },
+ {
+  "id": "n22",
+  "act": "trace",
+  "lines": [
+   "n22"
+  ]
+ },
+ {
+  "id": "n23",
+  "act": "approval",
+  "lines": [
+   "n23"
+  ]
+ },
+ {
+  "id": "n24",
+  "act": "approval",
+  "lines": [
+   "n24"
+  ]
+ },
+ {
+  "id": "n25",
+  "act": "studio",
+  "lines": [
+   "n25"
+  ]
+ },
+ {
+  "id": "n26",
+  "act": "proofs",
+  "lines": [
+   "n26"
+  ]
+ },
+ {
+  "id": "n27",
+  "act": "proofs",
+  "lines": [
+   "n27"
+  ]
+ },
+ {
+  "id": "n28",
+  "act": "evidence",
+  "lines": [
+   "n28"
+  ]
+ },
+ {
+  "id": "n29",
+  "act": "thesis",
+  "lines": [
+   "n29"
+  ]
+ },
+ {
+  "id": "n30",
+  "act": "thesis",
+  "lines": [
+   "n30"
+  ]
+ },
+ {
+  "id": "n31",
+  "act": "final",
+  "lines": [
+   "n31"
+  ]
+ }
+]

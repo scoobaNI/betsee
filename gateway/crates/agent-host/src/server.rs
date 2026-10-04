@@ -784,8 +784,15 @@ async fn send_message(
             ),
         ));
     }
-    host.push(&body.chat_id, json!({"type":"user_message","message_id":message_id,"text":body.text,"trace_id":check["trace_id"],"control_ids":check["control_ids"]})).await;
-    tokio::spawn(host.clone().run(body.chat_id.clone(), body.text));
+    // CTL-IN-002: the runtime gets the text with the profile's redactions applied, never the
+    // original; a Gateway that sends no forwarded_text has nothing to redact.
+    let forwarded = check["forwarded_text"]
+        .as_str()
+        .map(str::to_owned)
+        .unwrap_or(body.text);
+    let redactions = check["guardrails"]["redactions"].clone();
+    host.push(&body.chat_id, json!({"type":"user_message","message_id":message_id,"text":forwarded,"trace_id":check["trace_id"],"control_ids":check["control_ids"],"redactions":redactions})).await;
+    tokio::spawn(host.clone().run(body.chat_id.clone(), forwarded));
     Ok((
         StatusCode::ACCEPTED,
         Json(json!({"status":"accepted","message_id":message_id,"trace_id":check["trace_id"]})),

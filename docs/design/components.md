@@ -63,14 +63,15 @@ Canonical stages and icons:
 | 5   | Cedar authz        | `streamline-flex:justice-scale-1`      |
 | 6   | information tier   | `streamline-flex:layers-1`             |
 | 7   | command validation | `streamline-flex:code-analysis`        |
-| 8   | budget             | `streamline-flex:dashboard-gauge-1`    |
-| 9   | AI analysis        | `streamline-flex:ai-scanner-robot`     |
-| 10  | decision           | `streamline-flex:arrow-roadmap`        |
-| 11  | approval           | `streamline-flex:inbox`                |
-| 12  | step-up            | `streamline-flex:fingerprint-1`        |
-| 13  | connector          | `streamline-flex:link-chain`           |
-| 14  | output controls    | `streamline-flex:filter-2`             |
-| 15  | audit              | `streamline-flex:text-file`            |
+| 8   | threat signatures  | `streamline-flex:shield-cross`         |
+| 9   | budget             | `streamline-flex:dashboard-gauge-1`    |
+| 10  | AI analysis        | `streamline-flex:ai-scanner-robot`     |
+| 11  | decision           | `streamline-flex:arrow-roadmap`        |
+| 12  | approval           | `streamline-flex:inbox`                |
+| 13  | step-up            | `streamline-flex:fingerprint-1`        |
+| 14  | connector          | `streamline-flex:link-chain`           |
+| 15  | output controls    | `streamline-flex:filter-2`             |
+| 16  | audit              | `streamline-flex:text-file`            |
 
 Stage node: 32px rounded square `radius.sm`, `surface.2`, icon 14, label 11 under it, a 2px line to
 the next node.
@@ -109,7 +110,7 @@ Timing honesty (D11): a stage shows only a time the Gateway measured.
   audit (passed) still appear.
 - A measured duration under 0.1 ms reads "<0.1 ms", never "0.0 ms", and still gets a 2px minimum
   bar so it stays visible on the axis.
-- The PipelineRail keeps all 15 stages in canonical order with their status; it shows no times, so
+- The PipelineRail keeps all 16 stages in canonical order with their status; it shows no times, so
   it needs no change.
 
 CompositionPanel (when AI analysis ran): Deterministic (chip) -> AI analysis (chip + MockBadge with

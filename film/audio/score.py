@@ -21,12 +21,13 @@ CUES = json.loads((OUT / "cues.json").read_text())
 DUR = TL["duration"]
 N = int(DUR * RATE)
 
-MUSIC = OUT / "music" / "score-a.mp3"
-# The score was generated at 243 s with its final chord around 232-236 s; starting it a little late
-# puts that chord under the closing line.
-MUSIC_AT = 3.0
-MUSIC_GAIN = 0.45
+# Composed to the timeline: an ElevenLabs Music composition plan with one section per group of acts
+# (intro, reveal, product, depth, climax, resolve), so it starts with the picture.
+MUSIC = OUT / "music" / "score-b.mp3"
+MUSIC_AT = 0.0
+MUSIC_GAIN = 0.42
 DUCK = 0.3  # the score's level while the narrator speaks: about 10 dB under the voice
+VOICE_RMS = -20.0  # dBFS over speech; voices come out of the API at very different levels
 SFX_GAIN = {"deny": 0.5, "allow": 0.42, "approval": 0.4, "tick": 0.32, "otp": 0.45, "whoosh": 0.3, "boom": 0.55, "shimmer": 0.35}
 ALIASES = {"final": ["boom", "shimmer"]}
 
@@ -57,8 +58,10 @@ for cue in CUES:
         add(fx, cue["at"], samples[kind], SFX_GAIN.get(kind, 0.4))
 
 voice = np.zeros((N, 2))
-for line in TL["vo"]:
-    add(voice, line["at"], load(OUT / "vo" / f"{line['id']}.wav"))
+for chunk in TL["chunks"]:
+    add(voice, chunk["at"], load(OUT / "vo" / f"{chunk['id']}.wav"))
+speech = np.abs(voice[:, 0]) > 0.003
+voice *= 10 ** ((VOICE_RMS - 20 * np.log10(np.sqrt(np.mean(voice[speech, 0] ** 2)))) / 20)
 
 # Duck the score under the voice: a smoothed voice-activity envelope, 80 ms in, 450 ms out.
 block = RATE // 100
@@ -86,4 +89,4 @@ pcm = (np.clip(mix, -1, 1) * 32767).astype("<i2")
 subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "s16le", "-ar", str(RATE), "-ac", "2", "-i", "-", str(raw)], input=pcm.tobytes(), check=True)
 subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(raw), "-af", "loudnorm=I=-16:TP=-1.0:LRA=11", "-ar", str(RATE), str(OUT / "mix.wav")], check=True)
 raw.unlink()
-print(OUT / "mix.wav", f"{DUR:.1f} s, {len(CUES)} cues, {len(TL['vo'])} lines")
+print(OUT / "mix.wav", f"{DUR:.1f} s, {len(CUES)} cues, {len(TL['chunks'])} voiced chunks")

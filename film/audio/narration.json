@@ -1,11 +1,16 @@
 {
   "voice": {
-    "id": "DODLEQrClDo8wCz460ld",
+    "id": "bAUda1zFVv76eXwXYkiP",
     "name": "chosen by the user"
   },
   "model": "eleven_v4",
-  "seed": 7,
-  "tempo": 1.08,
+  "settings": {
+    "stability": 0.45,
+    "similarity_boost": 0.8,
+    "style": 0.3,
+    "use_speaker_boost": true
+  },
+  "tempo": 1.14,
   "lines": [
     {
       "id": "n01",
@@ -21,7 +26,7 @@
     },
     {
       "id": "n05",
-      "text": "Ask the same thing twice, and the reasoning, the plan, even the action can change."
+      "text": "Ask it the same thing twice, and the reasoning, the plan, even the action can change."
     },
     {
       "id": "n06",
@@ -37,15 +42,15 @@
     },
     {
       "id": "n09",
-      "text": "Your people keep the assistants they already use: Claude Code or Codex, inside Betsee Desk."
+      "text": "Your people keep the assistants they already love: Claude Code or Codex, running inside Betsee Desk."
     },
     {
       "id": "n10",
-      "text": "Every message is checked before the model sees it. Card numbers, IBANs, keys, and restricted names never leave."
+      "text": "Every message is checked before the model ever sees it: card numbers, IBANs, keys, and restricted names never leave."
     },
     {
       "id": "n11",
-      "text": "Every tool call the assistant attempts goes to the Betsee Gateway first. If the Gateway can't be reached, nothing runs."
+      "text": "And every tool call goes to the Betsee Gateway first. If the Gateway can't be reached, nothing runs."
     },
     {
       "id": "n12",
@@ -69,11 +74,15 @@
     },
     {
       "id": "n17",
-      "text": "Run it again and again: the answer never changes. Change one real condition, and the decision changes predictably."
+      "text": "Run it again and again, and the answer never changes. Change one real condition, and the decision changes, predictably."
     },
     {
       "id": "n18",
-      "text": "AI may tighten a decision. It can never silently loosen your boundary."
+      "text": "AI may tighten a decision."
+    },
+    {
+      "id": "n18b",
+      "text": "It can never silently loosen your boundary."
     },
     {
       "id": "n19",
@@ -81,19 +90,27 @@
     },
     {
       "id": "n20",
-      "text": "What needs attention right now. Every decision as it happens. And who touched what."
+      "text": "What needs attention right now."
+    },
+    {
+      "id": "n20b",
+      "text": "Every decision as it happens."
+    },
+    {
+      "id": "n20c",
+      "text": "Who touched what."
     },
     {
       "id": "n21",
-      "text": "People, the agents they launch, and each agent's exact permissions: delegated by a person, intersected with policy."
+      "text": "And for every agent, the exact permissions it holds: delegated by a person, intersected with policy."
     },
     {
       "id": "n22",
-      "text": "Open any decision and follow it down: who asked, through which agent, for what, on which resource, and the exact rule that decided it."
+      "text": "Open any decision and follow it all the way down: who asked, through which agent, for what, on which resource, and the exact rule that decided it."
     },
     {
       "id": "n23",
-      "text": "High-impact actions wait for a human. The approver sees the exact action and parameters the Gateway recorded."
+      "text": "High-impact actions wait for a human. The approver sees the exact action and the parameters the Gateway recorded."
     },
     {
       "id": "n24",
@@ -113,7 +130,7 @@
     },
     {
       "id": "n28",
-      "text": "Every control maps to a risk, and every decision leaves evidence."
+      "text": "Every control maps to a risk. And every decision leaves evidence."
     },
     {
       "id": "n29",

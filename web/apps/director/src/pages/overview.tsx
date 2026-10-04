@@ -1,4 +1,4 @@
-import { useAgents, useApprovals, useMe, type ActionSummary, type Agent } from '@betsee/api';
+import { useAgents, useApprovals, useMe, useSummary, type ActionSummary, type Agent } from '@betsee/api';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
@@ -24,12 +24,14 @@ import {
   Skeleton,
   STATE_TONE,
   TextLink,
+  toneClass,
   type Tone,
 } from '../components/ui.tsx';
 import { isObservation } from '../domain/decision.ts';
 import { determinismStats } from '../domain/determinism.ts';
 import { groupByTeam, teamName } from '../domain/feed.ts';
-import { formatAge, formatCount, formatTime } from '../domain/format.ts';
+import { formatAge, formatCents, formatCount, formatTime } from '../domain/format.ts';
+import { formatDuration } from '../domain/pipeline.ts';
 import { bucketize, pendingSeries, percentile, rankBy } from '../domain/series.ts';
 import { useActions, useAttention, useKpis, useNow, type AttentionItem } from '../hooks.ts';
 import { useTeamPulse } from '../live.ts';
@@ -301,6 +303,46 @@ function Stats() {
         />
       </Rise>
     </Stagger>
+  );
+}
+
+/** The guardrails at work in the last 15 minutes, as the Gateway counts them. */
+function GuardrailStrip() {
+  const summary = useSummary();
+  const g = summary.data?.guardrails;
+  if (!g) return null;
+  const ms = (value: number | null) => (value === null ? '–' : formatDuration(value));
+  const items: { icon: IconName; label: string; value: ReactNode; tone?: Tone; title?: string }[] = [
+    { icon: 'gauge', label: 'Spent', value: `${formatCents(g.spent_cents_last_15m)} EUR`, title: `${g.spent_cents_last_15m} cents` },
+    { icon: 'brain', label: 'Model tokens', value: <AnimatedNumber value={g.tokens_last_15m} /> },
+    { icon: 'filter', label: 'Redactions', value: <AnimatedNumber value={g.redactions_last_15m} /> },
+    { icon: 'radar', label: 'Signature hits', value: <AnimatedNumber value={g.signature_hits_last_15m} />, tone: g.signature_hits_last_15m ? 'bad' : undefined },
+    { icon: 'sparkles', label: 'Semantic flags', value: <AnimatedNumber value={g.semantic_flags_last_15m} />, tone: g.semantic_flags_last_15m ? 'wait' : undefined },
+    { icon: 'clock', label: 'Gateway p50 / p95', value: `${ms(g.latency_ms.p50)} / ${ms(g.latency_ms.p95)}`, title: `Over ${formatCount(g.latency_ms.samples)} decisions` },
+  ];
+  return (
+    <Card className="mt-5 p-6">
+      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <h2 className="flex items-center gap-2 text-[14.5px] font-semibold text-ink-2">
+          <Icon name="shield-check" size={16} className="text-ink-3" />
+          Guardrails, last 15 min
+        </h2>
+        <span className="ml-auto">
+          <TextLink to="/guardrails">Guardrails</TextLink>
+        </span>
+      </div>
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 xl:grid-cols-6">
+        {items.map((item) => (
+          <div key={item.label} title={item.title} className="min-w-0">
+            <dt className="flex items-center gap-1.5 text-[12.5px] font-medium text-ink-3">
+              <Icon name={item.icon} size={13} />
+              {item.label}
+            </dt>
+            <dd className={`mt-1 truncate text-[20px] font-bold tracking-[-0.02em] tabular-nums ${item.tone ? toneClass(item.tone).ink : 'text-ink'}`}>{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </Card>
   );
 }
 
@@ -732,6 +774,7 @@ export function OverviewPage() {
     <div>
       <Hero />
       <Stats />
+      <GuardrailStrip />
       <Stagger className="mt-16 space-y-20" step={0.08} delay={0.35}>
         <Rise>
           <Attention />

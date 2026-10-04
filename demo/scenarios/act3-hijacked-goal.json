@@ -83,7 +83,7 @@
         "controls": ["CTL-AI-001"],
         "executed": false
       },
-      "narration": "It writes the planted text to memory. Deterministically allowed; the analyzer (mock model, demo) flags instructions inside data and tightens to require_approval.",
+      "narration": "It writes the planted text to memory. Deterministically allowed; the in-Gateway injection classifier flags instructions inside data and tightens to require_approval.",
       "pace_ms": 1200
     }
   ]

@@ -9,6 +9,7 @@ import { capabilityRules, delegationOf } from './configuration.ts';
 import { describe as describeChange, preview, stage, suggestAccess, type AccessSnapshot } from './access.ts';
 import { edgeStyle, type EdgeLatest } from './graph-style.ts';
 import { buildRail, decidingStage, formatDuration } from './pipeline.ts';
+import { actionFor, classLabel, profileClasses, shortSha, splitMarkers } from './guardrails.ts';
 import { determinismStats, repeatGroups } from './determinism.ts';
 import { bucketize, niceCeiling, pendingSeries, percentile, rankBy } from './series.ts';
 
@@ -517,5 +518,40 @@ describe('access', () => {
     const off = snapshot();
     off.people[0]!.desk = false;
     assert.ok(suggestAccess(off, [chat(1_000, ai), chat(2_000, ai)], now).every((s) => s.id !== 'desk:u-maya'));
+  });
+});
+
+describe('guardrails', () => {
+  it('splits rewritten text into plain runs and the Gateway tokens', () => {
+    const runs = splitMarkers('Mój PESEL to [REDACTED:PESEL], see [REMOVED:SIG-EXFIL-001]');
+    assert.deepEqual(
+      runs.map((r) => [r.text, r.marker?.kind ?? null, r.marker?.id ?? null]),
+      [
+        ['Mój PESEL to ', null, null],
+        ['[REDACTED:PESEL]', 'redacted', 'PESEL'],
+        [', see ', null, null],
+        ['[REMOVED:SIG-EXFIL-001]', 'removed', 'SIG-EXFIL-001'],
+      ],
+    );
+    assert.deepEqual(splitMarkers('plain'), [{ text: 'plain', marker: null }]);
+    assert.equal(classLabel('PESEL'), 'PESEL');
+  });
+
+  it('orders the profile matrix rows and applies the Gateway default for a class a profile does not name', () => {
+    const semantic = { review_at: 0.6, block_at: 0.85 };
+    const profiles = {
+      a: { description: '', input: { email: 'redact' as const, payment_card: 'block' as const, zzz_new: 'allow' as const }, output: {}, semantic },
+      b: { description: '', input: { iban: 'allow' as const }, output: { email: 'allow' as const }, semantic },
+    };
+    assert.deepEqual(profileClasses(profiles, 'input'), ['payment_card', 'iban', 'email', 'zzz_new']);
+    assert.equal(actionFor(profiles.b, 'input', 'payment_card'), 'block');
+    assert.equal(actionFor(profiles.a, 'output', 'email'), 'redact');
+    assert.equal(shortSha('sha256:0123456789abcdef'), '0123456789ab');
+  });
+
+  it('places threat signatures among the deterministic controls, before budget', () => {
+    const ids = buildRail([], 'allow').stages.map((s) => s.id);
+    assert.equal(ids.indexOf('threat_signatures'), ids.indexOf('command_validation') + 1);
+    assert.equal(ids.indexOf('budget'), ids.indexOf('threat_signatures') + 1);
   });
 });

@@ -45,5 +45,6 @@ unless {
   (action == Betsee::Action::"llm.complete" && context.capability == Betsee::Capability::"llm.complete") ||
   (action == Betsee::Action::"files.write" && context.capability == Betsee::Capability::"files.write") ||
   (action == Betsee::Action::"web.egress" && context.capability == Betsee::Capability::"web.egress") ||
-  (action == Betsee::Action::"runtime.unmapped" && context.capability == Betsee::Capability::"runtime.unmapped")
+  (action == Betsee::Action::"runtime.unmapped" && context.capability == Betsee::Capability::"runtime.unmapped") ||
+  (action == Betsee::Action::"model.load" && context.capability == Betsee::Capability::"model.load")
 };

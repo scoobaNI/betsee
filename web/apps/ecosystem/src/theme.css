@@ -1,0 +1,174 @@
+/* The ecosystem wears the Director's light look, like Betsee Desk: the shared --bs-* tokens are
+   re-pointed to the Director's palette here (values as in web/apps/desk/src/styles.css), so
+   @betsee/ui and every page follow without changes elsewhere. */
+:root:root {
+  color-scheme: light;
+
+  /* Backgrounds and surfaces */
+  --bs-color-bg-void: #f7f8fa;
+  --bs-color-bg-app: #f7f8fa;
+  --bs-color-bg-canvas-dot: rgba(180, 188, 200, 0.55);
+  --bs-color-surface-1: #ffffff;
+  --bs-color-surface-2: #f5f6f8;
+  --bs-color-surface-3: #f2f4f7;
+  --bs-color-surface-inset: #f2f4f7;
+  --bs-color-surface-overlay: rgba(255, 255, 255, 0.72);
+
+  /* Borders */
+  --bs-color-border-subtle: #eef0f3;
+  --bs-color-border-default: #e8eaee;
+  --bs-color-border-strong: #d3d8e0;
+  --bs-color-border-focus: #3a5bd9;
+
+  /* Text */
+  --bs-color-text-primary: #101828;
+  --bs-color-text-secondary: #475467;
+  --bs-color-text-tertiary: #6b7588;
+  --bs-color-text-disabled: #b4bcc8;
+  --bs-color-text-on-accent: #ffffff;
+  --bs-color-text-on-feature: #ffffff;
+
+  /* Brand ramp = Director ok-green (ui uses brand-* only as "allowed") */
+  --bs-color-brand-950: #052c19;
+  --bs-color-brand-900: #084a2a;
+  --bs-color-brand-800: #0b6437;
+  --bs-color-brand-700: #0d7a43;
+  --bs-color-brand-600: #14a05a;
+  --bs-color-brand-500: #14a05a;
+  --bs-color-brand-400: #4dbb80;
+  --bs-color-brand-300: #8fd5ae;
+  --bs-color-brand-200: #c7ebd6;
+  --bs-color-brand-100: #ebf7f0;
+
+  /* Accent: ink primary buttons, blue for text, tint, edge and focus */
+  --bs-color-accent-default: #101828;
+  --bs-color-accent-hover: #1f2a3d;
+  --bs-color-accent-pressed: #0b111d;
+  --bs-color-accent-text: #2b47b5;
+  --bs-color-accent-tint: #eef2fd;
+  --bs-color-accent-glow: rgba(58, 91, 217, 0.25);
+  --bs-color-accent-edge: rgba(58, 91, 217, 0.24);
+
+  /* Decisions (fg = Director *-ink, solid = Director solid, bg = Director *-soft) */
+  --bs-color-decision-allow-fg: #0d7a43;
+  --bs-color-decision-allow-solid: #14a05a;
+  --bs-color-decision-allow-bg: #ebf7f0;
+  --bs-color-decision-allow-border: rgba(20, 160, 90, 0.22);
+  --bs-color-decision-deny-fg: #b8262c;
+  --bs-color-decision-deny-solid: #e0484e;
+  --bs-color-decision-deny-bg: #fdeeee;
+  --bs-color-decision-deny-border: rgba(224, 72, 78, 0.24);
+  --bs-color-decision-approval-fg: #9a5800;
+  --bs-color-decision-approval-solid: #e28a0c;
+  --bs-color-decision-approval-bg: #fef5e6;
+  --bs-color-decision-approval-border: rgba(226, 138, 12, 0.3);
+  --bs-color-decision-stepup-fg: #6a35a3;
+  --bs-color-decision-stepup-solid: #8a52c7;
+  --bs-color-decision-stepup-bg: #f5effc;
+  --bs-color-decision-stepup-border: rgba(138, 82, 199, 0.24);
+  --bs-color-modifier-ai-tightened-fg: #a32a76;
+  --bs-color-modifier-ai-tightened-solid: #cf3f97;
+  --bs-color-modifier-ai-tightened-bg: #fcedf6;
+  --bs-color-modifier-ai-tightened-border: rgba(207, 63, 151, 0.24);
+
+  /* Lifecycle */
+  --bs-color-lifecycle-active: #14a05a;
+  --bs-color-lifecycle-quarantined-fg: #b04c0d;
+  --bs-color-lifecycle-quarantined-solid: #ea6a1e;
+  --bs-color-lifecycle-quarantined-bg: #fff1e8;
+  --bs-color-lifecycle-quarantined-border: rgba(234, 106, 30, 0.28);
+  --bs-color-lifecycle-quarantined-hatch: rgba(234, 106, 30, 0.14);
+  --bs-color-lifecycle-suspended-fg: #475467;
+  --bs-color-lifecycle-suspended-border: #d3d8e0;
+  --bs-color-lifecycle-suspended-hatch: rgba(16, 24, 40, 0.05);
+  --bs-color-demo-mock-fg: #475467;
+  --bs-color-demo-mock-border: #d3d8e0;
+
+  /* Status */
+  --bs-color-status-danger: #e0484e;
+  --bs-color-status-warning: #e28a0c;
+  --bs-color-status-info: #3a5bd9;
+
+  /* Charts */
+  --bs-color-viz-allow: #14a05a;
+  --bs-color-viz-deny: #e0484e;
+  --bs-color-viz-approval: #e28a0c;
+  --bs-color-viz-stepup: #8a52c7;
+  --bs-color-viz-tightened: #cf3f97;
+  --bs-color-viz-neutral-1: #8a94a6;
+  --bs-color-viz-neutral-2: #b4bcc8;
+  --bs-color-viz-neutral-3: #e8eaee;
+  --bs-color-viz-grid: #e8eaee;
+  --bs-color-viz-axis: #6b7588;
+
+  /* Feature surface = the Director's dark ink card */
+  --bs-gradient-feature: linear-gradient(160deg, #1f2a3d 0%, #101828 55%);
+  --bs-gradient-rail-sheen: linear-gradient(
+    180deg,
+    rgba(58, 91, 217, 0.04) 0%,
+    rgba(58, 91, 217, 0) 40%
+  );
+
+  /* Type: sizes from the Director; the ecosystem keeps its own typefaces. */
+  --bs-font-size-2xs: 11.5px;
+  --bs-font-size-xs: 12.5px;
+  --bs-font-size-sm: 13.5px;
+  --bs-font-size-md: 14.5px;
+  --bs-font-size-lg: 16px;
+  --bs-font-size-xl: 18px;
+  --bs-font-size-2xl: 21px;
+  --bs-font-size-3xl: 30px;
+  --bs-font-size-4xl: 40px;
+  --bs-font-size-5xl: 54px;
+  --bs-font-weight-regular: 400;
+  --bs-font-weight-medium: 500;
+  --bs-font-weight-semibold: 600;
+  --bs-font-weight-bold: 700;
+  --bs-font-line-height-tight: 1.08;
+  --bs-font-line-height-snug: 1.3;
+  --bs-font-line-height-normal: 1.5;
+  --bs-font-tracking-display: -0.02em;
+  --bs-font-tracking-normal: 0em;
+  --bs-font-tracking-caps: 0.06em;
+
+  /* Radii */
+  --bs-radius-xs: 6px;
+  --bs-radius-sm: 10px;
+  --bs-radius-md: 14px;
+  --bs-radius-lg: 22px;
+  --bs-radius-xl: 24px;
+  --bs-radius-pill: 999px;
+
+  /* Shadows: e1/e2 carry the 1px #e8eaee border the Director draws on every card,
+     because Desk cards rely on the shadow ring instead of a border class. */
+  --bs-shadow-e1:
+    0 0 0 1px #e8eaee, 0 1px 2px rgba(16, 24, 40, 0.04),
+    0 1px 3px rgba(16, 24, 40, 0.04);
+  --bs-shadow-e2:
+    0 0 0 1px #e8eaee, 0 2px 4px rgba(16, 24, 40, 0.04),
+    0 8px 24px rgba(16, 24, 40, 0.07);
+  --bs-shadow-e3:
+    0 0 0 1px rgba(16, 24, 40, 0.06), 0 4px 8px rgba(16, 24, 40, 0.05),
+    0 20px 48px rgba(16, 24, 40, 0.12);
+  --bs-shadow-feature:
+    0 0 0 1px rgba(16, 24, 40, 0.1), 0 2px 4px rgba(16, 24, 40, 0.04),
+    0 8px 24px rgba(16, 24, 40, 0.07);
+  --bs-shadow-selected: 0 0 0 1px #3a5bd9, 0 0 0 4px rgba(58, 91, 217, 0.14);
+  --bs-shadow-live: 0 0 0 3px rgba(20, 160, 90, 0.2);
+}
+
+body {
+  background:
+    radial-gradient(
+      900px 520px at 0% 0%,
+      rgba(58, 91, 217, 0.07),
+      transparent 70%
+    ),
+    radial-gradient(
+      800px 600px at 100% 10%,
+      rgba(20, 160, 90, 0.05),
+      transparent 70%
+    ),
+    #f7f8fa;
+  background-attachment: fixed;
+}

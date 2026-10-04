@@ -55,6 +55,11 @@ async function openStage() {
   return page;
 }
 
+// Chromium reuses raster tiles between screenshots; right after a transform change, text from one edge
+// of a wide moving layer could reappear at the other (the Gateway track). Two animation frames let
+// paint and raster settle, and the frame then matches a fresh page pixel for pixel.
+const settle = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+
 async function exportCues(page) {
   const cues = await page.evaluate(() => window.filmCues);
   writeFileSync(join(out, "cues.json"), JSON.stringify(cues, null, 1));
@@ -76,6 +81,7 @@ if (stills) {
   await exportCues(page);
   for (const t of stills.split(",").map(Number)) {
     await page.evaluate((v) => window.renderAt(v), t);
+    await settle(page);
     const file = join(dir, `t${t.toFixed(2).padStart(6, "0")}.png`);
     await page.screenshot({ path: file });
     console.log(file);
@@ -95,10 +101,11 @@ const started = Date.now();
 
 async function renderPart(index, a, b) {
   const file = join(out, `part-${index}.mp4`);
-  const ffmpeg = spawn(FF, ["-v", "error", "-y", "-f", "image2pipe", "-framerate", String(fps), "-c:v", "mjpeg", "-i", "-", "-c:v", "libx264", "-preset", "slow", "-crf", "14", "-pix_fmt", "yuv420p", "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", file], { stdio: ["pipe", "inherit", "inherit"] });
+  const ffmpeg = spawn(FF, ["-v", "error", "-y", "-f", "image2pipe", "-framerate", String(fps), "-c:v", "mjpeg", "-i", "-", "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-pix_fmt", "yuv420p", "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", file], { stdio: ["pipe", "inherit", "inherit"] });
   const page = await openStage();
   for (let f = a; f < b; f++) {
     await page.evaluate((v) => window.renderAt(v), f / fps);
+    await settle(page);
     const jpg = await page.screenshot({ type: "jpeg", quality: 97 });
     if (!ffmpeg.stdin.write(jpg)) await new Promise((r) => ffmpeg.stdin.once("drain", r));
     done++;

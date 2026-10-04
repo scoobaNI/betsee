@@ -1,14 +1,6 @@
 [
  {
-  "id": "7f9b7b7a841ae95797d4a59e3b7f6ba7",
-  "cap": "crm.read",
-  "decision": "deny",
-  "controls": [
-   "CTL-AI-001"
-  ]
- },
- {
-  "id": "c5af2fcb9803449455d1449d4294e905",
+  "id": "8b5ba1007a0162154a79eb23d32a4f6c",
   "cap": "tickets.read",
   "decision": "allow",
   "controls": [
@@ -16,15 +8,31 @@
   ]
  },
  {
-  "id": "9f901d97873c0da11023de9fee68acf3",
-  "cap": "shell.exec",
+  "id": "d4a59e3b7f6ba73edc4f3d568e98831b",
+  "cap": "tickets.write",
   "decision": "allow",
   "controls": [
    "CTL-CAP-001"
   ]
  },
  {
-  "id": "e4606740579393139c9bc88764043133",
+  "id": "151d3d3ed5a3c5af2fcb9803449455d1",
+  "cap": "memory.write",
+  "decision": "require_approval",
+  "controls": [
+   "CTL-AI-001"
+  ]
+ },
+ {
+  "id": "f901d97873c0da11023de9fee68acf35",
+  "cap": "tickets.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "dd624db5c70804e4606740579393139c",
   "cap": "crm.read",
   "decision": "deny",
   "controls": [
@@ -32,15 +40,15 @@
   ]
  },
  {
-  "id": "4a507d209b9b1b4de2257eada2224073",
-  "cap": "files.read",
-  "decision": "deny",
+  "id": "507d209b9b1b4de2257eada2224073bf",
+  "cap": "crm.read",
+  "decision": "allow",
   "controls": [
-   "CTL-TIER-001"
+   "CTL-CAP-001"
   ]
  },
  {
-  "id": "01b19771d8598c3eeb8a032fea564892",
+  "id": "9771d8598c3eeb8a032fea564892fa72",
   "cap": "crm.read",
   "decision": "deny",
   "controls": [
@@ -113,7 +121,7 @@
   ]
  },
  {
-  "id": "bbb5935498685619147fd1e03417ad51",
+  "id": "12f29c373c5f631c10465af34b5fe9f1",
   "cap": "crm.read",
   "decision": "deny",
   "controls": [
@@ -185,19 +193,19 @@
   ]
  },
  {
-  "id": "248ce0ba6860fe802f2c39b5cbfec8fa",
-  "cap": "crm.read",
-  "decision": "allow",
-  "controls": [
-   "CTL-CAP-001"
-  ]
- },
- {
-  "id": "a15c1d2daa684bb0caa6b24f21bb0ca1",
+  "id": "48ce0ba6860fe802f2c39b5cbfec8fad",
   "cap": "agent.message",
   "decision": "deny",
   "controls": [
    "CTL-ID-002"
+  ]
+ },
+ {
+  "id": "1d2daa684bb0caa6b24f21bb0ca1601a",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
   ]
  },
  {

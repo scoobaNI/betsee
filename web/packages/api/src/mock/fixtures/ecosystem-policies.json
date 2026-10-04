@@ -20,7 +20,7 @@
   {
     "id": "forbid-capability-action-mismatch",
     "name": "forbid capability action mismatch",
-    "cedar": "@id(\"forbid-capability-action-mismatch\")\n@reason(\"the requested action does not match the capability being checked\")\n@control(\"CTL-POL-002\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nunless {\n  (action == Betsee::Action::\"crm.read\" && context.capability == Betsee::Capability::\"crm.read\") ||\n  (action == Betsee::Action::\"tickets.read\" && context.capability == Betsee::Capability::\"tickets.read\") ||\n  (action == Betsee::Action::\"files.read\" && context.capability == Betsee::Capability::\"files.read\") ||\n  (action == Betsee::Action::\"tickets.write\" && context.capability == Betsee::Capability::\"tickets.write\") ||\n  (action == Betsee::Action::\"memory.write\" && context.capability == Betsee::Capability::\"memory.write\") ||\n  (action == Betsee::Action::\"email.send\" && context.capability == Betsee::Capability::\"email.send\") ||\n  (action == Betsee::Action::\"payments.transfer\" && context.capability == Betsee::Capability::\"payments.transfer\") ||\n  (action == Betsee::Action::\"shell.exec\" && context.capability == Betsee::Capability::\"shell.exec\") ||\n  (action == Betsee::Action::\"agent.message\" && context.capability == Betsee::Capability::\"agent.message\") ||\n  (action == Betsee::Action::\"llm.complete\" && context.capability == Betsee::Capability::\"llm.complete\") ||\n  (action == Betsee::Action::\"files.write\" && context.capability == Betsee::Capability::\"files.write\") ||\n  (action == Betsee::Action::\"web.egress\" && context.capability == Betsee::Capability::\"web.egress\") ||\n  (action == Betsee::Action::\"runtime.unmapped\" && context.capability == Betsee::Capability::\"runtime.unmapped\")\n};",
+    "cedar": "@id(\"forbid-capability-action-mismatch\")\n@reason(\"the requested action does not match the capability being checked\")\n@control(\"CTL-POL-002\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nunless {\n  (action == Betsee::Action::\"crm.read\" && context.capability == Betsee::Capability::\"crm.read\") ||\n  (action == Betsee::Action::\"tickets.read\" && context.capability == Betsee::Capability::\"tickets.read\") ||\n  (action == Betsee::Action::\"files.read\" && context.capability == Betsee::Capability::\"files.read\") ||\n  (action == Betsee::Action::\"tickets.write\" && context.capability == Betsee::Capability::\"tickets.write\") ||\n  (action == Betsee::Action::\"memory.write\" && context.capability == Betsee::Capability::\"memory.write\") ||\n  (action == Betsee::Action::\"email.send\" && context.capability == Betsee::Capability::\"email.send\") ||\n  (action == Betsee::Action::\"payments.transfer\" && context.capability == Betsee::Capability::\"payments.transfer\") ||\n  (action == Betsee::Action::\"shell.exec\" && context.capability == Betsee::Capability::\"shell.exec\") ||\n  (action == Betsee::Action::\"agent.message\" && context.capability == Betsee::Capability::\"agent.message\") ||\n  (action == Betsee::Action::\"llm.complete\" && context.capability == Betsee::Capability::\"llm.complete\") ||\n  (action == Betsee::Action::\"files.write\" && context.capability == Betsee::Capability::\"files.write\") ||\n  (action == Betsee::Action::\"web.egress\" && context.capability == Betsee::Capability::\"web.egress\") ||\n  (action == Betsee::Action::\"runtime.unmapped\" && context.capability == Betsee::Capability::\"runtime.unmapped\") ||\n  (action == Betsee::Action::\"model.load\" && context.capability == Betsee::Capability::\"model.load\")\n};",
     "control_ids": ["CTL-POL-002"]
   },
   {
@@ -180,6 +180,18 @@
     "control_ids": ["CTL-IN-001"]
   },
   {
+    "id": "forbid-input-email",
+    "name": "forbid input email",
+    "cedar": "@id(\"forbid-input-email\")\n@reason(\"the message contains an email address, which this use case's profile blocks\")\n@control(\"CTL-IN-001\")\nforbid (principal, action == Betsee::Action::\"input.submit\", resource)\nwhen { context.detected.contains(\"email\") };",
+    "control_ids": ["CTL-IN-001"]
+  },
+  {
+    "id": "forbid-input-phone",
+    "name": "forbid input phone",
+    "cedar": "@id(\"forbid-input-phone\")\n@reason(\"the message contains a phone number, which this use case's profile blocks\")\n@control(\"CTL-IN-001\")\nforbid (principal, action == Betsee::Action::\"input.submit\", resource)\nwhen { context.detected.contains(\"phone\") };",
+    "control_ids": ["CTL-IN-001"]
+  },
+  {
     "id": "forbid-input-resource-above-tier",
     "name": "forbid input resource above tier",
     "cedar": "@id(\"forbid-input-resource-above-tier\")\n@reason(\"the message names a resource above the session ceiling of {session.tierCeiling}\")\n@control(\"CTL-IN-001\")\nforbid (principal, action == Betsee::Action::\"input.submit\", resource)\nwhen { context.detected.contains(\"resource_above_tier\") };",
@@ -188,7 +200,7 @@
   {
     "id": "analyzer-input-malicious",
     "name": "analyzer input malicious",
-    "cedar": "@id(\"analyzer-input-malicious\")\n@reason(\"the analyzer (mock model, demo) judged the message malicious\")\n@control(\"CTL-AI-001\")\nforbid (principal, action == Betsee::Action::\"input.submit\", resource)\nwhen { context has analysis && context.analysis.verdict == \"malicious\" };",
+    "cedar": "@id(\"analyzer-input-malicious\")\n@reason(\"semantic analysis judged the message an injection or jailbreak attempt\")\n@control(\"CTL-AI-001\")\nforbid (principal, action == Betsee::Action::\"input.submit\", resource)\nwhen { context has analysis && context.analysis.verdict == \"malicious\" };",
     "control_ids": ["CTL-AI-001"]
   },
   {
@@ -282,10 +294,106 @@
     "control_ids": ["CTL-FILE-001"]
   },
   {
+    "id": "forbid-known-exploit-signature",
+    "name": "forbid known exploit signature",
+    "cedar": "@id(\"forbid-known-exploit-signature\")\n@reason(\"the request matches a signature of a known exploit\")\n@control(\"CTL-SIG-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context has threat && context.threat.block };",
+    "control_ids": ["CTL-SIG-001"]
+  },
+  {
+    "id": "review-exploit-signature",
+    "name": "review exploit signature",
+    "cedar": "@id(\"review-exploit-signature\")\n@reason(\"the request matches a signature that needs a person to review it\")\n@control(\"CTL-SIG-001\")\n@outcome(\"require_approval\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context has threat && context.threat.review }\nunless { context.approval.granted };",
+    "control_ids": ["CTL-SIG-001"]
+  },
+  {
+    "id": "forbid-input-exploit-signature",
+    "name": "forbid input exploit signature",
+    "cedar": "@id(\"forbid-input-exploit-signature\")\n@reason(\"the message matches a signature of a known exploit\")\n@control(\"CTL-SIG-001\")\nforbid (principal, action == Betsee::Action::\"input.submit\", resource)\nwhen { context has threat && context.threat.block };",
+    "control_ids": ["CTL-SIG-001"]
+  },
+  {
+    "id": "forbid-file-exploit-signature",
+    "name": "forbid file exploit signature",
+    "cedar": "@id(\"forbid-file-exploit-signature\")\n@reason(\"the file matches a signature of a known exploit\")\n@control(\"CTL-SIG-001\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource)\nwhen { context has threat && context.threat.block };",
+    "control_ids": ["CTL-SIG-001"]
+  },
+  {
+    "id": "forbid-file-unsafe-deserialization",
+    "name": "forbid file unsafe deserialization",
+    "cedar": "@id(\"forbid-file-unsafe-deserialization\")\n@reason(\"the file is a pickle that would run code when loaded\")\n@control(\"CTL-FILE-002\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource)\nwhen { context.detected.contains(\"unsafe_deserialization\") };",
+    "control_ids": ["CTL-FILE-002"]
+  },
+  {
+    "id": "forbid-file-model-code-execution",
+    "name": "forbid file model code execution",
+    "cedar": "@id(\"forbid-file-model-code-execution\")\n@reason(\"the file is a model whose metadata or layers would run code when loaded\")\n@control(\"CTL-FILE-002\")\nforbid (principal, action in Betsee::Action::\"file_transfer\", resource)\nwhen { context.detected.contains(\"model_code_execution\") };",
+    "control_ids": ["CTL-FILE-002"]
+  },
+  {
+    "id": "forbid-model-not-allowlisted",
+    "name": "forbid model not allowlisted",
+    "cedar": "@id(\"forbid-model-not-allowlisted\")\n@reason(\"the model is not on the organization's model allowlist\")\n@control(\"CTL-MODEL-001\")\nforbid (principal, action == Betsee::Action::\"llm.complete\", resource)\nwhen { context has modelAllowed && !context.modelAllowed };",
+    "control_ids": ["CTL-MODEL-001"]
+  },
+  {
+    "id": "forbid-prompt-sensitive-data",
+    "name": "forbid prompt sensitive data",
+    "cedar": "@id(\"forbid-prompt-sensitive-data\")\n@reason(\"the prompt carries data this use case's profile does not let a model see\")\n@control(\"CTL-IN-001\")\nforbid (principal, action == Betsee::Action::\"llm.complete\", resource)\nwhen { context has detected && !context.detected.isEmpty() };",
+    "control_ids": ["CTL-IN-001"]
+  },
+  {
+    "id": "forbid-model-revision-not-pinned",
+    "name": "forbid model revision not pinned",
+    "cedar": "@id(\"forbid-model-revision-not-pinned\")\n@reason(\"a model must be pinned to a full commit hash, not a branch or tag\")\n@control(\"CTL-SUP-001\")\nforbid (principal, action == Betsee::Action::\"model.load\", resource)\nwhen { context has modelCheck && !context.modelCheck.pinned };",
+    "control_ids": ["CTL-SUP-001"]
+  },
+  {
+    "id": "forbid-model-remote-code",
+    "name": "forbid model remote code",
+    "cedar": "@id(\"forbid-model-remote-code\")\n@reason(\"loading a model must not run code from its repository (trust_remote_code)\")\n@control(\"CTL-SUP-001\")\nforbid (principal, action == Betsee::Action::\"model.load\", resource)\nwhen { context has modelCheck && context.modelCheck.trustRemoteCode };",
+    "control_ids": ["CTL-SUP-001"]
+  },
+  {
+    "id": "forbid-model-unsafe-format",
+    "name": "forbid model unsafe format",
+    "cedar": "@id(\"forbid-model-unsafe-format\")\n@reason(\"the model ships weights in a format that can run code when loaded; use safetensors or GGUF\")\n@control(\"CTL-SUP-001\")\nforbid (principal, action == Betsee::Action::\"model.load\", resource)\nwhen { context has modelCheck && context.modelCheck.unsafeFormat };",
+    "control_ids": ["CTL-SUP-001"]
+  },
+  {
+    "id": "forbid-model-org-typosquat",
+    "name": "forbid model org typosquat",
+    "cedar": "@id(\"forbid-model-org-typosquat\")\n@reason(\"the model's publisher name imitates a trusted publisher\")\n@control(\"CTL-SUP-001\")\nforbid (principal, action == Betsee::Action::\"model.load\", resource)\nwhen { context has modelCheck && context.modelCheck.typosquat };",
+    "control_ids": ["CTL-SUP-001"]
+  },
+  {
+    "id": "forbid-model-org-not-allowed",
+    "name": "forbid model org not allowed",
+    "cedar": "@id(\"forbid-model-org-not-allowed\")\n@reason(\"the model's publisher is not on the organization's list of trusted publishers\")\n@control(\"CTL-SUP-001\")\nforbid (principal, action == Betsee::Action::\"model.load\", resource)\nwhen { context has modelCheck && !context.modelCheck.orgAllowed };",
+    "control_ids": ["CTL-SUP-001"]
+  },
+  {
+    "id": "forbid-model-known-bad",
+    "name": "forbid model known bad",
+    "cedar": "@id(\"forbid-model-known-bad\")\n@reason(\"the model repository is on the threat feed as malicious\")\n@control(\"CTL-SUP-001\")\nforbid (principal, action == Betsee::Action::\"model.load\", resource)\nwhen { context has modelCheck && context.modelCheck.knownBad };",
+    "control_ids": ["CTL-SUP-001"]
+  },
+  {
+    "id": "forbid-model-load-without-check",
+    "name": "forbid model load without check",
+    "cedar": "@id(\"forbid-model-load-without-check\")\n@reason(\"the Gateway could not check this model request\")\n@control(\"CTL-SUP-001\")\nforbid (principal, action == Betsee::Action::\"model.load\", resource)\nunless { context has modelCheck };",
+    "control_ids": ["CTL-SUP-001"]
+  },
+  {
     "id": "forbid-budget-exceeded",
     "name": "forbid budget exceeded",
     "cedar": "@id(\"forbid-budget-exceeded\")\n@reason(\"this action would exceed the session budget\")\n@control(\"CTL-RUN-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context.session.spentCents + context.costCents > context.session.budgetCents };",
     "control_ids": ["CTL-RUN-001"]
+  },
+  {
+    "id": "forbid-token-budget-exceeded",
+    "name": "forbid token budget exceeded",
+    "cedar": "@id(\"forbid-token-budget-exceeded\")\n@reason(\"this model call could exceed the session's token budget\")\n@control(\"CTL-RUN-005\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen {\n  context has tokens &&\n  context.session has tokenBudget &&\n  context.session has tokensUsed &&\n  context.session.tokensUsed + context.tokens > context.session.tokenBudget\n};",
+    "control_ids": ["CTL-RUN-005"]
   },
   {
     "id": "forbid-rate-exceeded",
@@ -332,13 +440,13 @@
   {
     "id": "analyzer-malicious",
     "name": "analyzer malicious",
-    "cedar": "@id(\"analyzer-malicious\")\n@reason(\"the analyzer (mock model, demo) judged the request malicious\")\n@control(\"CTL-AI-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context has analysis && context.analysis.verdict == \"malicious\" };",
+    "cedar": "@id(\"analyzer-malicious\")\n@reason(\"semantic analysis judged the request malicious\")\n@control(\"CTL-AI-001\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context has analysis && context.analysis.verdict == \"malicious\" };",
     "control_ids": ["CTL-AI-001"]
   },
   {
     "id": "analyzer-suspicious",
     "name": "analyzer suspicious",
-    "cedar": "@id(\"analyzer-suspicious\")\n@reason(\"the analyzer (mock model, demo) flagged instructions inside the request\")\n@control(\"CTL-AI-001\")\n@outcome(\"require_approval\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context has analysis && context.analysis.verdict == \"suspicious\" }\nunless { context.approval.granted };",
+    "cedar": "@id(\"analyzer-suspicious\")\n@reason(\"semantic analysis found instructions inside the request's data; a person must look first\")\n@control(\"CTL-AI-001\")\n@outcome(\"require_approval\")\nforbid (principal, action in Betsee::Action::\"agent_action\", resource)\nwhen { context has analysis && context.analysis.verdict == \"suspicious\" }\nunless { context.approval.granted };",
     "control_ids": ["CTL-AI-001"]
   },
   {

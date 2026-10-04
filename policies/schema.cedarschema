@@ -20,11 +20,29 @@ namespace Betsee {
     stepUp: Bool,
   };
 
-  // AI security analysis (mock model in the demo). Only forbid policies may read it.
-  // verdict: clean | suspicious | malicious.
+  // AI security analysis: the in-Gateway injection classifier, optionally joined by an
+  // OpenAI-compatible judge. Only forbid policies may read it. verdict: clean | suspicious |
+  // malicious, derived from score (percent) and the thresholds of the use case's guardrail profile.
   type Analysis = {
     verdict: String,
     analyzer: String,
+    score?: Long,
+  };
+
+  // Known-exploit signatures that matched the request (CTL-SIG-001): block or review.
+  type ThreatMatch = {
+    block: Bool,
+    review: Bool,
+  };
+
+  // What the Gateway established about a model.load request (CTL-SUP-001).
+  type ModelCheck = {
+    pinned: Bool,
+    trustRemoteCode: Bool,
+    unsafeFormat: Bool,
+    orgAllowed: Bool,
+    typosquat: Bool,
+    knownBad: Bool,
   };
 
   // The MCP tool the call goes through and the descriptor hash the Gateway observed for it now.
@@ -61,6 +79,15 @@ namespace Betsee {
     // Highest tier of content the request reads beyond its named resource: the files a validated
     // shell command names, or everything under a folder a content search covers.
     scopeTier?: Tier,
+    threat?: ThreatMatch,
+    modelCheck?: ModelCheck,
+    // llm.complete: the model is on the guardrails allowlist (CTL-MODEL-001), and the tokens the
+    // call may use at most (prompt estimate plus the output cap) (CTL-RUN-005).
+    modelAllowed?: Bool,
+    tokens?: Long,
+    // llm.complete: detector classes in the prompt that the use case's guardrail profile blocks
+    // (CTL-IN-001 on the agent-to-model path); redacted classes never reach Cedar.
+    detected?: Set<String>,
   };
 
   // A file crossing the agent workspace boundary (CTL-FILE-001): uploaded by the session's human
@@ -72,14 +99,17 @@ namespace Betsee {
     detected: Set<String>,
     tier: Tier,
     now: Long,
+    threat?: ThreatMatch,
   };
 
-  // What the Gateway's deterministic detectors found in text a human typed (CTL-IN-001). Classes:
-  // payment_card, iban, pesel, secret, resource_above_tier.
+  // What the Gateway's deterministic detectors found in text a human typed (CTL-IN-001), limited
+  // to the classes the use case's guardrail profile says block. Classes: payment_card, iban,
+  // pesel, secret, email, phone, resource_above_tier. Redacted classes never reach Cedar.
   type InputContext = {
     detected: Set<String>,
     analysis?: Analysis,
     now: Long,
+    threat?: ThreatMatch,
   };
 
   type SessionRequest = {
@@ -149,6 +179,9 @@ namespace Betsee {
     expiresAt: Long,
     budgetCents: Long,
     spentCents: Long,
+    // Token budget for model calls (CTL-RUN-005); absent on sessions started before it existed.
+    tokenBudget?: Long,
+    tokensUsed?: Long,
   };
 
   // A data resource reached through a tool: customer record, ticket, file, mailbox recipient,
@@ -216,6 +249,13 @@ namespace Betsee {
   };
 
   action "files.write" in ["write"] appliesTo {
+    principal: [Agent],
+    resource: [Resource],
+    context: ActionContext,
+  };
+
+  // Fetch a model from a public hub into the organization's model store (CTL-SUP-001).
+  action "model.load" in ["high_impact"] appliesTo {
     principal: [Agent],
     resource: [Resource],
     context: ActionContext,

@@ -1,7 +1,9 @@
 // A fetch() that answers /api/v1/* from the mock world. Only the network is fake: the typed client,
 // the SSE reader and the query hooks run their real code paths in mock mode.
+import type { ArtifactScanRequest, EvaluateRequest } from '../types.ts';
 import { ecosystemMockResponse } from './fixtures/ecosystem.ts';
 import { AccessError, type AccessChangeRequest, type LoggedEvent, type MockWorld } from './generator.ts';
+import { evaluate, guardrailsStatus, MockGuardrailError, scanArtifact } from './guardrails.ts';
 import { CONTROLS, MOCK_ME } from './world.ts';
 
 /** Extra routes an app adds to the mock (frontend-ecosystem's fixtures); null passes it on. */
@@ -31,6 +33,7 @@ export function createMockFetch(world: MockWorld, options: MockFetchOptions = {}
   const handlers: MockHandler[] = [ecosystemMockResponse, ...(options.handlers ?? [])];
   // Approvals that already answered step_up_required once; the retry after step-up approves.
   const challenged = new Set<string>();
+  const startedAt = new Date().toISOString();
 
   const handler = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const request = typeof Request !== 'undefined' && input instanceof Request ? input : undefined;
@@ -83,6 +86,7 @@ export function createMockFetch(world: MockWorld, options: MockFetchOptions = {}
       if (path === '/api/v1/summary') return json(world.summary());
       if (path === '/api/v1/access') return json(world.access());
       if (path === '/api/v1/coverage') return json({ items: world.coverage() });
+      if (path === '/api/v1/guardrails') return json(guardrailsStatus(startedAt));
       if (path === '/api/v1/demo/scenarios') return json(world.scenarios());
       if ((m = path.match(/^\/api\/v1\/demo\/runs\/([^/]+)$/))) {
         const run = world.run(decodeURIComponent(m[1]));
@@ -119,6 +123,14 @@ export function createMockFetch(world: MockWorld, options: MockFetchOptions = {}
           return json({ items: world.applyAccess(changes, MOCK_ME.human, reason?.trim() ?? '', suggestion_id ?? null) });
         } catch (error) {
           if (error instanceof AccessError) return json({ error: 'invalid', message: error.message }, 422);
+          throw error;
+        }
+      }
+      if (path === '/api/v1/guardrails/evaluate' || path === '/api/v1/artifacts/scan') {
+        try {
+          return json(path === '/api/v1/artifacts/scan' ? await scanArtifact(body as ArtifactScanRequest) : evaluate(body as EvaluateRequest));
+        } catch (error) {
+          if (error instanceof MockGuardrailError) return json({ error: 'invalid', message: error.message }, 400);
           throw error;
         }
       }

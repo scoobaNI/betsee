@@ -21,6 +21,7 @@ import type {
   Trace,
   UseCaseRef,
 } from '../types.ts';
+import { actionCost, MOCK_POLICY_VERSION, profileFor, SIGNATURE_COUNT, summaryGuardrails } from './guardrails.ts';
 import { SCENARIOS } from './scenarios.ts';
 import {
   AGENTS,
@@ -46,6 +47,7 @@ export type DeterministicStage =
   | 'cedar_authz'
   | 'information_tier'
   | 'command_validation'
+  | 'threat_signatures'
   | 'budget';
 
 export type Outcome =
@@ -155,12 +157,13 @@ export interface WorldOptions {
   chats?: boolean;
 }
 
-const DETERMINISTIC: { stage: DeterministicStage; control: string; ms: number }[] = [
+const DETERMINISTIC: { stage: DeterministicStage; control: string; ms: number; attributes?: Record<string, unknown> }[] = [
   { stage: 'identity', control: 'CTL-ID-001', ms: 0.4 },
   { stage: 'capability', control: 'CTL-CAP-001', ms: 0.3 },
   { stage: 'cedar_authz', control: 'CTL-POL-001', ms: 0.9 },
   { stage: 'information_tier', control: 'CTL-TIER-001', ms: 0.2 },
   { stage: 'command_validation', control: 'CTL-EXEC-001', ms: 0.3 },
+  { stage: 'threat_signatures', control: 'CTL-SIG-001', ms: 0.1, attributes: { signatures: [], signature_set: SIGNATURE_COUNT } },
   { stage: 'budget', control: 'CTL-RUN-001', ms: 0.2 },
 ];
 
@@ -313,7 +316,7 @@ export function createMockWorld(options: WorldOptions = {}) {
 
     add('authenticate', 'passed', 1.8, { attributes: { client_id: plan.agentId, grant: 'client_credentials' } });
     add('resolve_context', 'passed', 3.1, { attributes: { session_id: plan.sessionId ?? `ses-${plan.agentId}` } });
-    for (const { stage, control, ms } of DETERMINISTIC) {
+    for (const { stage, control, ms, attributes } of DETERMINISTIC) {
       if (outcome.kind === 'deny' && outcome.stage === stage) {
         add(stage, 'denied', ms, {
           control_ids: outcome.controls,
@@ -328,7 +331,7 @@ export function createMockWorld(options: WorldOptions = {}) {
         add(stage, 'skipped', 0, { reason: 'No command to validate for this capability.' });
         continue;
       }
-      add(stage, 'passed', ms, { control_ids: [control] });
+      add(stage, 'passed', ms, { control_ids: [control], attributes });
     }
     const tightened = outcome.kind === 'tighten';
     add('ai_analysis', tightened ? 'tightened' : 'passed', 182, {
@@ -514,6 +517,7 @@ export function createMockWorld(options: WorldOptions = {}) {
         : [],
       step_up_required: o.kind === 'approval' && (o.stepUp || Boolean(o.stepUpOnly)),
       caller_trace_id: null,
+      guardrails: { profile: profileFor(seed.useCase.id), policy_version: MOCK_POLICY_VERSION, signatures: [], model_check: null, model_call: null },
       spans,
       execution_context: {
         organization: ORGANIZATION.name,
@@ -555,6 +559,7 @@ export function createMockWorld(options: WorldOptions = {}) {
     feed.push(traceId);
     if (feed.length > FEED_LIMIT) records.delete(feed.shift()!);
     agent.budget.used = spentCents(agent.id, at);
+    if (trace.executed) trace.cost = actionCost(plan.capability, agent.budget.used);
     countEvidence(trace);
 
     let message: AgentMessage | null = null;
@@ -909,6 +914,7 @@ export function createMockWorld(options: WorldOptions = {}) {
       denied_last_15m: recent.filter((t) => t.decision === 'deny').length,
       awaiting_human: [...records.values()].filter((r) => r.trace.approval_state === 'pending').length,
       stage_counts,
+      guardrails: summaryGuardrails(recent),
     };
   }
 

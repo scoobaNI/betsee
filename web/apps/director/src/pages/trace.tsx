@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router';
 import { Icon, type IconName } from '../components/icon.tsx';
 import { Burst, Rise, Stagger, TONE_COLOR } from '../components/motion.tsx';
 import { Composition, DecisionPath, Waterfall } from '../components/pipeline.tsx';
+import { Chip, MaskedList, SemanticDetail, SignatureList } from '../components/guardrails.tsx';
 import { Breakable, ReasonText } from '../components/reason.tsx';
 import {
   ActionVerdict,
@@ -29,7 +30,8 @@ import {
 import { callerLabel, callerOf, type Caller } from '../domain/caller.ts';
 import { becauseSentence, decisionLabel, isVoided, reasonFromAnalyzer, resolutionOf } from '../domain/decision.ts';
 import { teamName } from '../domain/feed.ts';
-import { formatDateTime, formatTime } from '../domain/format.ts';
+import { formatCents, formatCount, formatDateTime, formatTime } from '../domain/format.ts';
+import { classLabel, formatPriceCents } from '../domain/guardrails.ts';
 import { buildRail, formatDuration } from '../domain/pipeline.ts';
 import { repeatGroups } from '../domain/determinism.ts';
 import { useActions } from '../hooks.ts';
@@ -292,6 +294,120 @@ function Repeats({ traceId }: { traceId: string }) {
   );
 }
 
+function Part({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="mb-2.5 text-[12px] font-medium text-ink-3">{title}</p>
+      {children}
+    </div>
+  );
+}
+
+/** The content checks, signatures, semantic score and cost the Gateway recorded on this trace. */
+function GuardrailsPanel({ trace }: { trace: Trace }) {
+  const g = trace.guardrails;
+  const cost = trace.cost;
+  const out = trace.output_filter;
+  const semantic = typeof trace.analyzer.score === 'number' ? trace.analyzer : undefined;
+  const model = [
+    ['model_call', g?.model_call],
+    ['model_check', g?.model_check],
+  ].filter((entry): entry is [string, Record<string, unknown>] => Boolean(entry[1]));
+  return (
+    <Card className="grid gap-x-10 gap-y-8 p-6 md:grid-cols-2 md:p-7">
+      {g && (
+        <Part title="Profile">
+          <p className="flex flex-wrap items-center gap-2 text-[14px] text-ink-2">
+            <Code>{g.profile}</Code>
+            policy <Code>{g.policy_version}</Code>
+            {g.flagged_untrusted && (
+              <Chip tone="wait" icon="alert" title="High-impact actions in this session need a person (CTL-PROV-001)">
+                Flagged untrusted
+              </Chip>
+            )}
+          </p>
+          {(g.redactions?.length || g.recorded?.length) ? (
+            <div className="mt-4 space-y-3">
+              <MaskedList items={g.redactions ?? []} />
+              {g.recorded && g.recorded.length > 0 && (
+                <>
+                  <p className="text-[12px] text-ink-3">Recorded only, the profile allows them</p>
+                  <MaskedList items={g.recorded} />
+                </>
+              )}
+            </div>
+          ) : null}
+        </Part>
+      )}
+      {cost && (
+        <Part title="Cost">
+          <p className="text-[14px] text-ink tabular-nums">
+            {formatPriceCents(cost.cents)}
+            {cost.tokens > 0 && <>, {formatCount(cost.tokens)} tokens</>}
+            {typeof cost.seconds === 'number' && <span className="text-ink-3">, {formatDuration(cost.seconds * 1000)}</span>}
+          </p>
+          {typeof cost.session_used_cents === 'number' && (
+            <p className="mt-1 text-[13px] text-ink-3 tabular-nums">
+              Session so far {formatCents(cost.session_used_cents)} EUR
+              {typeof cost.session_tokens_used === 'number' && <>, {formatCount(cost.session_tokens_used)} tokens</>}
+            </p>
+          )}
+        </Part>
+      )}
+      {g?.signatures && (
+        <Part title="Threat signatures">
+          <SignatureList hits={g.signatures} empty="No known-exploit signature matched." />
+        </Part>
+      )}
+      {semantic && (
+        <Part title="Semantic analysis">
+          <SemanticDetail analyzer={semantic} rationale={false} />
+        </Part>
+      )}
+      {out && (
+        <Part title="Output filter">
+          <div className="space-y-3">
+            {(out.indirect_injection_suspected || out.withheld.length > 0) && (
+              <p className="flex flex-wrap gap-2">
+                {out.withheld.length > 0 && (
+                  <Chip tone="bad" icon="lock">
+                    Withheld: {out.withheld.map(classLabel).join(', ')}
+                  </Chip>
+                )}
+                {out.indirect_injection_suspected && (
+                  <Chip tone="wait" icon="alert">
+                    Indirect injection suspected
+                  </Chip>
+                )}
+              </p>
+            )}
+            <MaskedList items={out.redactions} empty="Nothing redacted from the result." />
+            {out.recorded.length > 0 && <MaskedList items={out.recorded} />}
+            {out.signatures.length > 0 && <SignatureList hits={out.signatures} />}
+            {out.semantic && typeof out.semantic.score === 'number' && (
+              <p className="text-[13px] text-ink-3">
+                Semantic score of the result {out.semantic.score.toFixed(2)}
+                {out.semantic.verdict ? `, ${out.semantic.verdict}` : ''}
+              </p>
+            )}
+          </div>
+        </Part>
+      )}
+      {model.length > 0 && (
+        <Part title="Model">
+          <div className="space-y-3">
+            {model.map(([key, value]) => (
+              <RawTable key={key} entries={Object.entries(value)} prefix={`${key}.`} />
+            ))}
+          </div>
+        </Part>
+      )}
+    </Card>
+  );
+}
+
+const hasGuardrails = (trace: Trace) => Boolean(trace.guardrails || trace.cost || trace.output_filter || typeof trace.analyzer.score === 'number');
+
 function TraceSkeleton() {
   return (
     <div className="space-y-6">
@@ -375,6 +491,11 @@ export function TracePage() {
             <Card className="p-4 md:p-6">
               <DecisionPath key={replay} rail={rail} controls={controls} />
             </Card>
+          </Section>
+        )}
+        {hasGuardrails(data) && (
+          <Section title="Guardrails" hint="Content checks, signatures and cost" action={<TextLink to="/guardrails">Configuration</TextLink>}>
+            <GuardrailsPanel trace={data} />
           </Section>
         )}
         <Section title="Deeper detail">

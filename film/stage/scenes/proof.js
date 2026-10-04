@@ -1,5 +1,5 @@
 // Acts 12-14: four proof shots, risk to evidence, and the enterprise thesis.
-import { Callout, Screen, agentMark, capState, chip, clamp, ease, el, icon, kf, lerp, noise1, put, rng, seg, svgEl, text } from "../lib.js";
+import { Callout, Screen, agentMark, capState, chip, clamp, ease, el, icon, kf, lerp, noise1, put, rectOf, rng, seg, svgEl, text } from "../lib.js";
 
 const soft = (t, a, d = 0.9) => seg(t, a, a + d, ease.soft);
 
@@ -147,7 +147,8 @@ function evidence(root, ctx) {
   const screen = new Screen(root, ["dir-coverage"], { w: 1600, h: 900, url: "director.betsee.localhost/coverage" });
   const svg = svgEl("svg", { width: 1920, height: 1080, class: "abs" }, root);
   const over = el("div", "fill", root);
-  const cRisk = new Callout(over, svg, { title: "OWASP agentic risks, ASI01 to ASI10", sub: "Each mapped to the controls that cover it" });
+  const cRisk = new Callout(over, svg, { title: "All ten OWASP agentic risks", sub: "Each mapped to its controls" });
+  const score = rectOf("dir-coverage", "score");
   const veil = el("div", "fill", root);
   veil.style.background = "rgba(251,251,253,.9)";
   const chainSvg = svgEl("svg", { width: 1920, height: 1080, class: "abs" }, root);
@@ -173,8 +174,10 @@ function evidence(root, ctx) {
     update(t) {
       const enter = soft(t, -0.4, 1.0);
       screen.place({ x: 960, y: 570, s: 0.98, o: enter });
-      screen.look(kf(t, [[0, [300, 30, 1600, 900]], [pEv, [380, 140, 1300, 731]]], ease.inOutQuint));
-      cRisk.update(screen.map(560, 290), [1580, 200], Math.min(soft(t, n28.at + 0.4, 0.8), 1 - seg(t, pEv - 0.2, pEv + 0.2)));
+      // The header stays in frame while the score is named; the push-in comes under the veil.
+      screen.look(kf(t, [[0, [330, 40, 1600, 900]], [pEv - 0.3, [300, 30, 1600, 900]], [pEv + 0.6, [380, 140, 1300, 731]]], ease.inOutQuint));
+      const sb = screen.mapRect(score);
+      cRisk.update(sb, [1540 + (cRisk.node.offsetWidth || 300) / 2, sb[1] + sb[3] / 2], Math.min(soft(t, n28.at + 0.4, 0.8), 1 - seg(t, pEv - 0.2, pEv + 0.2)));
       veil.style.opacity = soft(t, pEv - 0.3, 0.6);
       cards.forEach((c, i) => {
         const p = soft(t, pEv + i * 0.25, 0.7);
@@ -202,81 +205,76 @@ const BASE = [
   ["Execution", "zap"],
   ["Audit", "list"],
 ];
-const MODELS = ["Model v1", "Model v2", "Model v3", "Model v4"];
+const MODELS = ["Claude", "Codex", "Internal model", "Model v4", "Claude", "Model v5"];
+const AGENTS = ["invoice-assistant", "report-bot", "support-triage", "research-agent", "ops-runner", "employee-assistant", "pricing-agent", "hr-helper"];
 
 function thesis(root, ctx) {
   root.classList.add("plain");
   const n29 = ctx.vo("n29");
   const n30 = ctx.vo("n30");
-  const aura = svgEl("svg", { width: 1920, height: 1080, class: "abs" }, root);
-  const lg = svgEl("linearGradient", { id: "aura2", x1: "0", x2: "1" }, svgEl("defs", {}, aura));
-  svgEl("stop", { offset: "0", "stop-color": "#c9b8ff" }, lg);
-  svgEl("stop", { offset: "0.5", "stop-color": "#f4a6d7" }, lg);
-  svgEl("stop", { offset: "1", "stop-color": "#a9c1ff" }, lg);
-  const waves = [0, 1, 2].map((i) => svgEl("path", { fill: "url(#aura2)", opacity: 0.32 - i * 0.07, filter: "blur(22px)" }, aura));
-  const wn = [noise1(41), noise1(42), noise1(43)];
-  const drops = Array.from({ length: 12 }, () => svgEl("circle", { r: 5, fill: "#3a5bd9" }, aura));
-  const model = el("div", "abs", root);
-  const assistants = ["Claude", "Codex", "Internal model"].map((a) => el("div", "abs", root, `<div class="pill" style="height:52px;font-size:20px;font-weight:600">${agentMark(34, "model")}${a}</div>`));
-  const agents = ["invoice-assistant", "report-bot", "support-triage"].map((a) => el("div", "abs", root, `<div class="pill mono" style="height:46px;font-size:17px">${agentMark(30)}${a}</div>`));
+  const p = (k) => ctx.phrase("n29", k);
+  // Above: everything that changes. A split-flap model badge, a carousel of agents.
+  const top = el("div", "fill", root);
+  const flap = el("div", "abs", top);
+  const flapFace = () => el("div", "abs", flap);
+  const faceA = flapFace();
+  const faceB = flapFace();
+  [faceA, faceB].forEach((f) => Object.assign(f.style, { left: "0", top: "0" }));
+  Object.assign(flap.style, { width: "520px", height: "120px", perspective: "900px" });
+  const badge = (label) => `<div class="pill" style="width:520px;height:120px;box-sizing:border-box;justify-content:center;font-size:44px;font-weight:700;letter-spacing:-.02em;border-radius:30px;gap:18px">${agentMark(64, "model")}${label}</div>`;
+  const agents = AGENTS.map((a) => el("div", "abs", top, `<div class="pill mono" style="height:56px;font-size:20px;border-radius:16px">${agentMark(34)}${a}</div>`));
+  const glow = el("div", "fill", top);
+  glow.style.background = "radial-gradient(900px 340px at 50% 30%, rgba(207,63,151,.12), transparent 70%)";
+  // Below: the boundary, drawn once, and what rests on it.
+  const line = el("div", "abs", root);
+  Object.assign(line.style, { width: "1640px", height: "4px", borderRadius: "4px", background: "#3a5bd9", boxShadow: "0 0 30px rgba(58,91,217,.45)" });
   const base = el("div", "abs", root);
   Object.assign(base.style, { display: "flex", gap: "16px" });
   base.innerHTML = BASE.map(
     ([b, g]) =>
-      `<div style="width:250px;height:124px;border-radius:22px;background:#fff;box-shadow:0 0 0 1.5px rgba(58,91,217,.45),0 30px 60px -24px rgba(58,91,217,.35);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#3a5bd9">${icon(g, 30)}<span style="font-size:21px;font-weight:640;color:#0b1220">${b}</span></div>`,
+      `<div style="width:254px;height:124px;border-radius:22px;background:#fff;box-shadow:0 0 0 1.5px rgba(58,91,217,.4),0 30px 60px -26px rgba(58,91,217,.4);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#3a5bd9">${icon(g, 30)}<span style="font-size:21px;font-weight:640;color:#0b1220">${b}</span></div>`,
   ).join("");
-  const baseLabel = el("div", "abs eyebrow", root, "Betsee · one stable layer");
-  const lines = [`Models will change.`, `Agents will change.`].map((s) => el("div", "h lg center", root, s));
-  const yours = el("div", "h lg center", root, `Your enterprise boundary <span class="blue">remains yours.</span>`);
-  const close = el("div", "h lg center", root, `Use AI, <span class="soft">without handing control to AI.</span>`);
-  const r = rng(77);
-  const dropMeta = drops.map((_, i) => ({ x: 380 + (i % 6) * 266 + 30, off: r(), speed: 0.5 + r() * 0.3 }));
-  const p = (k) => ctx.phrase("n29", k);
+  const cap = [`Models will change.`, `Agents will change.`].map((x) => el("div", "h lg center", root, x));
+  const yours = el("div", "h xl center", root, `Your enterprise boundary<br/><span class="blue">remains yours.</span>`);
+  yours.style.lineHeight = "1.05";
+  const close = el("div", "h xl center", root, `Use AI, <span class="soft">without handing control to AI.</span>`);
+  close.style.fontSize = "78px";
+  for (let i = 0; i < 5; i++) ctx.cue(p(0) + 0.2 + i * 0.28, "tick");
+  ctx.cue(p(2), "boom");
   return {
-    pre: 0.4,
     update(t) {
-      root.style.opacity = seg(t, -0.4, 0.3);
-      waves.forEach((w, i) => {
-        const top = [];
-        const bottom = [];
-        for (let k = 0; k <= 48; k++) {
-          const x = (k / 48) * 1920;
-          top.push(`${x.toFixed(0)} ${(150 + i * 40 + 60 * wn[i](k * 0.16 + t * (0.5 + i * 0.2))).toFixed(1)}`);
-        }
-        for (let k = 48; k >= 0; k--) {
-          const x = (k / 48) * 1920;
-          bottom.push(`${x.toFixed(0)} ${(330 + i * 30 + 50 * wn[(i + 1) % 3](k * 0.14 - t * 0.5)).toFixed(1)}`);
-        }
-        w.setAttribute("d", `M${top.join(" L")} L${bottom.join(" L")} Z`);
-      });
-      // Above: everything moves. Below: nothing does.
-      const mi = Math.min(3, Math.floor(seg(t, p(0), p(2), ease.linear) * 4));
-      model.innerHTML = `<div class="pill" style="height:58px;font-size:24px;font-weight:640;padding:0 24px 0 10px">${agentMark(40, "model")}${MODELS[mi]}</div>`;
-      put(model, { x: 960, y: 170, o: soft(t, 0, 0.6) });
-      assistants.forEach((a, i) => {
-        const slot = (i + mi) % 3;
-        put(a, { x: 560 + slot * 400 + 24 * Math.sin(t * 0.9 + i), y: 270 + 10 * Math.sin(t * 1.2 + i * 2), o: soft(t, 0.2, 0.6) });
-      });
+      // Split-flap: one flip per beat while models change.
+      const flips = clamp((t - p(0) - 0.1) / 0.28, 0, MODELS.length - 1.001);
+      const n = Math.floor(flips);
+      const f = ease.inOut(flips - n);
+      faceA.innerHTML = badge(MODELS[n]);
+      faceB.innerHTML = badge(MODELS[Math.min(n + 1, MODELS.length - 1)]);
+      faceA.style.transform = `rotateX(${f * 90}deg)`;
+      faceB.style.transform = `rotateX(${(1 - f) * -90}deg)`;
+      faceA.style.opacity = f < 0.5 ? 1 : 0;
+      faceB.style.opacity = f >= 0.5 ? 1 : 0;
+      const away = seg(t, p(2) - 0.2, p(2) + 0.7, ease.inOutQuint);
+      put(flap, { x: 960, y: 250 - away * 120, o: soft(t, 0, 0.6) * (1 - away), blur: away * 10 });
+      // The carousel: agents slide by, swapping places as they change.
       agents.forEach((a, i) => {
-        const slot = (i + (t >= p(1) ? 1 : 0)) % 3;
-        put(a, { x: 420 + slot * 540 + 20 * Math.sin(t * 0.8 + i * 3), y: 360 + 8 * Math.sin(t + i), o: soft(t, 0.4, 0.6) });
+        const slide = (t - p(1)) * 260;
+        const x = ((i * 300 + slide + 2400 * 4) % 2400) - 240;
+        put(a, { x, y: 400 + (i % 2) * 26, o: soft(t, p(1) - 0.3, 0.6) * (1 - away), blur: away * 8 });
       });
-      drops.forEach((d, i) => {
-        const u = (t * dropMeta[i].speed + dropMeta[i].off) % 1;
-        d.setAttribute("cx", dropMeta[i].x);
-        d.setAttribute("cy", lerp(700, 790, u));
-        d.style.opacity = Math.sin(Math.PI * u) * 0.6;
-      });
-      put(base, { x: 960, y: 880, o: soft(t, 0.1, 0.6) });
-      text(baseLabel, { x: 960, y: 790, ax: 0.5, o: soft(t, 0.3, 0.6) });
-      lines.forEach((n, i) => {
-        const st = capState(t, p(i), p(i + 1) - 0.05, { fin: 0.5, fout: 0.3 });
-        text(n, { x: 960, y: 560, ax: 0.5, o: st.o, dy: st.dy, blur: st.blur });
+      top.style.transform = `translateY(${-away * 60}px)`;
+      glow.style.opacity = 1 - away;
+      const lp = seg(t, p(2) - 0.3, p(2) + 0.5, ease.inOutQuint);
+      line.style.transformOrigin = "0 50%";
+      put(line, { x: 960, y: 770, sx: lp, sy: 1, o: lp > 0 ? 1 : 0 });
+      put(base, { x: 960, y: 852, o: soft(t, p(2) + 0.2, 0.7) });
+      cap.forEach((c, i) => {
+        const st = capState(t, p(i), p(i + 1) - 0.05, { fin: 0.4, fout: 0.25 });
+        text(c, { x: 960, y: 560, ax: 0.5, o: st.o, dy: st.dy, blur: st.blur });
       });
       const y = capState(t, p(2), n30.at - 0.1, { fout: 0.4 });
-      text(yours, { x: 960, y: 560, ax: 0.5, o: y.o, dy: y.dy, blur: y.blur });
-      const c = capState(t, n30.at, ctx.length + 0.4, { fout: 0.5 });
-      text(close, { x: 960, y: 560, ax: 0.5, o: c.o, dy: c.dy, blur: c.blur });
+      text(yours, { x: 960, y: 520, ax: 0.5, o: y.o, dy: y.dy, blur: y.blur });
+      const c = capState(t, n30.at, ctx.length + 1, { fout: 0.5 });
+      text(close, { x: 960, y: 520, ax: 0.5, o: c.o, dy: c.dy, blur: c.blur, s: 0.98 + 0.02 * seg(t, n30.at, ctx.length, ease.linear) });
       void n29;
     },
   };

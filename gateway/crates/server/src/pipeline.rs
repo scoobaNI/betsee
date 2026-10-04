@@ -1,10 +1,12 @@
 use crate::{
     MODEL_LABEL,
     auth::{Auth, Claims},
-    connectors::{
-        McpConnector, OpenAiCompatible, SecurityAnalyzer, action_hash, hash, reviewed_tools,
-    },
+    connectors::{McpConnector, OpenAiCompatible, action_hash, hash, reviewed_tools},
+    content,
+    guard::{self, Kind},
+    guardrails::{self, Action, PolicyState, Runtime},
     store::{Store, find_entity, now, text},
+    threats::{self, ThreatSet},
 };
 use anyhow::{Context, Result, bail};
 use betsee_decision::{Engine, Outcome, entity_ref, uid};
@@ -18,8 +20,8 @@ use tokio::sync::Mutex;
 pub struct Gateway {
     pub store: Store,
     pub auth: Auth,
-    pub engine: Engine,
-    pub catalog: Value,
+    /// Cedar engine, controls catalog, guardrails, classifier and signatures; hot-reloaded.
+    pub runtime: Runtime,
     pub llm: OpenAiCompatible,
     pub mcp: McpConnector,
     pub action_gate: Arc<Mutex<()>>,
@@ -43,7 +45,7 @@ pub struct ActionRequest {
     pub mediated: bool,
 }
 
-pub const STAGES: [&str; 15] = [
+pub const STAGES: [&str; 16] = [
     "authenticate",
     "resolve_context",
     "identity",
@@ -51,6 +53,7 @@ pub const STAGES: [&str; 15] = [
     "cedar_authz",
     "information_tier",
     "command_validation",
+    "threat_signatures",
     "budget",
     "ai_analysis",
     "decision",
@@ -121,6 +124,14 @@ pub fn append_span(
 }
 
 impl Gateway {
+    pub fn state(&self) -> Arc<PolicyState> {
+        self.runtime.state()
+    }
+
+    pub fn threats(&self) -> Arc<ThreatSet> {
+        self.runtime.threats()
+    }
+
     pub async fn seed_runtime(&self, policies: &Path) -> Result<()> {
         self.store.seed(policies).await?;
         let entities = self.store.entities().await?;
@@ -141,7 +152,7 @@ impl Gateway {
                 self.store.put_entity(&json!({"uid":{"type":"Betsee::Resource","id":id},"attrs":{"kind":"crm_record","tier":1,"external":false},"parents":[{"type":"Betsee::Tool","id":"crm"}]})).await?;
             }
         }
-        for (index, attachment) in self.catalog["attachments"]
+        for (index, attachment) in self.state().catalog["attachments"]
             .as_array()
             .context("catalog attachments")?
             .iter()
@@ -156,7 +167,7 @@ impl Gateway {
     }
 
     pub async fn engine(&self) -> Result<Engine> {
-        let mut engine = self.engine.clone();
+        let mut engine = self.state().engine.clone();
         for attachment in self.store.list("attachment").await? {
             if attachment["control_id"] == "CTL-RUN-004" {
                 let kind = if attachment["target_type"] == "team" {
@@ -203,12 +214,14 @@ impl Gateway {
                 kind,
                 "token_rejected" | "step_up_failed" | "approval_rejected" | "trace_id_reused"
             );
-            let stage = if kind == "token_rejected" {
-                "authenticate"
-            } else {
-                "identity"
+            let (stage, control) = match kind {
+                "token_rejected" => ("authenticate", "CTL-ID-001"),
+                _ if kind.starts_with("policy_") => ("resolve_context", "CTL-CFG-001"),
+                _ if kind.starts_with("threat_feed") => ("threat_signatures", "CTL-SIG-001"),
+                _ if kind.starts_with("artifact") => ("threat_signatures", "CTL-FILE-002"),
+                _ => ("identity", "CTL-ID-001"),
             };
-            let mut trace = json!({"record_type":"security_observation","trace_id":trace_id,"caller_trace_id":null,"occurred_at":now(),"agent":{"id":"gateway","name":"Gateway security observer","team":"platform"},"session_id":"none","human":{"sub":attributes.get("human_sub").and_then(Value::as_str).unwrap_or("system"),"display_name":"Gateway security observer"},"use_case":{"id":"security-observation","name":"Security event"},"capability":"security.observe","resource":{"type":"security_event","id":kind,"tier":"internal"},"tool":null,"decision":if denied {"deny"} else {"allow"},"deterministic_decision":if denied {"deny"} else {"allow"},"analyzer":{"verdict":"skipped","rationale":"Gateway security mechanism","model_label":MODEL_LABEL},"ai_tightened":false,"control_ids":[],"policy_ids":[],"reasons":[{"policy_id":null,"control_id":"CTL-ID-001","text":message}],"approval_state":"none","latency_ms":0,"executed":false,"output":null,"obligations":[],"step_up_required":false,"spans":[],"execution_context":attributes});
+            let mut trace = json!({"record_type":"security_observation","trace_id":trace_id,"caller_trace_id":null,"occurred_at":now(),"agent":{"id":"gateway","name":"Gateway security observer","team":"platform"},"session_id":"none","human":{"sub":attributes.get("human_sub").and_then(Value::as_str).unwrap_or("system"),"display_name":"Gateway security observer"},"use_case":{"id":"security-observation","name":"Security event"},"capability":"security.observe","resource":{"type":"security_event","id":kind,"tier":"internal"},"tool":null,"decision":if denied {"deny"} else {"allow"},"deterministic_decision":if denied {"deny"} else {"allow"},"analyzer":{"verdict":"skipped","rationale":"Gateway security mechanism","model_label":MODEL_LABEL},"ai_tightened":false,"control_ids":[],"policy_ids":[],"reasons":[{"policy_id":null,"control_id":control,"text":message}],"approval_state":"none","latency_ms":0,"executed":false,"output":null,"obligations":[],"step_up_required":false,"spans":[],"execution_context":attributes});
             append_span(
                 &mut trace,
                 stage,
@@ -302,13 +315,15 @@ impl Gateway {
     pub async fn decide_action(
         &self,
         claims: &Claims,
-        request: ActionRequest,
+        mut request: ActionRequest,
         requested_trace: &str,
         approved: bool,
         step_up: bool,
         existing_trace: Option<Value>,
     ) -> Result<Value> {
         let started = Instant::now();
+        let state = self.state();
+        let threat_set = self.threats();
         let (trace_id, caller_trace_id) = if let Some(trace) = &existing_trace {
             (
                 text(trace, "trace_id").into(),
@@ -326,6 +341,7 @@ impl Gateway {
         let session = self.store.get("session", &request.session_id).await?;
         let agent = find_entity(&entities, "Agent", &claims.azp).cloned();
         let mut trace = json!({"trace_id":trace_id,"caller_trace_id":caller_trace_id,"occurred_at":now(),"agent":agent_ref(agent.as_ref(),&claims.azp),"session_id":request.session_id,"human":session.as_ref().map(|s|s["human"].clone()).unwrap_or(json!({"sub":"unknown","display_name":"Unknown"})),"use_case":session.as_ref().map(|s|s["use_case"].clone()).unwrap_or(json!({"id":"unknown","name":"Unknown"})),"capability":request.capability,"resource":request.resource,"tool":null,"decision":"deny","deterministic_decision":"deny","analyzer":{"verdict":"skipped","rationale":"Deterministic deny is not negotiable","model_label":MODEL_LABEL},"ai_tightened":false,"control_ids":[],"policy_ids":[],"reasons":[],"approval_state":"none","latency_ms":0,"executed":false,"output":null,"obligations":[],"step_up_required":false,"spans":[],"execution_context":{}});
+        trace["analyzer"]["model_label"] = json!(guard::label(&state));
         let original_authentication = existing_trace
             .as_ref()
             .and_then(|previous| previous["spans"].as_array())
@@ -380,6 +396,9 @@ impl Gateway {
         let use_case = find_entity(&entities, "UseCase", use_case_id)
             .context("use case missing")?
             .clone();
+        let (profile_name, profile) = state.guardrails.profile_for(use_case_id);
+        let profile_name = profile_name.to_owned();
+        let profile = profile.clone();
         let resource_kind = match request.capability.as_str() {
             "agent.message" => "Agent",
             "llm.complete" => "Model",
@@ -428,7 +447,80 @@ impl Gateway {
             }
         }
         let rate=sqlx::query_scalar::<_,i64>("SELECT count(DISTINCT trace_id) FROM audit_records WHERE agent_id=$1 AND occurred_at>now()-interval '60 seconds' AND occurred_at>COALESCE((SELECT (data->>'released_at')::timestamptz FROM gateway_objects WHERE kind='agent_release' AND id=$1),'-infinity'::timestamptz)").bind(&claims.azp).fetch_one(&self.store.pool).await?+1;
-        let mut context = json!({"session":entity_ref("AgentSession",&request.session_id),"capability":entity_ref("Capability",&request.capability),"now":Utc::now().timestamp(),"costCents":10,"actionsLastMinute":rate,"approval":{"granted":approved,"stepUp":step_up}});
+        let mut context = json!({"session":entity_ref("AgentSession",&request.session_id),"capability":entity_ref("Capability",&request.capability),"now":Utc::now().timestamp(),"costCents":0,"actionsLastMinute":rate,"approval":{"granted":approved,"stepUp":step_up}});
+        // CTL-RUN-001/CTL-RUN-005: the worst case this action may cost, reserved before it runs.
+        let mut reserve_cents = state.guardrails.action_cost(&request.capability);
+        let mut model_facts = Value::Null;
+        if request.capability == "llm.complete" {
+            let model = state
+                .guardrails
+                .model(&request.resource.id)
+                .filter(|model| model.enabled);
+            context["modelAllowed"] = json!(model.is_some());
+            if let Some(model) = model {
+                // CTL-IN-001/CTL-IN-002 on the agent-to-model path: the profile decides what of the
+                // prompt a model may see; redacted text replaces the prompt before anything else
+                // (trace, approval, connector) reads it.
+                let prompt = guard::prompt_of(&request.parameters);
+                let findings = content::detect_all(&prompt, &[]);
+                let blocking: Vec<&str> = findings
+                    .iter()
+                    .filter(|f| profile.input_action(f.class) == Action::Block)
+                    .map(|f| f.class)
+                    .collect();
+                let redact: Vec<&str> = findings
+                    .iter()
+                    .filter(|f| profile.input_action(f.class) == Action::Redact)
+                    .map(|f| f.class)
+                    .collect();
+                let (redacted, applied) = content::redact(&prompt, &findings, &redact);
+                if !applied.is_empty() && request.parameters["prompt"].is_string() {
+                    request.parameters["prompt"] = json!(redacted);
+                }
+                let mut blocking = blocking;
+                blocking.sort_unstable();
+                blocking.dedup();
+                context["detected"] = json!(blocking);
+                let prompt_tokens = guardrails::estimate_tokens(&prompt);
+                let max_output = request.parameters["max_tokens"]
+                    .as_u64()
+                    .unwrap_or(model.max_output_tokens)
+                    .clamp(1, model.max_output_tokens);
+                let tokens = prompt_tokens + max_output;
+                // A local model is reserved at 50 tokens a second of compute.
+                reserve_cents =
+                    guardrails::model_cost(model, prompt_tokens, max_output, tokens as f64 / 50.0);
+                context["tokens"] = json!(tokens);
+                model_facts = json!({"model":model.id,"provider":model.provider,"label":model.label,"prompt_tokens_estimate":prompt_tokens,"max_output_tokens":max_output,"reserved_tokens":tokens,"reserved_cents":(reserve_cents*1000.0).round()/1000.0,"prompt_redactions":applied.iter().map(|f| json!({"class":f.class,"masked":f.masked})).collect::<Vec<_>>(),"prompt_blocked_classes":context["detected"]});
+            } else {
+                model_facts = json!({"model":request.resource.id,"allowed":false});
+            }
+        }
+        context["costCents"] = json!(reserve_cents.ceil() as i64);
+        // CTL-SIG-001 and CTL-SUP-001: known-exploit signatures over the action's data.
+        let action_text = guard::strings(&request.parameters);
+        let mut hits = threat_set.scan_text("parameters", &action_text);
+        if request.capability == "shell.exec"
+            && let Some(command) = request.parameters["command"].as_str()
+        {
+            hits.extend(threat_set.scan_text("command", command));
+        }
+        let mut model_check = Value::Null;
+        if request.capability == "model.load" {
+            match threats::check_model(&request.parameters, &state.guardrails.supply_chain, &threat_set) {
+                Ok(check) => {
+                    context["modelCheck"] = check.cedar();
+                    model_check = serde_json::to_value(&check)?;
+                    hits.extend(check.hits);
+                }
+                Err(error) => {
+                    model_check = json!({"error":error.to_string()});
+                }
+            }
+        }
+        threats::dedup(&mut hits);
+        context["threat"] = json!({"block":hits.iter().any(|h| h.action == "block"),"review":hits.iter().any(|h| h.action == "review")});
+        trace["guardrails"] = json!({"profile":profile_name,"policy_version":state.version,"signatures":hits,"model_check":model_check,"model_call":model_facts});
         if let Some(amount) = request.parameters["amount_cents"].as_i64() {
             context["amountCents"] = json!(amount);
         }
@@ -496,7 +588,7 @@ impl Gateway {
                 }
             }
         }
-        trace["execution_context"] = json!({"organization":{"id":"acme","name":"Acme Logistics"},"human":trace["human"],"agent":trace["agent"],"use_case":use_case,"session":session,"requested_action":request,"information_tier":trace["resource"]["tier"],"delegated_capability":session_entity["attrs"]["delegated"],"approval_state":{"granted":approved,"step_up":step_up},"budget_context":{"limit":session_entity["attrs"]["budgetCents"],"used":session_entity["attrs"]["spentCents"],"cost_cents":10,"actions_last_minute":rate}});
+        trace["execution_context"] = json!({"organization":{"id":"acme","name":"Acme Logistics"},"human":trace["human"],"agent":trace["agent"],"use_case":use_case,"session":session,"requested_action":request,"information_tier":trace["resource"]["tier"],"delegated_capability":session_entity["attrs"]["delegated"],"approval_state":{"granted":approved,"step_up":step_up},"budget_context":{"limit":session_entity["attrs"]["budgetCents"],"used":session_entity["attrs"]["spentCents"],"cost_cents":context["costCents"],"tokens":context.get("tokens").cloned().unwrap_or(Value::Null),"token_budget":session_entity["attrs"].get("tokenBudget").cloned().unwrap_or(Value::Null),"tokens_used":session_entity["attrs"].get("tokensUsed").cloned().unwrap_or(Value::Null),"actions_last_minute":rate},"guardrails":trace["guardrails"]});
         let engine = self.engine().await?;
         measure_span(
             &mut trace,
@@ -524,7 +616,7 @@ impl Gateway {
             &mut trace,
             &deterministic,
             &engine,
-            &self.catalog,
+            &state.catalog,
             &ReasonContext {
                 session: &session_entity,
                 use_case: &use_case,
@@ -536,10 +628,12 @@ impl Gateway {
         let denied_stage = deterministic
             .deny
             .then(|| first_denied_stage(&deterministic));
-        let last_stage = denied_stage.map_or(7, |stage| stage_index(stage).max(7));
+        let budget_stage = stage_index("budget");
+        let last_stage =
+            denied_stage.map_or(budget_stage, |stage| stage_index(stage).max(budget_stage));
         for stage in &STAGES[2..=last_stage] {
             let denied = denied_stage == Some(*stage);
-            if stage_index(stage) > 7 && !denied {
+            if stage_index(stage) > budget_stage && !denied {
                 continue;
             }
             let applicable = match *stage {
@@ -547,7 +641,20 @@ impl Gateway {
                 "ai_analysis" | "approval" | "step_up" => false,
                 _ => true,
             };
-            let stage_attributes = json!({"cedar_authorization":"single pure evaluation","effective":session["effective"],"descriptor_event_trace_id":trace.get("descriptor_event_trace_id").cloned().unwrap_or(Value::Null)});
+            let mut stage_attributes = json!({"cedar_authorization":"single pure evaluation","effective":session["effective"],"descriptor_event_trace_id":trace.get("descriptor_event_trace_id").cloned().unwrap_or(Value::Null)});
+            match *stage {
+                "threat_signatures" => {
+                    stage_attributes["signatures"] = trace["guardrails"]["signatures"].clone();
+                    stage_attributes["model_check"] = trace["guardrails"]["model_check"].clone();
+                    stage_attributes["signature_set"] = json!(threat_set.len());
+                }
+                "budget" => {
+                    stage_attributes["cost_cents"] = context["costCents"].clone();
+                    stage_attributes["tokens"] = context.get("tokens").cloned().unwrap_or(Value::Null);
+                    stage_attributes["model_call"] = trace["guardrails"]["model_call"].clone();
+                }
+                _ => {}
+            }
             append_span(
                 &mut trace,
                 stage,
@@ -590,22 +697,29 @@ impl Gateway {
                 "ai_analysis",
                 "skipped",
                 "Deterministic deny cannot be loosened",
-                json!({"model_label":MODEL_LABEL}),
+                json!({"model_label":guard::label(&state)}),
                 0.0,
             );
         } else {
             let analysis_started_at = now();
             let analysis_start = Instant::now();
-            match self.llm.analyze(&json!({"action":request,"session_untrusted_input":session_entity["attrs"]["untrustedInput"]})).await {
-                Ok(analysis)=>{
-                    trace["analyzer"]=analysis.clone();
-                    context["analysis"]=json!({"verdict":analysis["verdict"],"analyzer":MODEL_LABEL});
-                    final_outcome=deterministic.clone().tighten(evaluate(context.clone(),entities.clone()));
-                },
-                Err(error)=>{
-                    trace["analyzer"]=json!({"verdict":"unavailable","rationale":format!("Analyzer unavailable: {error}; execution requires review"),"model_label":MODEL_LABEL});
-                    final_outcome.approval=true; final_outcome.control_ids.insert("CTL-AI-001".into()); final_outcome.reasons.insert("analyzer unavailable; human review required".into());
-                },
+            let semantic = self
+                .semantic(&state, &profile_name, &profile, &action_text, Kind::Action)
+                .await;
+            trace["analyzer"] = semantic.record.clone();
+            context["analysis"] = json!({"verdict":semantic.verdict,"analyzer":guard::label(&state),"score":(semantic.score*100.0).round() as i64});
+            final_outcome = deterministic
+                .clone()
+                .tighten(evaluate(context.clone(), entities.clone()));
+            if semantic.classifier_raised {
+                final_outcome.control_ids.insert("CTL-AI-002".into());
+            }
+            if semantic.judge_unavailable {
+                final_outcome.approval = true;
+                final_outcome.control_ids.insert("CTL-AI-001".into());
+                final_outcome
+                    .reasons
+                    .insert("analyzer unavailable; human review required".into());
             }
             final_outcome = engine.deciding_outcome(final_outcome);
             let tightened = final_outcome.deny != deterministic.deny
@@ -640,7 +754,7 @@ impl Gateway {
             &mut trace,
             &final_outcome,
             &engine,
-            &self.catalog,
+            &state.catalog,
             &ReasonContext {
                 session: &session_entity,
                 use_case: &use_case,
@@ -752,17 +866,19 @@ impl Gateway {
         let execute_started_at = now();
         let execute_start = Instant::now();
         let runtime_tool_name = trace["tool"]["name"].clone();
+        let mut usage = (0u64, 0u64);
         let output = if delegated {
             // CTL-RT-001: the agent runtime executes after this allow; nothing runs here.
             Ok(
                 json!({"tier":tier(scope_tier.unwrap_or(0).max(resource.as_ref().and_then(|r|r["attrs"]["tier"].as_i64()).unwrap_or(0))),"status":"delegated","executed_by":"agent runtime","origin":"internal"}),
             )
         } else {
-            self.execute(&request, tool.as_deref(), &trace_id, &entities)
+            self.execute(&request, tool.as_deref(), &trace_id, &entities, &mut usage)
                 .await
         };
+        let execute_seconds = execute_start.elapsed().as_secs_f64();
         match output {
-            Ok(output) => {
+            Ok(mut output) => {
                 trace["executed"] = json!(true);
                 // A new file the runtime writes after allow joins the catalogue at its folder's
                 // tier, so the agent and its human can read it back through the Gateway.
@@ -799,6 +915,39 @@ impl Gateway {
                 );
                 let output_started_at = now();
                 let output_started = Instant::now();
+                // CTL-OUT-002 and CTL-AI-002 on what came back.
+                let mut filter = guard::filter_output(&profile, &threat_set, &mut output);
+                if state.guardrails.semantic.scan_tool_output && !delegated {
+                    let text = guard::strings(&output);
+                    let verdict = self
+                        .semantic(&state, &profile_name, &profile, &text, Kind::Output)
+                        .await;
+                    if verdict.verdict != "clean" {
+                        filter.untrusted = true;
+                    }
+                    filter.semantic = Some(json!({"score":verdict.record["score"],"verdict":verdict.verdict,"rationale":verdict.record["rationale"]}));
+                }
+                // CTL-RUN-001/CTL-RUN-005: charge what the action actually cost.
+                let (charge_cents, used_tokens) = if request.capability == "llm.complete"
+                    && let Some(model) = state.guardrails.model(&request.resource.id)
+                {
+                    let prompt_tokens = if usage.0 > 0 {
+                        usage.0
+                    } else {
+                        guardrails::estimate_tokens(&guard::prompt_of(&request.parameters))
+                    };
+                    let completion_tokens = if usage.1 > 0 {
+                        usage.1
+                    } else {
+                        guardrails::estimate_tokens(&guard::strings(&output["completion"]["choices"]))
+                    };
+                    (
+                        guardrails::model_cost(model, prompt_tokens, completion_tokens, execute_seconds),
+                        prompt_tokens + completion_tokens,
+                    )
+                } else {
+                    (state.guardrails.action_cost(&request.capability), 0)
+                };
                 let catalog_tier = resource
                     .as_ref()
                     .and_then(|resource| resource["attrs"]["tier"].as_i64())
@@ -843,11 +992,30 @@ impl Gateway {
                         }
                     }
                 }
-                next["attrs"]["spentCents"] =
-                    json!(next["attrs"]["spentCents"].as_i64().unwrap_or(0) + 10);
-                self.store.put_entity(&next).await?;
+                if filter.untrusted {
+                    next["attrs"]["untrustedInput"] = json!(true);
+                }
                 let mut session = session.clone();
+                let exact = session["budget"]["used_exact"]
+                    .as_f64()
+                    .unwrap_or_else(|| next["attrs"]["spentCents"].as_f64().unwrap_or(0.0))
+                    + charge_cents;
+                next["attrs"]["spentCents"] = json!(exact.ceil() as i64);
+                let tokens_used = next["attrs"]["tokensUsed"].as_i64().unwrap_or(0) + used_tokens as i64;
+                if next["attrs"].get("tokenBudget").is_some() || used_tokens > 0 {
+                    next["attrs"]["tokensUsed"] = json!(tokens_used);
+                }
+                self.store.put_entity(&next).await?;
                 session["budget"]["used"] = next["attrs"]["spentCents"].clone();
+                session["budget"]["used_exact"] = json!((exact * 1000.0).round() / 1000.0);
+                session["budget"]["tokens_used"] = json!(tokens_used);
+                if request.capability == "llm.complete" {
+                    let entry = &mut session["budget"]["by_model"][&request.resource.id];
+                    entry["calls"] = json!(entry["calls"].as_i64().unwrap_or(0) + 1);
+                    entry["tokens"] = json!(entry["tokens"].as_i64().unwrap_or(0) + used_tokens as i64);
+                    entry["cents"] = json!(((entry["cents"].as_f64().unwrap_or(0.0) + charge_cents) * 1000.0).round() / 1000.0);
+                }
+                trace["cost"] = json!({"cents":(charge_cents*1000.0).round()/1000.0,"tokens":used_tokens,"seconds":(execute_seconds*1000.0).round()/1000.0,"session_used_cents":session["budget"]["used_exact"],"session_tokens_used":tokens_used});
                 self.store
                     .put("session", &request.session_id, &session)
                     .await?;
@@ -861,19 +1029,28 @@ impl Gateway {
                         .as_array_mut()
                         .unwrap()
                         .push(json!("CTL-OUT-001"));
+                } else if !filter.withheld.is_empty() {
+                    trace["decision"] = json!("deny");
+                    trace["reasons"].as_array_mut().unwrap().push(json!({"policy_id":null,"control_id":"CTL-OUT-002","text":format!("the result carried data this use case's profile blocks ({}); it was withheld", filter.withheld.join(", "))}));
+                    trace["control_ids"]
+                        .as_array_mut()
+                        .unwrap()
+                        .push(json!("CTL-OUT-002"));
                 } else {
                     trace["output"] = output;
                 }
+                trace["output_filter"] = filter.to_json();
+                let output_attributes = json!({"taint":next["attrs"]["taint"],"untrusted_input":next["attrs"]["untrustedInput"],"output_tier":tier(output_tier),"filter":trace["output_filter"],"cost":trace["cost"]});
                 append_span(
                     &mut trace,
                     "output_controls",
-                    if output_tier > ceiling {
+                    if output_tier > ceiling || !filter.withheld.is_empty() {
                         "denied"
                     } else {
                         "passed"
                     },
-                    "Output tier, taint and untrusted-input provenance enforced",
-                    json!({"taint":next["attrs"]["taint"],"untrusted_input":next["attrs"]["untrustedInput"],"output_tier":tier(output_tier)}),
+                    "Output tier, taint, content filter and untrusted-input provenance enforced",
+                    output_attributes,
                     output_started.elapsed().as_secs_f64() * 1000.0,
                 );
                 measure_span(
@@ -975,6 +1152,7 @@ impl Gateway {
         tool: Option<&str>,
         trace_id: &str,
         entities: &Value,
+        usage: &mut (u64, u64),
     ) -> Result<Value> {
         if let Some(tool) = tool
             && reviewed_tools()
@@ -988,8 +1166,33 @@ impl Gateway {
             return self.mcp.call(tool,json!({"resource_id":request.resource.id,"capability":request.capability,"parameters":request.parameters,"trace_id":trace_id,"expected_descriptor_hash":pinned}),pinned).await;
         }
         match request.capability.as_str() {
-            "llm.complete" => Ok(
-                json!({"tier":"public","model_label":MODEL_LABEL,"completion":self.llm.complete(json!([{"role":"user","content":request.parameters.get("prompt").or_else(||request.parameters.get("content")).unwrap_or(&Value::Null)}])).await?}),
+            "llm.complete" => {
+                let max_tokens = self
+                    .state()
+                    .guardrails
+                    .model(&request.resource.id)
+                    .map(|model| {
+                        request.parameters["max_tokens"]
+                            .as_u64()
+                            .unwrap_or(model.max_output_tokens)
+                            .clamp(1, model.max_output_tokens)
+                    });
+                let completion = self
+                    .llm
+                    .complete_with(
+                        &request.resource.id,
+                        json!([{"role":"user","content":guard::prompt_of(&request.parameters)}]),
+                        max_tokens,
+                    )
+                    .await?;
+                *usage = (
+                    completion["usage"]["prompt_tokens"].as_u64().unwrap_or(0),
+                    completion["usage"]["completion_tokens"].as_u64().unwrap_or(0),
+                );
+                Ok(json!({"tier":"public","model_label":MODEL_LABEL,"model":request.resource.id,"completion":completion}))
+            }
+            "model.load" => Ok(
+                json!({"tier":"public","status":"admitted","origin":"external","repo":request.parameters["repo"],"revision":request.parameters["revision"],"files":request.parameters["files"],"note":"Demo stack: the Gateway records the admitted model; no weights are downloaded."}),
             ),
             "memory.write" => {
                 let session = find_entity(entities, "AgentSession", &request.session_id)
@@ -1280,8 +1483,15 @@ fn control_stage(control: &str) -> &'static str {
             "information_tier"
         }
         _ if control.starts_with("CTL-EXEC") => "command_validation",
+        _ if control.starts_with("CTL-SIG")
+            || control.starts_with("CTL-SUP")
+            || control.starts_with("CTL-MODEL")
+            || control == "CTL-IN-001" =>
+        {
+            "threat_signatures"
+        }
         _ if control.starts_with("CTL-TOOL") => "connector",
-        "CTL-RUN-001" | "CTL-RUN-002" => "budget",
+        "CTL-RUN-001" | "CTL-RUN-002" | "CTL-RUN-005" => "budget",
         _ if control.starts_with("CTL-AI") => "ai_analysis",
         _ => "cedar_authz",
     }

@@ -255,6 +255,7 @@ dependencies = [
  "betsee-decision",
  "chrono",
  "jsonwebtoken",
+ "regex",
  "reqwest",
  "rmcp",
  "serde",

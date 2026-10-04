@@ -47,6 +47,17 @@ http://auth.betsee.localhost {
 	reverse_proxy keycloak:8080
 }
 
+http://feed.betsee.localhost {
+	root * /srv/threat-feed
+	file_server browse
+}
+
+# The threat feed as the Gateway reaches it inside the Compose network.
+http://:8090 {
+	root * /srv/threat-feed
+	file_server
+}
+
 http://:80 {
 	respond /healthz "ok" 200
 }

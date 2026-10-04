@@ -36,6 +36,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { to: '/determinism', label: 'Determinism', icon: 'cpu', match: /^\/determinism/, hint: 'Non-deterministic agents, deterministic decisions', tint: ['#4a5568', '#101828'] },
       { to: '/coverage', label: 'Coverage', icon: 'shield', match: /^\/coverage/, hint: 'OWASP agentic risks and evidence', tint: ['#5f8fd0', '#1f4f99'] },
+      { to: '/guardrails', label: 'Guardrails', icon: 'shield-check', match: /^\/guardrails/, hint: 'Profiles, playground, threat feed, budgets', tint: ['#7c9cc4', '#2e4d78'] },
     ],
   },
 ];

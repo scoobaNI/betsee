@@ -36,6 +36,25 @@ export type Summary = Schemas['Summary'];
 export type SecurityEvent = Schemas['SecurityEvent'];
 export type ToolDescriptorChanged = Schemas['ToolDescriptorChanged'];
 
+export type Hit = Schemas['Hit'];
+export type MaskedValue = Schemas['MaskedValue'];
+export type TraceGuardrails = Schemas['TraceGuardrails'];
+export type ActionCost = Schemas['ActionCost'];
+export type OutputFilter = Schemas['OutputFilter'];
+export type SummaryGuardrails = Schemas['SummaryGuardrails'];
+export type GuardrailAction = Schemas['GuardrailFinding']['action'];
+export type GuardrailProfile = Schemas['GuardrailProfile'];
+export type ModelPrice = Schemas['ModelPrice'];
+export type ClassifierMetric = Schemas['ClassifierMetric'];
+export type ThreatSignature = Schemas['Signature'];
+export type GuardrailsStatus = Schemas['GuardrailsStatus'];
+export type EvaluateRequest = Schemas['GuardrailEvaluate'];
+export type Evaluation = Schemas['GuardrailEvaluation'];
+export type EvaluationDecision = Evaluation['decision'];
+export type GuardrailFinding = Schemas['GuardrailFinding'];
+export type ArtifactScanRequest = Schemas['ArtifactScanRequest'];
+export type ArtifactScan = Schemas['ArtifactScan'];
+
 export interface ListOf<T> {
   items: T[];
 }

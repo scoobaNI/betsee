@@ -156,7 +156,11 @@ export function cut(name, rect = null, parent = null, cls = "") {
   node.dataset.h = r.h;
   return node;
 }
-export const rectOf = (name, part) => capture(name).rects[part];
+export const rectOf = (name, part, optional = false) => {
+  const r = capture(name).rects[part];
+  if (!r && !optional) throw new Error(`capture ${name} has no part ${part}`);
+  return r;
+};
 
 // Icons: the Director's own glyph set (Remix fill, from its icon.tsx) and the ecosystem's Streamline
 // subset (packages/ui/src/icons.json), both read from the repository at load time.
@@ -317,6 +321,31 @@ export class Screen {
     this.ty = this.h / 2 - (py + ph / 2) * k;
     for (const page of this.pages.values()) page.style.transform = `translate(${this.tx}px, ${this.ty}px) scale(${k})`;
   }
+  /**
+   * A live page: the Director recorded frame by frame (film/capture/live.mjs). frame(name, t) shows
+   * the frame for t seconds into the clip; the stage waits for it to decode before capturing.
+   */
+  live(name, clip) {
+    // The page box is in page coordinates; the recorded viewport sits at the clip's scroll offset.
+    const page = el("div", "page", this.viewNode);
+    Object.assign(page.style, { width: `${clip.width}px`, height: `${clip.scroll + clip.height}px` });
+    const img = el("img", "", page);
+    Object.assign(img.style, { position: "absolute", left: "0", top: `${clip.scroll}px`, width: `${clip.width}px`, height: `${clip.height}px` });
+    this.pages.set(name, page);
+    this.clips = this.clips ?? new Map();
+    this.clips.set(name, { img, clip, src: "" });
+    return page;
+  }
+  frame(name, seconds) {
+    const c = this.clips.get(name);
+    const n = Math.min(c.clip.frames, Math.max(1, Math.floor(seconds * c.clip.fps) + 1));
+    const src = `../captures/live/${name}/${String(n).padStart(4, "0")}.jpg`;
+    if (c.src !== src) {
+      c.src = src;
+      c.img.src = src;
+      window.__pending?.push(c.img.decode().catch(() => {}));
+    }
+  }
   show(name, o = 1) {
     for (const [key, page] of this.pages) {
       if (key === name) {
@@ -340,23 +369,61 @@ export class Screen {
     const H = this.h + BAR;
     return [this.at.x + (lx - this.w / 2) * this.at.s, this.at.y + (ly - H / 2) * this.at.s];
   }
+  /** Dims the page around a page rectangle {x, y, w, h, radius}; o 0..1. */
+  spotlight(rect, o) {
+    this.spot = this.spot ?? el("div", "spot", this.viewNode);
+    this.spot.style.visibility = rect && o > 0.002 ? "visible" : "hidden";
+    if (!rect) return;
+    const pad = 10;
+    Object.assign(this.spot.style, {
+      left: `${this.tx + rect.x * this.k - pad}px`,
+      top: `${this.ty + rect.y * this.k - pad}px`,
+      width: `${rect.w * this.k + 2 * pad}px`,
+      height: `${rect.h * this.k + 2 * pad}px`,
+      borderRadius: `${(rect.radius || 12) * this.k + pad}px`,
+      boxShadow: `0 0 0 4000px rgba(246, 247, 250, ${0.8 * o})`,
+    });
+  }
+  /** A page rectangle {x, y, w, h} as a stage rectangle [x, y, w, h]. */
+  mapRect({ x, y, w, h }) {
+    const [ax, ay] = this.map(x, y);
+    const [bx, by] = this.map(x + w, y + h);
+    return [ax, ay, bx - ax, by - ay];
+  }
 }
 
-/** A callout: a dot on a real element, a hairline, and a label that names what it is. */
+/**
+ * A callout: a label that names a real element, joined to it by a hairline. The anchor is a point
+ * [x, y] (a dot) or a stage rectangle [x, y, w, h], which gets a frame around the exact element and
+ * the hairline leaves from the frame's side facing the label. size "sm" is a one-line tag.
+ */
 export class Callout {
-  constructor(parent, svg, { title, sub = "", mono = "" }) {
-    this.node = el("div", "callout", parent, `<b>${title}</b>${sub ? `<span>${sub}</span>` : ""}${mono ? `<span class="mono">${mono}</span>` : ""}`);
+  constructor(parent, svg, { title, sub = "", mono = "", size = "" }) {
+    this.node = el("div", `callout ${size}`, parent, `<b>${title}</b>${sub ? `<span>${sub}</span>` : ""}${mono ? `<span class="mono">${mono}</span>` : ""}`);
+    this.frame = svgEl("rect", { rx: 10, fill: "rgba(58,91,217,.06)", stroke: "#3a5bd9", "stroke-width": 1.8 }, svg);
     this.line = svgEl("line", { stroke: "#3a5bd9", "stroke-width": 1.6, "stroke-linecap": "round" }, svg);
     this.halo = svgEl("circle", { r: 13, fill: "rgba(58,91,217,.14)" }, svg);
     this.dot = svgEl("circle", { r: 5.5, fill: "#3a5bd9", stroke: "#fff", "stroke-width": 2 }, svg);
   }
-  /** anchor: the element; at: the label's centre; p: 0..1 reveal. */
+  /** anchor: [x, y] or [x, y, w, h]; at: the label's centre; p: 0..1 reveal. */
   update(anchor, at, p) {
     const w = this.node.offsetWidth || 260;
     const h = this.node.offsetHeight || 60;
-    const e = ease.soft(clamp(p));
-    const [ax, ay] = anchor;
     const [lx, ly] = at;
+    const boxed = anchor.length === 4;
+    let ax = anchor[0];
+    let ay = anchor[1];
+    if (boxed) {
+      // The frame settles onto the element from a little further out.
+      const pad = 7 + (1 - ease.out(clamp(p * 2))) * 10;
+      const [x, y, bw, bh] = [anchor[0] - pad, anchor[1] - pad, anchor[2] + 2 * pad, anchor[3] + 2 * pad];
+      Object.entries({ x, y, width: bw, height: bh }).forEach(([k, v]) => this.frame.setAttribute(k, v));
+      this.frame.style.opacity = clamp(p * 3);
+      // Level with the label where the frame allows it, so the hairline runs straight.
+      if (lx - w / 2 > x + bw) [ax, ay] = [x + bw, clamp(ly, y + 10, y + bh - 10)];
+      else if (lx + w / 2 < x) [ax, ay] = [x, clamp(ly, y + 10, y + bh - 10)];
+      else [ax, ay] = [clamp(lx, x + 10, x + bw - 10), ly > y + bh ? y + bh : y];
+    } else this.frame.style.opacity = 0;
     // The hairline meets the label on the side facing the anchor.
     const ex = Math.abs(ax - lx) > w / 2 ? lx + (ax > lx ? w / 2 : -w / 2) : ax;
     const ey = Math.abs(ax - lx) > w / 2 ? ly : ly + (ay > ly ? h / 2 : -h / 2);
@@ -371,12 +438,12 @@ export class Callout {
       c.setAttribute("cy", ay);
       c.style.opacity = clamp(p * 3);
     }
-    this.halo.setAttribute("r", 13 * (0.6 + 0.4 * clamp(p * 2)));
+    this.dot.setAttribute("r", boxed ? 4 : 5.5);
+    this.halo.setAttribute("r", boxed ? 0 : 13 * (0.6 + 0.4 * clamp(p * 2)));
     const lp = clamp((p - 0.25) / 0.75);
     this.node.style.transform = `translate(${lx - w / 2}px, ${ly - h / 2 + (1 - ease.soft(lp)) * 10}px)`;
     this.node.style.opacity = ease.soft(lp);
     this.node.style.visibility = lp > 0 ? "visible" : "hidden";
-    void e;
   }
 }
 

@@ -41,6 +41,12 @@ primitives:
   - id: PRM-AI
     name: AI analysis that only tightens
     summary: An analyzer (mock model in the demo) can raise allow to require_approval or deny and can never lower a deterministic decision.
+  - id: PRM-GUARD
+    name: Content guardrails (detect, redact, classify)
+    summary: Validated detectors and an in-Gateway injection classifier inspect what people type, what agents send and what models and tools return; a guardrail profile per use case decides block, redact or record.
+  - id: PRM-THREAT
+    name: Threat signatures + model supply chain
+    summary: Signatures of exploits that worked against AI systems, from a shipped baseline and an external feed, are matched against requests, files and model artifacts; models are admitted only pinned, from trusted publishers, in formats that cannot run code.
   - id: PRM-TRACE
     name: Trace + audit
     summary: Every ActionRequest is a trace whose pipeline stages are spans, ending in an append-only audit row and a security event.
@@ -279,14 +285,133 @@ controls:
         forbid-input-iban,
         forbid-input-pesel,
         forbid-input-secret,
+        forbid-input-email,
+        forbid-input-phone,
         forbid-input-resource-above-tier,
+        forbid-prompt-sensitive-data,
         forbid-file-payment-card,
         forbid-file-iban,
         forbid-file-pesel,
         forbid-file-secret,
         forbid-file-resource-above-tier,
       ]
-    mechanism: POST /api/v1/chat/inputs runs deterministic detectors that validate each match (Luhn check, IBAN mod-97, PESEL checksum and birth date, known key formats and PEM private-key blocks, catalogued resource names) and passes only the detected classes to Cedar. The mock analyzer may only add a deny. Every check is an audit row and a trace that stores masked findings, never the matched value.
+    mechanism: POST /api/v1/chat/inputs runs deterministic detectors that validate each match (Luhn check, IBAN mod-97, PESEL checksum and birth date, known key formats and PEM private-key blocks, email and phone formats, catalogued resource names) and passes to Cedar the classes the use case's guardrail profile (guardrails.yaml) marks as blocking. Semantic analysis may only add a deny. Every check is an audit row and a trace that stores masked findings, never the matched value.
+
+  - id: CTL-IN-002
+    name: Redaction by sensitivity profile
+    primitive: PRM-GUARD
+    explanation: Personal data that a use case may handle but a model should not see is replaced with [REDACTED:<CLASS>] before the message reaches the agent. Each use case runs under a strictness profile (strict, balanced, permissive) that says, per detector, block, redact or record.
+    asi: [ASI01, ASI06]
+    attach: [organization, use_case]
+    mode: baseline
+    enforced_by: gateway
+    mechanism: guardrails.yaml profiles map each detector class to block, redact or allow; assignments map use cases to profiles. The input check returns forwarded_text with the redactions applied, and the agent runtime sends only that text. The trace keeps the masked findings and the redaction count.
+
+  - id: CTL-OUT-002
+    name: Output content filter
+    primitive: PRM-GUARD
+    explanation: What a model or a tool returns is checked before the agent gets it. Card numbers, IBANs, PESEL numbers, keys, email addresses and phone numbers are redacted or the result is withheld, per the use case's profile; known exfiltration constructs such as data-carrying markdown images are removed.
+    asi: [ASI01, ASI02, ASI06]
+    attach: [organization, use_case]
+    mode: baseline
+    enforced_by: gateway
+    mechanism: The output_controls stage walks every string in the connector result, applies the profile's output actions and the output-target threat signatures, and records what it changed in the span.
+
+  - id: CTL-AI-002
+    name: Semantic injection classifier
+    primitive: PRM-AI
+    explanation: An injection and jailbreak classifier trained on Polish and English attacks runs inside the Gateway on every message, every action's data and every tool result. It reads through leetspeak, spaced letters, homoglyphs and base64, and explains which words drove its score. Its score is compared with the profile's adherence thresholds.
+    asi: [ASI01, ASI06, ASI07]
+    attach: [organization, use_case]
+    mode: baseline
+    enforced_by: gateway
+    mechanism: Logistic regression over hashed word, word-pair and character n-grams plus intent features from multilingual lexicons (policies/models/injection-classifier.json, trained by tools/semantic-classifier). Input at or above block_at is refused; at or above review_at the session is marked as holding untrusted input. An action at or above review_at needs an approval. A tool result at or above review_at marks the session as holding untrusted input. No model server and no network call; a few milliseconds per check.
+
+  - id: CTL-SIG-001
+    name: Known-exploit signatures
+    primitive: PRM-THREAT
+    explanation: Requests, messages, files and model artifacts are matched against signatures of exploits that worked against AI infrastructure and agents (ShadowRay, Probllama, Langflow code validation, Log4Shell, metadata-service SSRF, EchoLeak-style image exfiltration, MCP tool poisoning). A blocking signature denies; a reviewing one needs a person.
+    asi: [ASI02, ASI04, ASI05]
+    attach: [organization]
+    mode: baseline
+    outcome: deny
+    enforced_by: gateway
+    policies:
+      [
+        forbid-known-exploit-signature,
+        review-exploit-signature,
+        forbid-input-exploit-signature,
+        forbid-file-exploit-signature,
+      ]
+    mechanism: The baseline in policies/threat-feed/baseline.json ships with the Gateway; an external feed (guardrails.yaml signatures.feed_url) is polled and merged by signature id. A feed that fails to fetch or compile leaves the last good set active and raises a security event.
+
+  - id: CTL-FILE-002
+    name: Unsafe deserialization and model code execution
+    primitive: PRM-THREAT
+    explanation: Pickles, PyTorch checkpoints, NumPy object arrays, Keras models and GGUF files are opened without being loaded. A pickle that imports something able to run commands, a Keras Lambda layer, or a GGUF chat template that reaches Python internals is refused.
+    asi: [ASI04, ASI05]
+    attach: [organization]
+    mode: baseline
+    outcome: deny
+    enforced_by: gateway
+    policies: [forbid-file-unsafe-deserialization, forbid-file-model-code-execution]
+    mechanism: An opcode walker reads every GLOBAL, INST and STACK_GLOBAL import of a pickle (protocols 0 to 5, inside zip archives and .npy files) and the feed's pickle_imports signatures decide; GGUF metadata is parsed for chat templates and HDF5/Keras configurations for Lambda layers.
+
+  - id: CTL-SUP-001
+    name: Model supply chain
+    primitive: PRM-THREAT
+    explanation: An agent may bring a model in from a public hub only pinned to a full commit hash, from a trusted publisher, without running repository code, and in a format that cannot execute on load. Publisher names one or two letters away from a trusted one are refused as typosquats; repositories on the threat feed are refused.
+    asi: [ASI04]
+    attach: [organization, use_case]
+    mode: baseline
+    outcome: deny
+    enforced_by: gateway
+    policies:
+      [
+        forbid-model-revision-not-pinned,
+        forbid-model-remote-code,
+        forbid-model-unsafe-format,
+        forbid-model-org-typosquat,
+        forbid-model-org-not-allowed,
+        forbid-model-known-bad,
+        forbid-model-load-without-check,
+      ]
+    mechanism: guardrails.yaml supply_chain lists trusted publishers, safe and unsafe formats and the typosquat distance; the Gateway computes context.modelCheck for model.load and the feed's model_ref signatures mark known-bad repositories.
+
+  - id: CTL-MODEL-001
+    name: Model allowlist
+    primitive: PRM-CAP
+    explanation: Agents call only models the organization has listed, and a listed model can be switched off without touching any agent. A model that is not listed or not enabled is refused before a token is spent.
+    asi: [ASI02, ASI04]
+    attach: [provider_model]
+    mode: data
+    parameters: [guardrails.yaml models]
+    outcome: deny
+    enforced_by: gateway
+    policies: [forbid-model-not-allowlisted]
+
+  - id: CTL-RUN-005
+    name: Token budget and cost accounting
+    primitive: PRM-RUN
+    explanation: Every session has a token budget next to its spending budget. A model call reserves its worst case (prompt plus output cap) before it runs and is charged what it actually used, priced per token for external models and per second of compute for local ones.
+    asi: [ASI08, ASI10]
+    attach: [use_case, provider_model]
+    mode: data
+    parameters: [guardrails.yaml budgets, guardrails.yaml models]
+    outcome: deny
+    enforced_by: gateway
+    policies: [forbid-token-budget-exceeded]
+    mechanism: The budget stage passes context.tokens and the worst-case context.costCents to Cedar; after the call the session is charged from the provider's usage (external) or the measured inference time (local), and the session shows limit, used and per-model spend.
+
+  - id: CTL-CFG-001
+    name: Live configuration with last-good fallback
+    primitive: PRM-TRACE
+    explanation: Policies, the controls catalog, guardrail profiles, budgets, the classifier and the signature baseline reload within about a second of a change, without a restart. A change that does not validate is rejected and the previous configuration keeps running; both outcomes are security events.
+    asi: [ASI08]
+    attach: [organization]
+    mode: baseline
+    enforced_by: gateway
+    mechanism: A watcher fingerprints the policy files every second, loads a complete new state off the request path (strict Cedar validation included) and swaps it atomically; each request reads one consistent snapshot. Director > Guardrails shows the active version and the last rejection.
 
   - id: CTL-TOOL-001
     name: Pinned MCP tool descriptors
@@ -414,7 +539,7 @@ controls:
   - id: CTL-RUN-001
     name: Session budget
     primitive: PRM-RUN
-    explanation: Each session has a spending budget; an action that would exceed it is refused.
+    explanation: Each session has a spending budget; an action that would exceed it is refused. Action prices and the session budgets per use case come from guardrails.yaml.
     asi: [ASI08, ASI10]
     attach: [use_case, agent]
     mode: data
@@ -457,14 +582,14 @@ controls:
   - id: CTL-AI-001
     name: AI analysis only tightens
     primitive: PRM-AI
-    explanation: The analyzer (a mock model in this demo) can turn allow into require_approval or deny. It never sees a deterministic deny as negotiable and can never loosen a decision.
+    explanation: Semantic analysis (the in-Gateway classifier, optionally with an LLM judge) can turn allow into require_approval or deny. It never sees a deterministic deny as negotiable and can never loosen a decision.
     asi: [ASI01, ASI06]
     attach: [organization, use_case]
     mode: baseline
     outcome: require_approval
     policies:
       [analyzer-suspicious, analyzer-malicious, analyzer-input-malicious]
-    mechanism: The analyzer runs only after the deterministic decision is not deny; the final decision is the stricter of the two, and no permit policy may read context.analysis.
+    mechanism: The analysis runs only after the deterministic decision is not deny; the final decision is the stricter of the two, and no permit policy may read context.analysis. For an agent action the classifier alone asks for an approval and never denies on its own; a deny needs the LLM judge's malicious verdict.
 
   - id: CTL-AUD-001
     name: Every decision is a trace

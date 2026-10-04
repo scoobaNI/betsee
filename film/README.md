@@ -7,9 +7,10 @@ on every run.
 
 ```text
 capture/capture.mjs   drives the real apps, saves 2x screenshots + part rectangles to captures/
+capture/live.mjs      records the Director live, frame by frame on Playwright's clock (captures/live/)
 audio/narration.json  the narration, voice and model (ElevenLabs), and a gentle tempo
-audio/narrate.mjs     voices the lines into out/vo/
-audio/trim_vo.py      trims each line, measures it and finds where each phrase starts
+audio/narrate.mjs     voices runs of lines as one take each (with character timestamps) into out/vo/
+audio/trim_vo.py      trims each take, gently tightens it (rubberband), and records line, phrase and word times
 stage/acts.json       the acts: lead, narration lines with their pauses, tail
 stage/plan.py         acts.json + measured lines -> stage/timeline.json
 stage/                the film: film.js, lib.js, scenes/*.js, film.css, fonts/ (Mona Sans, OFL)
@@ -20,10 +21,11 @@ out/                  vo/, music/, sfx/ (committed, paid); cues.json, mix.wav, r
 
 ## How the timing works
 
-The narration drives everything. `trim_vo.py` measures each voiced line and the start of each of
-its phrases; `plan.py` lays the acts end to end from those lengths; each scene places its motion
-against its own lines (`ctx.vo(id)`, `ctx.phrase(id, k)`), so a highlight lands on the word that
-names it. Scenes register their sound cues with `ctx.cue`; `render.mjs --cues` exports them and
+The narration drives everything. ElevenLabs returns a timestamp for every character, so
+`trim_vo.py` knows where each line, phrase and word starts; `plan.py` lays the acts end to end from
+those lengths; each scene places its motion against its own lines (`ctx.vo(id)`,
+`ctx.phrase(id, k)`, `ctx.word(id, "Underneath")`), so a highlight lands on the word that names it.
+The score is generated from a composition plan whose sections follow the acts. Scenes register their sound cues with `ctx.cue`; `render.mjs --cues` exports them and
 `score.py` puts one fixed sample at each, so identical decisions sound identical. Re-voicing the
 narration re-times the whole film without touching a scene.
 
@@ -39,7 +41,9 @@ narration re-times the whole film without touching a scene.
    ```
 
    The Director and the ecosystem run on their seeded mock worlds; the capture launches the same
-   scenarios as the Director's command palette. The Desk talks to a stub governing service whose
+   scenarios as the Director's command palette. `node film/capture/live.mjs` then records the
+   Director live (about 15 minutes, ~330 MB of frames, gitignored): Motion's Web Animations are
+   switched off so its animations run on the fake clock too. The Desk talks to a stub governing service whose
    chats are fixtures in agent-host's event shape.
 
 2. Voice, music, effects (ElevenLabs, a paid plan for library voices and music):

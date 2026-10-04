@@ -323,7 +323,17 @@ class LiveCase(unittest.TestCase):
                     self.assertEqual(read_required(action, paths, "deterministic_decision"), "allow")
                     self.assertEqual(read_required(action, paths, "analysis_verdict"), "suspicious")
                 if self.case.id in ("analyzer_cannot_loosen", "analyzer_tightens"):
-                    self.assertEqual(read_required(action, paths, "analysis_label"), "mock model (demo)")
+                    self.assertIn("in-Gateway classifier", read_required(action, paths, "analysis_label"))
+                for check in plan.get("checks", {}).get(str(index), []):
+                    actual = field(action, check["path"])
+                    if "equals" in check:
+                        self.assertEqual(actual, check["equals"], f"{check['path']} at step {index + 1}")
+                    if "contains" in check:
+                        self.assertIn(check["contains"], json.dumps(actual, ensure_ascii=False), f"{check['path']} at step {index + 1}")
+                    if "excludes" in check:
+                        self.assertNotIn(check["excludes"], json.dumps(actual, ensure_ascii=False), f"{check['path']} at step {index + 1}")
+                    if "at_least" in check:
+                        self.assertGreaterEqual(actual, check["at_least"], f"{check['path']} at step {index + 1}")
                 audit = step.get("audit", plan.get("audit"))
                 self.assertIsNotNone(audit, "Action checks require a persisted audit lookup")
                 deadline = time.monotonic() + self.config.get("audit_wait_seconds", 3)

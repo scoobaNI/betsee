@@ -139,6 +139,28 @@ impl OpenAiCompatible {
         }
         Ok(request.send().await?.error_for_status()?.json().await?)
     }
+
+    /// A completion on a named model with an output cap (CTL-MODEL-001 and CTL-RUN-005 decided
+    /// both before this call).
+    pub async fn complete_with(
+        &self,
+        model: &str,
+        messages: Value,
+        max_tokens: Option<u64>,
+    ) -> Result<Value> {
+        let mut body = json!({"model":model,"messages":messages,"temperature":0});
+        if let Some(max_tokens) = max_tokens {
+            body["max_tokens"] = json!(max_tokens);
+        }
+        let mut request = self
+            .client
+            .post(format!("{}/chat/completions", self.base_url))
+            .json(&body);
+        if let Some(key) = &self.key {
+            request = request.bearer_auth(key);
+        }
+        Ok(request.send().await?.error_for_status()?.json().await?)
+    }
 }
 
 #[async_trait]

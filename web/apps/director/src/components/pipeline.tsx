@@ -28,6 +28,7 @@ const STAGE_ICON: Record<StageId, IconName> = {
   cedar_authz: 'scale',
   information_tier: 'layers',
   command_validation: 'code',
+  threat_signatures: 'radar',
   budget: 'gauge',
   ai_analysis: 'sparkles',
   decision: 'target',
@@ -164,7 +165,7 @@ function StageDetail({ stage, controls }: { stage: RailStage; controls: Map<stri
 }
 
 /**
- * The fifteen stages folded into four phases. The phase and stage that decided the action are
+ * The pipeline stages folded into four phases. The phase and stage that decided the action are
  * open on arrival; every other stage is one click away. Arrow keys walk the stages.
  */
 export function DecisionPath({ rail, controls }: { rail: Rail; controls: Map<string, Control> }) {

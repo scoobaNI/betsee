@@ -120,6 +120,11 @@ services:
     <<: *rust
     command: ["betsee-gateway"]
     networks: [default, mcp-backend]
+    # The policy directory is mounted, not baked in, so an edit to a Cedar policy, controls.yaml,
+    # guardrails.yaml, the classifier or the signature baseline takes effect without a rebuild
+    # (CTL-CFG-001). The image keeps its own copy for runs without the checkout.
+    volumes:
+      - ./policies:/app/policies:ro
     environment:
       DATABASE_URL: ${DATABASE_URL}
       OIDC_ISSUER: ${OIDC_ISSUER}
@@ -203,6 +208,8 @@ services:
       - "80:80"
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Stand-in for an external threat-intelligence service (CTL-SIG-001); the Gateway polls it.
+      - ./infra/threat-feed:/srv/threat-feed:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:

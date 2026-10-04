@@ -110,9 +110,10 @@ cd desk && npx tauri build --no-bundle       # the app binary only; plain `cargo
    +----------------------- Betsee Gateway (Rust, Axum, Tower) ---+  Keycloak
    | authenticate -> resolve context -> identity -> capability   |  (OIDC, MFA,
    | -> Cedar authz -> information tier -> command validation    |   step-up)
-   | -> budget -> AI analysis (tighten only) -> decision         |
-   | -> approval -> step-up -> connector -> output controls      |
-   | -> audit                                                    |
+   | -> threat signatures -> budget (cents + tokens)             |
+   | -> AI analysis (in-Gateway classifier, tighten only)        |
+   | -> decision -> approval -> step-up -> connector             |
+   | -> output controls (redact, strip exfil, taint) -> audit    |
    +----|-------------------|--------------------|---------------+
         v                   v                    v
    PostgreSQL         MCP tool server      OpenAI-compatible model
@@ -120,7 +121,7 @@ cd desk && npx tauri build --no-bundle       # the app binary only; plain `cargo
    events, catalog)   pinned descriptors)   demo; any company gateway)
 ```
 
-Each of the fifteen pipeline stages is a span. The Director renders them as a trace; the same
+Each of the sixteen pipeline stages is a span. The Director renders them as a trace; the same
 events stream to the Director over Server-Sent Events.
 
 Design rules the code enforces:
@@ -158,6 +159,35 @@ Decision record: [`docs/security/adr-0001-policy-engine-cedar.md`](docs/security
 API contract: [`contracts/openapi.yaml`](contracts/openapi.yaml) and
 [`contracts/events.md`](contracts/events.md).
 
+## AI control layer: guardrails, budgets, threat signatures
+
+Deterministic controls decide; AI-based analysis can only tighten. Everything below is configured in
+[`policies/guardrails.yaml`](policies/guardrails.yaml), reloads within a second of a save (a broken
+edit is rejected and the last good configuration keeps running), and is documented in
+[`docs/guardrails.md`](docs/guardrails.md).
+
+- **Strictness profiles per use case** (strict, balanced, permissive): per detector, block, redact
+  or record. Card numbers (Luhn), IBANs (mod-97), PESEL (checksum), keys, email and phone numbers
+  are redacted to `[REDACTED:PESEL]` before an agent or a model sees them, on the human-to-agent
+  path, the agent-to-model path and in model and tool output.
+- **Semantic analysis inside the Gateway**: a Polish and English injection classifier
+  ([`tools/semantic-classifier`](tools/semantic-classifier/README.md)) that reads through
+  leetspeak, spaced letters, homoglyphs and base64, explains its score with the words and intents
+  that drove it, and is compared with each profile's adherence thresholds. No model server and no
+  network call; 1 to 5 ms per check.
+- **Threat signatures of exploits that worked against AI systems** (ShadowRay, Probllama, Langflow,
+  Log4Shell, metadata SSRF, EchoLeak-style image exfiltration, MCP tool poisoning, malicious
+  pickles, Keras Lambda layers, GGUF template injection), from a shipped baseline plus an external
+  feed polled over HTTP (`infra/threat-feed/feed.json` in the demo).
+- **Model allowlist, prices and token budgets** for external APIs (per token) and local models (per
+  second of compute): the worst case is reserved before a call, the actual usage is charged after.
+- **Model supply chain**: `model.load` admits only pinned commits from trusted, non-typosquatted
+  publishers in formats that cannot run code; model files are inspected (pickle opcodes, GGUF
+  metadata, Keras configs) without being loaded.
+- **Director > Guardrails**: a playground for ad-hoc prompts against the live configuration, an
+  artifact scanner, the active policy version and last rejected change, profiles, models and
+  budgets, the signature set and feed status, and the classifier's evaluation.
+
 ## OWASP Top 10 for Agentic Applications (2026)
 
 Nine small primitives in one pipeline, not ten separate defences.
@@ -189,6 +219,10 @@ cargo run --release --manifest-path policies/tests/cedar-check/Cargo.toml -- \
 # Gateway decision crate: the same cases plus the composition rules, no containers needed
 cargo test --manifest-path gateway/Cargo.toml -p betsee-decision
 
+# Gateway unit tests: classifier parity with the training script, detectors and redaction,
+# signatures, pickle/GGUF/Keras inspection, supply-chain checks, guardrails.yaml validation
+cargo test --manifest-path gateway/Cargo.toml -p betsee-server
+
 # Positive and negative security suite against the running stack
 ./tests/run-security.sh
 
@@ -196,14 +230,20 @@ cargo test --manifest-path gateway/Cargo.toml -p betsee-decision
 node tests/desk/e2e.mjs --live-gateway-stop
 ```
 
-The security suite has 37 cases and runs in under a minute against the live stack, with real HTTP
+The security suite has 59 checks (49 catalog cases plus 10 guardrail checks) and runs in about two
+minutes against the live stack, with real HTTP
 requests and real Keycloak tokens (one step-up with Daniel's one-time code). Positive cases prove that
 allowed actions execute and match their audit rows; negative cases prove that each deny holds:
 capability not delegated, tier above the session ceiling, no write-down, AI analysis unable to loosen
 a deny, an agent unable to use its human's privileges, foreign or forged sessions, wrong-audience and
 expired tokens, cookie authentication refused, the route and role matrix, approval and step-up
 bypass, mediated agent messages, a reused trace id, tool descriptor drift, rate limit, budget and
-quarantine. Each case names its ASI categories. State-changing cases use a test-only agent and
+quarantine; and for the AI control layer: model allowlist, token budget and cost, prompt and output
+redaction, exfiltration-link removal, Polish injection to approval, a ShadowRay payload, four model
+supply-chain cases, input redaction under the balanced profile and refusal under strict, a Polish
+paraphrased and a base64-encoded injection, a Langflow exploit URL, a malicious pickle upload, a GGUF
+template, and live reconfiguration of both `guardrails.yaml` and the external threat feed (each
+restores the file it edits). Each case names its ASI categories. State-changing cases use a test-only agent and
 restore everything they touch, so the suite leaves the stack as it found it. See
 [`tests/README.md`](tests/README.md).
 
@@ -224,16 +264,19 @@ expected one in [`demo/scenarios/`](demo/scenarios/).
 | `demo/`                        | Demo scenarios and the scenario runner                                                                        |
 | `tests/`                       | Security suite                                                                                                |
 | `docs/`                        | Design Contract, security decisions and OWASP mapping, demo script                                            |
+| `tools/`                       | Semantic classifier training: corpus, featurizer, trainer, parity fixture                                     |
 | `landing/`                     | Static landing page, its recorded product clips, and the script that records them                             |
 
 ## Demo-only shortcuts
 
 Stated plainly, because a control plane that hides its shortcuts would be a poor one:
 
-- **The language model is a mock.** `mock-llm` speaks the OpenAI chat-completions protocol, and the
-  Gateway's OpenAI-compatible adapter is real code. Pointing it at a company AI gateway, vLLM,
-  Ollama or LM Studio is configuration. The AI security analyzer is labelled "mock model (demo)"
-  wherever it appears.
+- **The language model is a mock.** `mock-llm` speaks the OpenAI chat-completions protocol and
+  reports token usage, and the Gateway's OpenAI-compatible adapter is real code. Pointing it at a
+  company AI gateway, vLLM, Ollama or LM Studio is configuration. Three prompts make it return
+  personal data, a data-carrying image link and an embedded instruction, so the output filter has
+  real input. The security analysis is not a mock: the injection classifier runs inside the Gateway.
+  The optional LLM judge (`semantic.llm_judge`) would ask the mock, so it is off.
 - **Scenario sessions use a password grant.** The `betsee-demo-runner` client may obtain tokens for
   users holding the `demo-initiator` role (Maya and Priya), and those tokens are refused on
   approvals, step-up and admin writes. In production the human creates the session in the UI; the

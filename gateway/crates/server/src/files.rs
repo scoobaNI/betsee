@@ -34,6 +34,7 @@ fn finding(class: &'static str, label: &'static str, masked: impl Into<String>) 
         class,
         label,
         masked: masked.into(),
+        span: (0, 0),
     }
 }
 

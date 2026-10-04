@@ -1,0 +1,183 @@
+# Betsee guardrails: the runtime settings of the controls catalog (controls.yaml).
+#
+# The Gateway watches this file, controls.yaml, the Cedar policies and the classifier model, and
+# applies a valid change within about a second, without a restart. An edit that does not parse or
+# validate is rejected: the last good configuration stays active, and Director > Guardrails shows
+# the rejection and its error. Every reload, accepted or rejected, is a security event.
+#
+# Division of labour: this file decides how sensitive the Gateway is (which detections block,
+# which are redacted, how much semantic risk is tolerated, what a model call costs). Cedar decides
+# what a blocking detection means for the request, so every deny still names a policy and a control.
+
+version: 1
+
+# Strictness levels. A profile sets, per detector class, what happens when the class is found:
+#   block   the request is refused (Cedar forbid-input-<class> / forbid-file-<class>)
+#   redact  the matched value is replaced with [REDACTED:<class>] and the request continues
+#   allow   the finding is recorded in the trace and nothing else happens
+# semantic.review_at and semantic.block_at are the adherence thresholds for the injection
+# classifier, as a probability between 0 and 1:
+#   input:  >= block_at refuses the message; >= review_at lets it through but marks the session as
+#           holding untrusted input, so its high-impact actions need a human (CTL-PROV-001)
+#   action: >= block_at denies the action; >= review_at requires an approval (CTL-AI-001)
+#   output: >= review_at marks the session as holding untrusted input (indirect injection)
+profiles:
+  strict:
+    description: Regulated work. Any personal data or secret in a message blocks it; low semantic tolerance.
+    input:
+      payment_card: block
+      iban: block
+      pesel: block
+      secret: block
+      email: block
+      phone: block
+      resource_above_tier: block
+    output:
+      payment_card: block
+      iban: block
+      pesel: block
+      secret: block
+      email: redact
+      phone: redact
+    semantic:
+      review_at: 0.40
+      block_at: 0.60
+
+  balanced:
+    description: Default. Secrets and card numbers block; other personal data is redacted before any model sees it.
+    input:
+      payment_card: block
+      iban: redact
+      pesel: redact
+      secret: block
+      email: redact
+      phone: redact
+      resource_above_tier: block
+    output:
+      payment_card: redact
+      iban: redact
+      pesel: redact
+      secret: redact
+      email: redact
+      phone: redact
+    semantic:
+      review_at: 0.60
+      block_at: 0.85
+
+  permissive:
+    description: Internal research. Only secrets block; personal data passes and is logged; high semantic tolerance.
+    input:
+      payment_card: redact
+      iban: allow
+      pesel: allow
+      secret: block
+      email: allow
+      phone: allow
+      resource_above_tier: block
+    output:
+      payment_card: redact
+      iban: allow
+      pesel: allow
+      secret: redact
+      email: allow
+      phone: allow
+    semantic:
+      review_at: 0.80
+      block_at: 0.95
+
+# Which profile each use case runs under. Changing a line here changes the next request.
+assignments:
+  default: balanced
+  use_cases:
+    invoice-processing: strict
+    employee-assistance: balanced
+    ticket-triage: balanced
+    market-research: permissive
+    weekly-reporting: balanced
+    model-onboarding: balanced
+    guardrail-regression-strict: strict
+
+# Semantic analysis (CTL-AI-002). The classifier runs inside the Gateway: no model server, no
+# network call, a few milliseconds per check. llm_judge adds the OpenAI-compatible analyzer as a
+# second opinion (the stricter verdict wins); in the demo stack that endpoint is the mock model.
+semantic:
+  model: models/injection-classifier.json
+  llm_judge: false
+  scan_tool_output: true
+
+# Threat signatures of known exploits (CTL-SIG-001). The baseline ships with the Gateway; the feed
+# is an external HTTP source polled every poll_seconds. A feed that cannot be fetched or does not
+# validate leaves the last good signature set active.
+signatures:
+  baseline: threat-feed/baseline.json
+  feed_url: http://caddy:8090/feed.json
+  poll_seconds: 10
+
+# Models an agent may call through llm.complete (CTL-MODEL-001). A model missing here, or with
+# enabled: false, is refused before any token is spent. Prices are in euro cents.
+#   external models: input_cents_per_1k and output_cents_per_1k tokens
+#   local models:    compute_cents_per_second of wall-clock inference time
+# max_output_tokens caps a call and is the worst case the budget check reserves before the call.
+# Which tier of data a model may receive is the Cedar Model.maxTier attribute (CTL-TIER-003).
+models:
+  - id: mock-llm
+    label: Acme local model (demo mock)
+    provider: local
+    enabled: true
+    compute_cents_per_second: 2.0
+    max_output_tokens: 256
+  - id: gpt-4o-mini
+    label: OpenAI gpt-4o-mini (served by the demo mock)
+    provider: external
+    enabled: true
+    input_cents_per_1k: 0.015
+    output_cents_per_1k: 0.06
+    max_output_tokens: 512
+  - id: claude-sonnet
+    label: Anthropic Claude Sonnet (served by the demo mock)
+    provider: external
+    enabled: true
+    input_cents_per_1k: 0.3
+    output_cents_per_1k: 1.5
+    max_output_tokens: 512
+  - id: unvetted-model
+    label: Community model awaiting review
+    provider: external
+    enabled: false
+    input_cents_per_1k: 0.0
+    output_cents_per_1k: 0.0
+    max_output_tokens: 256
+
+# Budgets (CTL-RUN-001, CTL-RUN-005). A session gets the budget of its use case when the human
+# who starts it does not ask for less. cents covers every action; tokens covers model calls.
+# action_cost_cents prices non-model actions; a model call costs what the model's price says.
+budgets:
+  max_session_cents: 5000
+  sessions:
+    default: { cents: 5000, tokens: 50000 }
+    use_cases:
+      weekly-reporting: { cents: 2000, tokens: 20000 }
+      model-onboarding: { cents: 500, tokens: 3000 }
+  action_cost_cents:
+    default: 10
+    agent.message: 2
+    files.read: 5
+
+# Model supply chain (CTL-SUP-001): what model.load accepts from a public model hub.
+supply_chain:
+  allowed_orgs:
+    [
+      meta-llama,
+      mistralai,
+      Qwen,
+      google,
+      microsoft,
+      ibm-granite,
+      BAAI,
+      sentence-transformers,
+    ]
+  safe_formats: [safetensors, gguf, onnx, json, txt, model, tiktoken]
+  unsafe_formats: [bin, pt, pth, pkl, pickle, ckpt, joblib, h5, keras, npy, npz]
+  require_pinned_revision: true
+  forbid_trust_remote_code: true
+  typosquat_distance: 2

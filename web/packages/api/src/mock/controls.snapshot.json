@@ -35,6 +35,14 @@
       "name": "AI analysis that only tightens"
     },
     {
+      "id": "PRM-GUARD",
+      "name": "Content guardrails (detect, redact, classify)"
+    },
+    {
+      "id": "PRM-THREAT",
+      "name": "Threat signatures + model supply chain"
+    },
+    {
       "id": "PRM-TRACE",
       "name": "Trace + audit"
     }
@@ -83,7 +91,11 @@
       "asi": ["ASI03"],
       "attachment_points": ["organization"],
       "enforcement": "baseline",
-      "policy_ids": ["forbid-session-not-active"],
+      "policy_ids": [
+        "forbid-session-not-active",
+        "forbid-input-session-not-active",
+        "forbid-file-session-not-active"
+      ],
       "attachments": []
     },
     {
@@ -96,7 +108,8 @@
       "enforcement": "data",
       "policy_ids": [
         "forbid-session-human-not-active",
-        "forbid-session-create-human-not-active"
+        "forbid-session-create-human-not-active",
+        "forbid-input-human-not-active"
       ],
       "attachments": []
     },
@@ -192,7 +205,11 @@
       "asi": ["ASI03", "ASI02"],
       "attachment_points": ["tier", "use_case"],
       "enforcement": "data",
-      "policy_ids": ["forbid-resource-above-session-tier"],
+      "policy_ids": [
+        "forbid-resource-above-session-tier",
+        "forbid-scope-above-session-tier",
+        "forbid-file-above-session-tier"
+      ],
       "attachments": [
         {
           "id": "att-7",
@@ -271,6 +288,168 @@
       "attachments": []
     },
     {
+      "id": "CTL-FILE-001",
+      "name": "File intake and release",
+      "description": "A file enters or leaves an agent's workspace only through a Gateway scan. Its type comes from its bytes; executables, archives, the EICAR test signature, files with no text to scan and files carrying card numbers, IBANs, PESEL numbers or keys are refused. An accepted upload is catalogued with its tier before the agent can read it.",
+      "primitive": "PRM-TIER",
+      "asi": ["ASI01", "ASI05", "ASI06"],
+      "attachment_points": ["organization", "use_case"],
+      "enforcement": "baseline",
+      "policy_ids": [
+        "permit-file-transfer-by-session-human",
+        "forbid-file-not-session-human",
+        "forbid-file-outside-agent-runtime",
+        "forbid-file-executable",
+        "forbid-file-malware-test",
+        "forbid-file-unscannable",
+        "forbid-file-type-not-allowed",
+        "forbid-file-oversize"
+      ],
+      "attachments": []
+    },
+    {
+      "id": "CTL-IN-001",
+      "name": "Input content filter",
+      "description": "What a person types to an agent is checked before any model sees it. Payment card numbers, IBANs, PESEL numbers, API keys, private keys and names of resources above the session ceiling are refused, and the message stays with the person.",
+      "primitive": "PRM-TIER",
+      "asi": ["ASI01", "ASI06"],
+      "attachment_points": ["organization", "use_case"],
+      "enforcement": "baseline",
+      "policy_ids": [
+        "permit-input-from-session-human",
+        "forbid-input-not-session-human",
+        "forbid-input-payment-card",
+        "forbid-input-iban",
+        "forbid-input-pesel",
+        "forbid-input-secret",
+        "forbid-input-email",
+        "forbid-input-phone",
+        "forbid-input-resource-above-tier",
+        "forbid-prompt-sensitive-data",
+        "forbid-file-payment-card",
+        "forbid-file-iban",
+        "forbid-file-pesel",
+        "forbid-file-secret",
+        "forbid-file-resource-above-tier"
+      ],
+      "attachments": []
+    },
+    {
+      "id": "CTL-IN-002",
+      "name": "Redaction by sensitivity profile",
+      "description": "Personal data that a use case may handle but a model should not see is replaced with [REDACTED:<CLASS>] before the message reaches the agent. Each use case runs under a strictness profile (strict, balanced, permissive) that says, per detector, block, redact or record.",
+      "primitive": "PRM-GUARD",
+      "asi": ["ASI01", "ASI06"],
+      "attachment_points": ["organization", "use_case"],
+      "enforcement": "baseline",
+      "policy_ids": [],
+      "attachments": []
+    },
+    {
+      "id": "CTL-OUT-002",
+      "name": "Output content filter",
+      "description": "What a model or a tool returns is checked before the agent gets it. Card numbers, IBANs, PESEL numbers, keys, email addresses and phone numbers are redacted or the result is withheld, per the use case's profile; known exfiltration constructs such as data-carrying markdown images are removed.",
+      "primitive": "PRM-GUARD",
+      "asi": ["ASI01", "ASI02", "ASI06"],
+      "attachment_points": ["organization", "use_case"],
+      "enforcement": "baseline",
+      "policy_ids": [],
+      "attachments": []
+    },
+    {
+      "id": "CTL-AI-002",
+      "name": "Semantic injection classifier",
+      "description": "An injection and jailbreak classifier trained on Polish and English attacks runs inside the Gateway on every message, every action's data and every tool result. It reads through leetspeak, spaced letters, homoglyphs and base64, and explains which words drove its score. Its score is compared with the profile's adherence thresholds.",
+      "primitive": "PRM-AI",
+      "asi": ["ASI01", "ASI06", "ASI07"],
+      "attachment_points": ["organization", "use_case"],
+      "enforcement": "baseline",
+      "policy_ids": [],
+      "attachments": []
+    },
+    {
+      "id": "CTL-SIG-001",
+      "name": "Known-exploit signatures",
+      "description": "Requests, messages, files and model artifacts are matched against signatures of exploits that worked against AI infrastructure and agents (ShadowRay, Probllama, Langflow code validation, Log4Shell, metadata-service SSRF, EchoLeak-style image exfiltration, MCP tool poisoning). A blocking signature denies; a reviewing one needs a person.",
+      "primitive": "PRM-THREAT",
+      "asi": ["ASI02", "ASI04", "ASI05"],
+      "attachment_points": ["organization"],
+      "enforcement": "baseline",
+      "policy_ids": [
+        "forbid-known-exploit-signature",
+        "review-exploit-signature",
+        "forbid-input-exploit-signature",
+        "forbid-file-exploit-signature"
+      ],
+      "attachments": []
+    },
+    {
+      "id": "CTL-FILE-002",
+      "name": "Unsafe deserialization and model code execution",
+      "description": "Pickles, PyTorch checkpoints, NumPy object arrays, Keras models and GGUF files are opened without being loaded. A pickle that imports something able to run commands, a Keras Lambda layer, or a GGUF chat template that reaches Python internals is refused.",
+      "primitive": "PRM-THREAT",
+      "asi": ["ASI04", "ASI05"],
+      "attachment_points": ["organization"],
+      "enforcement": "baseline",
+      "policy_ids": [
+        "forbid-file-unsafe-deserialization",
+        "forbid-file-model-code-execution"
+      ],
+      "attachments": []
+    },
+    {
+      "id": "CTL-SUP-001",
+      "name": "Model supply chain",
+      "description": "An agent may bring a model in from a public hub only pinned to a full commit hash, from a trusted publisher, without running repository code, and in a format that cannot execute on load. Publisher names one or two letters away from a trusted one are refused as typosquats; repositories on the threat feed are refused.",
+      "primitive": "PRM-THREAT",
+      "asi": ["ASI04"],
+      "attachment_points": ["organization", "use_case"],
+      "enforcement": "baseline",
+      "policy_ids": [
+        "forbid-model-revision-not-pinned",
+        "forbid-model-remote-code",
+        "forbid-model-unsafe-format",
+        "forbid-model-org-typosquat",
+        "forbid-model-org-not-allowed",
+        "forbid-model-known-bad",
+        "forbid-model-load-without-check"
+      ],
+      "attachments": []
+    },
+    {
+      "id": "CTL-MODEL-001",
+      "name": "Model allowlist",
+      "description": "Agents call only models the organization has listed, and a listed model can be switched off without touching any agent. A model that is not listed or not enabled is refused before a token is spent.",
+      "primitive": "PRM-CAP",
+      "asi": ["ASI02", "ASI04"],
+      "attachment_points": ["provider_model"],
+      "enforcement": "data",
+      "policy_ids": ["forbid-model-not-allowlisted"],
+      "attachments": []
+    },
+    {
+      "id": "CTL-RUN-005",
+      "name": "Token budget and cost accounting",
+      "description": "Every session has a token budget next to its spending budget. A model call reserves its worst case (prompt plus output cap) before it runs and is charged what it actually used, priced per token for external models and per second of compute for local ones.",
+      "primitive": "PRM-RUN",
+      "asi": ["ASI08", "ASI10"],
+      "attachment_points": ["use_case", "provider_model"],
+      "enforcement": "data",
+      "policy_ids": ["forbid-token-budget-exceeded"],
+      "attachments": []
+    },
+    {
+      "id": "CTL-CFG-001",
+      "name": "Live configuration with last-good fallback",
+      "description": "Policies, the controls catalog, guardrail profiles, budgets, the classifier and the signature baseline reload within about a second of a change, without a restart. A change that does not validate is rejected and the previous configuration keeps running; both outcomes are security events.",
+      "primitive": "PRM-TRACE",
+      "asi": ["ASI08"],
+      "attachment_points": ["organization"],
+      "enforcement": "baseline",
+      "policy_ids": [],
+      "attachments": []
+    },
+    {
       "id": "CTL-TOOL-001",
       "name": "Pinned MCP tool descriptors",
       "description": "Each MCP tool is pinned to the hash of its reviewed descriptor. A changed description or schema blocks the tool before any agent sees it, until an admin reviews and re-pins it.",
@@ -314,6 +493,21 @@
           }
         }
       ]
+    },
+    {
+      "id": "CTL-RT-001",
+      "name": "Delegated execution",
+      "description": "An agent runtime that executes its own tools (Claude Code) asks the Gateway before every tool call and executes only after allow. Each call maps to a capability; network egress and unmapped tools are denied, and an unreachable Gateway means deny.",
+      "primitive": "PRM-TOOL",
+      "asi": ["ASI02", "ASI05", "ASI10"],
+      "attachment_points": ["organization", "agent"],
+      "enforcement": "baseline",
+      "policy_ids": [
+        "forbid-delegated-execution-mismatch",
+        "forbid-agent-runtime-egress",
+        "forbid-runtime-unmapped-tool"
+      ],
+      "attachments": []
     },
     {
       "id": "CTL-A2A-001",
@@ -422,7 +616,7 @@
     {
       "id": "CTL-RUN-001",
       "name": "Session budget",
-      "description": "Each session has a spending budget; an action that would exceed it is refused.",
+      "description": "Each session has a spending budget; an action that would exceed it is refused. Action prices and the session budgets per use case come from guardrails.yaml.",
       "primitive": "PRM-RUN",
       "asi": ["ASI08", "ASI10"],
       "attachment_points": ["use_case", "agent"],
@@ -486,12 +680,16 @@
     {
       "id": "CTL-AI-001",
       "name": "AI analysis only tightens",
-      "description": "The analyzer (a mock model in this demo) can turn allow into require_approval or deny. It never sees a deterministic deny as negotiable and can never loosen a decision.",
+      "description": "Semantic analysis (the in-Gateway classifier, optionally with an LLM judge) can turn allow into require_approval or deny. It never sees a deterministic deny as negotiable and can never loosen a decision.",
       "primitive": "PRM-AI",
       "asi": ["ASI01", "ASI06"],
       "attachment_points": ["organization", "use_case"],
       "enforcement": "baseline",
-      "policy_ids": ["analyzer-suspicious", "analyzer-malicious"],
+      "policy_ids": [
+        "analyzer-suspicious",
+        "analyzer-malicious",
+        "analyzer-input-malicious"
+      ],
       "attachments": []
     },
     {

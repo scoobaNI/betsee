@@ -1,8 +1,10 @@
 use crate::{
     MODEL_LABEL,
     auth::Claims,
-    connectors::{SecurityAnalyzer, hash},
+    connectors::hash,
     content::{self, GuardedName},
+    guard::Kind,
+    guardrails::Action,
     pipeline::{Gateway, append_span, render_template, tier},
     store::{find_entity, now, text},
 };
@@ -85,26 +87,56 @@ impl Gateway {
             json!({"human":human["username"]}),
             0.0,
         );
+        let state = self.state();
+        let threat_set = self.threats();
+        trace["analyzer"]["model_label"] = json!(crate::guard::label(&state));
+        let use_case_id = text(&session["use_case"], "id");
+        let (profile_name, profile) = state.guardrails.profile_for(use_case_id);
         let detect_started = Instant::now();
-        let findings = content::detect(text_value, &guarded_names(&entities, ceiling));
-        let detected: Vec<&str> = content::CLASSES
+        let findings = content::detect_all(text_value, &guarded_names(&entities, ceiling));
+        let mut blocking: Vec<&str> = Vec::new();
+        let mut redact: Vec<&str> = Vec::new();
+        let mut recorded_only: Vec<&content::Finding> = Vec::new();
+        for finding in &findings {
+            match profile.input_action(finding.class) {
+                Action::Block => blocking.push(finding.class),
+                Action::Redact => redact.push(finding.class),
+                Action::Allow => recorded_only.push(finding),
+            }
+        }
+        blocking.sort_unstable();
+        blocking.dedup();
+        let (forwarded, applied) = content::redact(text_value, &findings, &redact);
+        let detected: Vec<&str> = content::INPUT_CLASSES
             .into_iter()
             .filter(|class| findings.iter().any(|finding| finding.class == *class))
             .collect();
         append_span(
             &mut trace,
             "information_tier",
-            if detected.is_empty() {
+            if blocking.is_empty() {
                 "passed"
             } else {
                 "denied"
             },
-            "Deterministic detectors: card (Luhn), IBAN (mod-97), PESEL (checksum), keys, resource names",
-            json!({"detected":detected,"findings":findings}),
+            "Deterministic detectors (card by Luhn, IBAN by mod-97, PESEL by checksum, keys, email, phone, resource names) under the use case's guardrail profile",
+            json!({"profile":profile_name,"detected":detected,"blocking":blocking,"redacted":applied.iter().map(|f| f.class).collect::<Vec<_>>(),"recorded":recorded_only.iter().map(|f| f.class).collect::<Vec<_>>(),"findings":findings}),
             detect_started.elapsed().as_secs_f64() * 1000.0,
         );
+        let signatures_started = Instant::now();
+        let mut hits = threat_set.scan_text("prompt", text_value);
+        crate::threats::dedup(&mut hits);
+        let threat = json!({"block":hits.iter().any(|h| h.action == "block"),"review":hits.iter().any(|h| h.action == "review")});
+        append_span(
+            &mut trace,
+            "threat_signatures",
+            if threat["block"] == true { "denied" } else { "passed" },
+            "Known-exploit signatures: shipped baseline merged with the external feed",
+            json!({"signatures":hits,"signature_set":threat_set.len()}),
+            signatures_started.elapsed().as_secs_f64() * 1000.0,
+        );
         let engine = self.engine().await?;
-        let mut context = json!({"detected":detected,"now":Utc::now().timestamp()});
+        let mut context = json!({"detected":blocking,"now":Utc::now().timestamp(),"threat":threat});
         let evaluate = |context: Value| {
             engine.evaluate(
                 &uid("Human", text(human, "username")),
@@ -124,42 +156,47 @@ impl Gateway {
             } else {
                 "passed"
             },
-            "Cedar decides from the detected classes",
-            json!({"detected":detected}),
+            "Cedar decides from the blocking classes and the signature match",
+            json!({"detected":blocking,"threat":context["threat"]}),
             cedar_started.elapsed().as_secs_f64() * 1000.0,
         );
         trace["deterministic_decision"] = json!(deterministic.decision());
         let mut outcome = deterministic.clone();
+        let mut flagged = threat["review"] == true;
         if deterministic.deny {
             append_span(
                 &mut trace,
                 "ai_analysis",
                 "skipped",
                 "Deterministic deny cannot be loosened",
-                json!({"model_label":MODEL_LABEL}),
+                json!({"model_label":crate::guard::label(&state)}),
                 0.0,
             );
         } else {
             let analysis_started = Instant::now();
-            match self.llm.analyze(&json!({"human_input":text_value})).await {
-                Ok(analysis) => {
-                    trace["analyzer"] = analysis.clone();
-                    context["analysis"] =
-                        json!({"verdict":analysis["verdict"],"analyzer":MODEL_LABEL});
-                    outcome =
-                        engine.deciding_outcome(deterministic.clone().tighten(evaluate(context)));
-                }
-                Err(error) => {
-                    trace["analyzer"] = json!({"verdict":"unavailable","rationale":format!("Analyzer unavailable: {error}; the deterministic decision stands"),"model_label":MODEL_LABEL});
-                }
+            let semantic = self
+                .semantic(&state, profile_name, profile, text_value, Kind::Input)
+                .await;
+            trace["analyzer"] = semantic.record.clone();
+            context["analysis"] = json!({"verdict":semantic.verdict,"analyzer":crate::guard::label(&state),"score":(semantic.score*100.0).round() as i64});
+            outcome = engine.deciding_outcome(deterministic.clone().tighten(evaluate(context)));
+            if semantic.classifier_raised {
+                outcome.control_ids.insert("CTL-AI-002".into());
             }
+            flagged |= semantic.verdict == "suspicious";
             trace["ai_tightened"] = json!(outcome.deny != deterministic.deny);
             let analysis = trace["analyzer"].clone();
             append_span(
                 &mut trace,
                 "ai_analysis",
-                if outcome.deny { "denied" } else { "passed" },
-                "Analyzer can only add a deny",
+                if outcome.deny {
+                    "denied"
+                } else if semantic.verdict == "suspicious" {
+                    "tightened"
+                } else {
+                    "passed"
+                },
+                "Semantic analysis can only add a deny or mark the session as holding untrusted input",
                 analysis,
                 analysis_started.elapsed().as_secs_f64() * 1000.0,
             );
@@ -167,22 +204,32 @@ impl Gateway {
         self.render_input_reasons(&mut trace, &outcome, &engine, &session_entity);
         let allowed = outcome.decision() == "allow";
         trace["executed"] = json!(allowed);
+        // A message that passes but reads like an injection marks the session as holding untrusted
+        // input, so its high-impact actions need a person (CTL-PROV-001).
+        if allowed && flagged && session_entity["attrs"]["untrustedInput"] != true {
+            let mut next = session_entity.clone();
+            next["attrs"]["untrustedInput"] = json!(true);
+            self.store.put_entity(&next).await?;
+        }
+        trace["guardrails"] = json!({"profile":profile_name,"policy_version":state.version,"redactions":applied.iter().map(|f| json!({"class":f.class,"masked":f.masked})).collect::<Vec<_>>(),"recorded":recorded_only.iter().map(|f| json!({"class":f.class,"masked":f.masked})).collect::<Vec<_>>(),"signatures":hits,"flagged_untrusted":allowed && flagged});
         append_span(
             &mut trace,
             "decision",
             if allowed { "passed" } else { "denied" },
-            if allowed {
+            if allowed && !applied.is_empty() {
+                "Message passes to the agent with the profile's redactions applied"
+            } else if allowed {
                 "Message passes to the agent"
             } else {
                 "Message stays with the human; the model never sees it"
             },
-            json!({"detected":detected}),
+            json!({"detected":detected,"redactions":applied.len(),"flagged_untrusted":allowed && flagged}),
             0.0,
         );
-        let mut execution_context = json!({"organization":{"id":"acme","name":"Acme Logistics"},"human":trace["human"],"agent":trace["agent"],"use_case":trace["use_case"],"session":session,"input":{"characters":text_value.chars().count(),"sha256":hash(&json!(text_value)),"findings":findings,"detected":detected}});
+        let mut execution_context = json!({"organization":{"id":"acme","name":"Acme Logistics"},"human":trace["human"],"agent":trace["agent"],"use_case":trace["use_case"],"session":session,"input":{"characters":text_value.chars().count(),"sha256":hash(&json!(text_value)),"findings":findings,"detected":detected},"guardrails":trace["guardrails"]});
         if allowed {
             execution_context["input"]["preview"] =
-                json!(text_value.chars().take(160).collect::<String>());
+                json!(forwarded.chars().take(160).collect::<String>());
         }
         trace["execution_context"] = execution_context;
         trace["latency_ms"] = json!(started.elapsed().as_secs_f64() * 1000.0);
@@ -199,6 +246,9 @@ impl Gateway {
             .audit(&trace, "input_check", Some("action.decided"))
             .await?;
         recorded["findings"] = json!(findings);
+        if allowed {
+            recorded["forwarded_text"] = json!(forwarded);
+        }
         Ok(recorded)
     }
 
@@ -335,7 +385,22 @@ impl Gateway {
             0.0,
         );
         let scan_started = Instant::now();
-        let scan = crate::files::scan(name, bytes, &guarded_names(&entities, ceiling));
+        let mut scan = crate::files::scan(name, bytes, &guarded_names(&entities, ceiling));
+        // CTL-FILE-002 and CTL-SIG-001: what the file would do when loaded, and its hash.
+        let (hits, inspection) = self.threats().scan_artifact("file", bytes, &scan.sha256);
+        for hit in &hits {
+            let class = match hit.category.as_str() {
+                "unsafe_deserialization" => Some("unsafe_deserialization"),
+                "supply_chain" => Some("model_code_execution"),
+                _ => None,
+            };
+            if let Some(class) = class
+                && !scan.classes.contains(&class)
+            {
+                scan.classes.push(class);
+            }
+        }
+        let threat = json!({"block":hits.iter().any(|h| h.action == "block"),"review":hits.iter().any(|h| h.action == "review")});
         append_span(
             &mut trace,
             "information_tier",
@@ -344,8 +409,8 @@ impl Gateway {
             } else {
                 "denied"
             },
-            "File scan: type from bytes, EICAR, text extraction, CTL-IN-001 detectors",
-            json!({"kind":scan.kind,"size":scan.size,"sha256":scan.sha256,"detected":scan.classes,"findings":scan.findings}),
+            "File scan: type from bytes, EICAR, text extraction, CTL-IN-001 detectors, pickle and model inspection, threat signatures",
+            json!({"kind":scan.kind,"size":scan.size,"sha256":scan.sha256,"detected":scan.classes,"findings":scan.findings,"artifact":inspection,"signatures":hits}),
             scan_started.elapsed().as_secs_f64() * 1000.0,
         );
         let engine = self.engine().await?;
@@ -357,7 +422,7 @@ impl Gateway {
                     &uid("Action", capability),
                     &uid("Resource", &cedar_resource),
                     entities.clone(),
-                    json!({"session":betsee_decision::entity_ref("AgentSession",session_id),"detected":scan.classes,"tier":tier_rank,"now":Utc::now().timestamp()}),
+                    json!({"session":betsee_decision::entity_ref("AgentSession",session_id),"detected":scan.classes,"tier":tier_rank,"now":Utc::now().timestamp(),"threat":threat}),
                 )
                 .tighten(initial),
         );
@@ -410,7 +475,7 @@ impl Gateway {
             .audit(&trace, "file_check", Some("action.decided"))
             .await?;
         recorded["findings"] = json!(scan.findings);
-        recorded["file"] = json!({"resource_id":resource_id,"name":name,"kind":scan.kind,"size":scan.size,"sha256":scan.sha256});
+        recorded["file"] = json!({"resource_id":resource_id,"name":name,"kind":scan.kind,"size":scan.size,"sha256":scan.sha256,"artifact":inspection,"signatures":hits});
         Ok(recorded)
     }
 }

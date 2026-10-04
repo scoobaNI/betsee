@@ -4,13 +4,18 @@
 //! catalogued resource names. Findings carry a masked value only; the matched text never leaves
 //! this module.
 
+use regex::Regex;
 use serde::Serialize;
+use std::sync::LazyLock;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Finding {
     pub class: &'static str,
     pub label: &'static str,
     pub masked: String,
+    /// Byte range of the match in the scanned text; never serialized.
+    #[serde(skip)]
+    pub span: (usize, usize),
 }
 
 /// A catalogued resource the session may not reach, with the names a person would type for it.
@@ -19,6 +24,7 @@ pub struct GuardedName {
     pub needles: Vec<String>,
 }
 
+/// Classes a file scan decides on (CTL-FILE-001); unchanged by the guardrail profiles.
 pub const CLASSES: [&str; 5] = [
     "payment_card",
     "iban",
@@ -26,6 +32,21 @@ pub const CLASSES: [&str; 5] = [
     "secret",
     "resource_above_tier",
 ];
+
+/// Classes the input filter reports; a guardrail profile says which of them block (CTL-IN-001),
+/// which are redacted (CTL-IN-002) and which are only recorded.
+pub const INPUT_CLASSES: [&str; 7] = [
+    "payment_card",
+    "iban",
+    "pesel",
+    "secret",
+    "email",
+    "phone",
+    "resource_above_tier",
+];
+
+/// Classes the output filter looks for in model and tool results (CTL-OUT-002).
+pub const OUTPUT_CLASSES: [&str; 6] = ["payment_card", "iban", "pesel", "secret", "email", "phone"];
 
 pub fn detect(text: &str, guarded: &[GuardedName]) -> Vec<Finding> {
     let mut findings = Vec::new();
@@ -35,33 +56,116 @@ pub fn detect(text: &str, guarded: &[GuardedName]) -> Vec<Finding> {
     findings.extend(secrets(text));
     let lower = text.to_lowercase();
     for name in guarded {
-        if name
+        let hit = name
             .needles
             .iter()
-            .any(|needle| contains_word(&lower, &needle.to_lowercase()))
-        {
+            .find_map(|needle| word_position(&lower, &needle.to_lowercase()));
+        if let Some(position) = hit {
+            // Lowercasing can change byte lengths; then the name is reported but not located.
+            let span = if lower.len() == text.len() {
+                position
+            } else {
+                (0, 0)
+            };
             findings.push(Finding {
                 class: "resource_above_tier",
                 label: "resource above the session ceiling",
                 masked: name.resource_id.clone(),
+                span,
             });
         }
     }
     findings
 }
 
-fn contains_word(haystack: &str, needle: &str) -> bool {
-    let boundary =
-        |c: Option<char>| c.is_none_or(|c| !(c.is_alphanumeric() || c == '_' || c == '-'));
-    haystack.match_indices(needle).any(|(start, _)| {
-        boundary(haystack[..start].chars().next_back())
-            && boundary(haystack[start + needle.len()..].chars().next())
-    })
+/// detect() plus the personal-data classes only the profile-driven filters use: email addresses
+/// and phone numbers. A phone match inside a card, IBAN or PESEL number is not reported twice.
+pub fn detect_all(text: &str, guarded: &[GuardedName]) -> Vec<Finding> {
+    let mut findings = detect(text, guarded);
+    for m in EMAIL.find_iter(text) {
+        let address = m.as_str();
+        let (_, domain) = address.split_once('@').unwrap_or(("", address));
+        findings.push(Finding {
+            class: "email",
+            label: "email address",
+            masked: format!("{}***@{domain}", address.chars().next().unwrap_or('*')),
+            span: (m.start(), m.end()),
+        });
+    }
+    for pattern in [&*PHONE_PL, &*PHONE_INTL] {
+        for m in pattern.find_iter(text) {
+            let span = (m.start(), m.end());
+            if findings
+                .iter()
+                .any(|f| f.span.0 < span.1 && span.0 < f.span.1)
+            {
+                continue;
+            }
+            let digits: String = m.as_str().chars().filter(char::is_ascii_digit).collect();
+            findings.push(Finding {
+                class: "phone",
+                label: "phone number",
+                masked: format!("phone ending {}", &digits[digits.len().saturating_sub(2)..]),
+                span,
+            });
+        }
+    }
+    findings
 }
 
-/// Digit runs where single spaces or dashes may separate groups, with their digit strings.
-fn digit_runs(text: &str) -> Vec<String> {
-    let chars: Vec<char> = text.chars().collect();
+static EMAIL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b").unwrap()
+});
+static PHONE_PL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?:\+48[ -]?)?\b[1-9][0-9]{2}[ -]?[0-9]{3}[ -]?[0-9]{3}\b").unwrap()
+});
+static PHONE_INTL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\+[1-9][0-9]{0,2}[ -]?[0-9]{2,4}(?:[ -]?[0-9]{2,4}){2,3}\b").unwrap()
+});
+
+/// Replaces every finding whose class is in `classes` with [REDACTED:<CLASS>]. Overlapping
+/// findings collapse into one replacement.
+pub fn redact(text: &str, findings: &[Finding], classes: &[&str]) -> (String, Vec<Finding>) {
+    let mut chosen: Vec<&Finding> = findings
+        .iter()
+        .filter(|f| classes.contains(&f.class) && f.span.1 > f.span.0 && f.span.1 <= text.len())
+        .collect();
+    chosen.sort_by_key(|f| f.span);
+    let mut out = String::with_capacity(text.len());
+    let mut at = 0;
+    let mut applied = Vec::new();
+    for finding in chosen {
+        let (start, end) = finding.span;
+        if start < at || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
+            continue;
+        }
+        out.push_str(&text[at..start]);
+        out.push_str(&format!("[REDACTED:{}]", finding.class.to_uppercase()));
+        at = end;
+        applied.push(finding.clone());
+    }
+    out.push_str(&text[at..]);
+    (out, applied)
+}
+
+fn word_position(haystack: &str, needle: &str) -> Option<(usize, usize)> {
+    let boundary =
+        |c: Option<char>| c.is_none_or(|c| !(c.is_alphanumeric() || c == '_' || c == '-'));
+    haystack
+        .match_indices(needle)
+        .find(|(start, _)| {
+            boundary(haystack[..*start].chars().next_back())
+                && boundary(haystack[start + needle.len()..].chars().next())
+        })
+        .map(|(start, _)| (start, start + needle.len()))
+}
+
+/// Digit runs where single spaces or dashes may separate groups: the digit string and the byte
+/// range it covers in the text.
+fn digit_runs(text: &str) -> Vec<(String, (usize, usize))> {
+    let indexed: Vec<(usize, char)> = text.char_indices().collect();
+    let chars: Vec<char> = indexed.iter().map(|(_, c)| *c).collect();
+    let byte = |index: usize| indexed.get(index).map_or(text.len(), |(b, _)| *b);
     let mut runs = Vec::new();
     let mut index = 0;
     while index < chars.len() {
@@ -70,6 +174,7 @@ fn digit_runs(text: &str) -> Vec<String> {
             index += 1;
             continue;
         }
+        let start = index;
         let mut digits = String::new();
         while index < chars.len() {
             if chars[index].is_ascii_digit() {
@@ -84,7 +189,7 @@ fn digit_runs(text: &str) -> Vec<String> {
             }
         }
         if !chars.get(index).is_some_and(|c| c.is_alphanumeric()) {
-            runs.push(digits);
+            runs.push((digits, (byte(start), byte(index))));
         }
     }
     runs
@@ -123,11 +228,14 @@ fn card_network(digits: &str) -> bool {
 fn cards(text: &str) -> Vec<Finding> {
     digit_runs(text)
         .into_iter()
-        .filter(|digits| (13..=19).contains(&digits.len()) && card_network(digits) && luhn(digits))
-        .map(|digits| Finding {
+        .filter(|(digits, _)| {
+            (13..=19).contains(&digits.len()) && card_network(digits) && luhn(digits)
+        })
+        .map(|(digits, span)| Finding {
             class: "payment_card",
             label: "payment card number",
             masked: format!("card ending {}", &digits[digits.len() - 4..]),
+            span,
         })
         .collect()
 }
@@ -196,8 +304,10 @@ pub fn iban_valid(iban: &str) -> bool {
 }
 
 fn ibans(text: &str) -> Vec<Finding> {
-    let chars: Vec<char> = text.chars().collect();
-    let mut found = Vec::new();
+    let indexed: Vec<(usize, char)> = text.char_indices().collect();
+    let chars: Vec<char> = indexed.iter().map(|(_, c)| *c).collect();
+    let byte = |index: usize| indexed.get(index).map_or(text.len(), |(b, _)| *b);
+    let mut found: Vec<(String, (usize, usize))> = Vec::new();
     for start in 0..chars.len() {
         if start > 0 && chars[start - 1].is_alphanumeric() {
             continue;
@@ -229,23 +339,24 @@ fn ibans(text: &str) -> Vec<Finding> {
             && !chars.get(index).is_some_and(|c| c.is_alphanumeric())
             && iban_valid(&compact)
         {
-            found.push(compact);
+            found.push((compact, (byte(start), byte(index))));
         }
     }
     // A Polish account number (NRB) is the IBAN without its country code.
-    for digits in digit_runs(text) {
+    for (digits, span) in digit_runs(text) {
         if digits.len() == 26 && iban_valid(&format!("PL{digits}")) {
-            found.push(format!("PL{digits}"));
+            found.push((format!("PL{digits}"), span));
         }
     }
     found.sort();
-    found.dedup();
+    found.dedup_by(|a, b| a.0 == b.0);
     found
         .into_iter()
-        .map(|iban| Finding {
+        .map(|(iban, span)| Finding {
             class: "iban",
             label: "bank account number (IBAN)",
             masked: format!("{} **** {}", &iban[..4], &iban[iban.len() - 4..]),
+            span,
         })
         .collect()
 }
@@ -284,11 +395,12 @@ pub fn pesel_valid(digits: &str) -> bool {
 fn pesels(text: &str) -> Vec<Finding> {
     digit_runs(text)
         .into_iter()
-        .filter(|digits| pesel_valid(digits))
-        .map(|digits| Finding {
+        .filter(|(digits, _)| pesel_valid(digits))
+        .map(|(digits, span)| Finding {
             class: "pesel",
             label: "PESEL number",
             masked: format!("PESEL ending {}", &digits[9..]),
+            span,
         })
         .collect()
 }
@@ -330,14 +442,31 @@ fn secrets(text: &str) -> Vec<Finding> {
         && let Some(header) = text[start..].split("-----").nth(1)
         && header.ends_with("PRIVATE KEY")
     {
+        let footer = format!("-----END {}-----", header.trim_start_matches("BEGIN "));
+        let end = text[start..]
+            .find(&footer)
+            .map_or(text.len(), |at| start + at + footer.len());
         findings.push(Finding {
             class: "secret",
             label: "private key",
             masked: format!("-----BEGIN {} ...", header.trim_start_matches("BEGIN ")),
+            span: (start, end),
         });
     }
     let token_char = |c: char| c.is_ascii_alphanumeric() || matches!(c, '-' | '_');
-    for token in text.split(|c: char| !token_char(c)) {
+    let mut tokens = Vec::new();
+    let mut token_start = None;
+    for (at, c) in text.char_indices().chain(std::iter::once((text.len(), ' '))) {
+        match (token_char(c), token_start) {
+            (true, None) => token_start = Some(at),
+            (false, Some(start)) => {
+                tokens.push((start, &text[start..at]));
+                token_start = None;
+            }
+            _ => {}
+        }
+    }
+    for (start, token) in tokens {
         let aws = (token.starts_with("AKIA") || token.starts_with("ASIA"))
             && token.len() == 20
             && token[4..]
@@ -358,6 +487,7 @@ fn secrets(text: &str) -> Vec<Finding> {
                 class: "secret",
                 label,
                 masked: format!("{}****", &token[..token.len().min(6)]),
+                span: (start, start + token.len()),
             });
         }
     }
@@ -463,6 +593,30 @@ mod tests {
             ["resource_above_tier"]
         );
         assert!(classes("old-salaries-2026.csv.bak is elsewhere").is_empty());
+    }
+
+    #[test]
+    fn email_and_phone_are_found_only_by_detect_all() {
+        let text = "Write to jan.kowalski@acme.pl or call +48 601 234 567, card 4111 1111 1111 1111";
+        let classes: Vec<_> = detect_all(text, &[]).into_iter().map(|f| f.class).collect();
+        assert_eq!(classes, ["payment_card", "email", "phone"]);
+        assert!(detect(text, &[]).iter().all(|f| f.class == "payment_card"));
+        assert!(detect_all("call 555 0100 today, invoice 2026-10-03", &[]).is_empty());
+        assert!(detect_all("PESEL 44051401359", &[]).iter().all(|f| f.class == "pesel"));
+    }
+
+    #[test]
+    fn redaction_replaces_exactly_the_chosen_classes() {
+        let text = "PESEL 44051401359, mail jan@acme.pl, IBAN PL61 1090 1014 0000 0712 1981 2874.";
+        let findings = detect_all(text, &[]);
+        let (redacted, applied) = redact(text, &findings, &["pesel", "iban"]);
+        assert_eq!(
+            redacted,
+            "PESEL [REDACTED:PESEL], mail jan@acme.pl, IBAN [REDACTED:IBAN]."
+        );
+        assert_eq!(applied.len(), 2);
+        let (all, _) = redact("klucz AKIAIOSFODNN7EXAMPLE ok", &detect_all("klucz AKIAIOSFODNN7EXAMPLE ok", &[]), &["secret"]);
+        assert_eq!(all, "klucz [REDACTED:SECRET] ok");
     }
 
     #[test]

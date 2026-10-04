@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, demoApi, unwrap } from './client.ts';
 import { liveActions, liveMessages, liveSecurityEvents, mergeActions, mergeMessages, mergeSecurityEvents } from './live.ts';
+import type { ArtifactScanRequest, EvaluateRequest } from './types.ts';
 
 export const queryKeys = {
   me: ['me'],
@@ -18,6 +19,7 @@ export const queryKeys = {
   summary: ['summary'],
   securityEvents: ['security-events'],
   connectors: ['connectors'],
+  guardrails: ['guardrails'],
   scenarios: ['demo', 'scenarios'],
   run: (runId: string) => ['demo', 'run', runId],
 } as const;
@@ -109,6 +111,18 @@ export const useConnectors = () =>
     queryKey: queryKeys.connectors,
     queryFn: async () => (await unwrap(api.GET('/api/v1/connectors'))).items,
   });
+
+/** The guardrail configuration in force; polled so an accepted or rejected hot reload shows within seconds. */
+export const useGuardrails = () =>
+  useQuery({ queryKey: queryKeys.guardrails, queryFn: () => unwrap(api.GET('/api/v1/guardrails')), refetchInterval: 5_000 });
+
+/** The guardrail playground: the enforced detectors, signatures and classifier on typed text; no trace. */
+export const useEvaluateGuardrails = () =>
+  useMutation({ mutationFn: (body: EvaluateRequest) => unwrap(api.POST('/api/v1/guardrails/evaluate', { body })) });
+
+/** Inspects a model or data artifact without loading it; a non-clean verdict becomes a security event. */
+export const useScanArtifact = () =>
+  useMutation({ mutationFn: (body: ArtifactScanRequest) => unwrap(api.POST('/api/v1/artifacts/scan', { body })) });
 
 /** Releases a quarantined or suspended agent; the Gateway emits agent.state_changed. */
 export const useReleaseAgent = () => {

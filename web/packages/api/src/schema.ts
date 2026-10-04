@@ -245,6 +245,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/guardrails": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Guardrail configuration in force (CTL-CFG-001): policy files and version, hot-reload status, profiles, models, budgets, classifier card, threat signatures and feed status. security-officer or org-admin. */
+        get: operations["get__api_v1_guardrails"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/guardrails/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Guardrail playground: evaluate text under a profile with the detectors, signatures and classifier the enforced paths use. Records no trace. security-officer or org-admin. */
+        post: operations["post__api_v1_guardrails_evaluate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/artifacts/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Inspect a model or data artifact without loading it (CTL-FILE-002, CTL-SUP-001). A verdict other than clean records a security event. security-officer or org-admin. */
+        post: operations["post__api_v1_artifacts_scan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agents/{id}/release": {
         parameters: {
             query?: never;
@@ -516,6 +567,20 @@ export interface components {
             used: number;
             /** @enum {string} */
             unit: "cents";
+            /** @description Model tokens the session may use (CTL-RUN-005). */
+            tokens_limit?: number;
+            /** @description Sessions only. */
+            tokens_used?: number;
+            /** @description Sessions only: spend in fractional cents; used rounds it up. */
+            used_exact?: number;
+            /** @description Sessions only: model calls per model id. */
+            by_model?: {
+                [key: string]: {
+                    calls: number;
+                    tokens: number;
+                    cents: number;
+                };
+            };
         };
         Human: {
             sub: string;
@@ -546,6 +611,372 @@ export interface components {
             model_label: string;
             /** @description Mock analyzer finding, always displayed together with model_label. */
             finding?: string;
+            /** @description Semantic classifier score (CTL-AI-002). */
+            score?: number;
+            /** @description Guardrail profile whose thresholds applied. */
+            profile?: string;
+            thresholds?: {
+                review_at: number;
+                block_at: number;
+            };
+            classifier?: {
+                id: string;
+                version: string;
+                latency_ms: number;
+                detail: {
+                    score: number;
+                    /**
+                     * @description The reading of the text that scored highest.
+                     * @enum {string}
+                     */
+                    variant: "plain" | "leetspeak" | "spaced_letters" | "decoded";
+                    terms: {
+                        term: string;
+                        weight: number;
+                    }[];
+                    intents: string[];
+                };
+            };
+            llm_judge?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** @description A known-exploit signature that matched (CTL-SIG-001). evidence is the matched text, cut at 80 characters. */
+        Hit: {
+            id: string;
+            name: string;
+            category: string;
+            severity: string;
+            /** @enum {string} */
+            action: "block" | "review";
+            references: string[];
+            /** @description What was scanned: prompt, parameters, command, output, file, model_file, model_template or model_ref. */
+            target: string;
+            /** @enum {string} */
+            source: "baseline" | "feed";
+            evidence: string;
+        };
+        MaskedValue: {
+            class: string;
+            /** @description Masked value; the matched text is never returned or stored. */
+            masked: string;
+        };
+        /** @description The guardrail profile and content checks applied to this request. Actions carry signatures, model_check and model_call; input checks carry redactions, recorded and flagged_untrusted. */
+        TraceGuardrails: {
+            profile: string;
+            policy_version: string;
+            signatures?: components["schemas"]["Hit"][];
+            model_check?: {
+                [key: string]: unknown;
+            } | null;
+            model_call?: {
+                [key: string]: unknown;
+            } | null;
+            redactions?: components["schemas"]["MaskedValue"][];
+            /** @description Findings the profile allows: recorded in the trace, nothing else. */
+            recorded?: components["schemas"]["MaskedValue"][];
+            flagged_untrusted?: boolean;
+        };
+        /** @description What the action cost against the session budget (CTL-RUN-001, CTL-RUN-005). */
+        ActionCost: {
+            cents: number;
+            tokens: number;
+            seconds?: number;
+            session_used_cents?: number;
+            session_tokens_used?: number;
+        };
+        /** @description What the output filter did to a connector result (CTL-OUT-002). */
+        OutputFilter: {
+            redactions: components["schemas"]["MaskedValue"][];
+            recorded: components["schemas"]["MaskedValue"][];
+            withheld: string[];
+            signatures: components["schemas"]["Hit"][];
+            indirect_injection_suspected: boolean;
+            semantic: ({
+                score?: number;
+                verdict?: string;
+                rationale?: string;
+            } & {
+                [key: string]: unknown;
+            }) | null;
+        };
+        SummaryGuardrails: {
+            redactions_last_15m: number;
+            signature_hits_last_15m: number;
+            semantic_flags_last_15m: number;
+            spent_cents_last_15m: number;
+            tokens_last_15m: number;
+            latency_ms: {
+                p50: number | null;
+                p95: number | null;
+                samples: number;
+            };
+            policy_version: string;
+        };
+        GuardrailProfile: {
+            description: string;
+            /** @description Action per input detector class; a class not listed blocks. */
+            input: {
+                /** @enum {string} */
+                payment_card?: "block" | "redact" | "allow";
+                /** @enum {string} */
+                iban?: "block" | "redact" | "allow";
+                /** @enum {string} */
+                pesel?: "block" | "redact" | "allow";
+                /** @enum {string} */
+                secret?: "block" | "redact" | "allow";
+                /** @enum {string} */
+                email?: "block" | "redact" | "allow";
+                /** @enum {string} */
+                phone?: "block" | "redact" | "allow";
+                /** @enum {string} */
+                resource_above_tier?: "block" | "redact" | "allow";
+            } & {
+                [key: string]: "block" | "redact" | "allow";
+            };
+            /** @description Action per output detector class; a class not listed is redacted. */
+            output: {
+                /** @enum {string} */
+                payment_card?: "block" | "redact" | "allow";
+                /** @enum {string} */
+                iban?: "block" | "redact" | "allow";
+                /** @enum {string} */
+                pesel?: "block" | "redact" | "allow";
+                /** @enum {string} */
+                secret?: "block" | "redact" | "allow";
+                /** @enum {string} */
+                email?: "block" | "redact" | "allow";
+                /** @enum {string} */
+                phone?: "block" | "redact" | "allow";
+            } & {
+                [key: string]: "block" | "redact" | "allow";
+            };
+            semantic: {
+                review_at: number;
+                block_at: number;
+            };
+        };
+        ModelPrice: {
+            id: string;
+            label: string;
+            /** @enum {string} */
+            provider: "local" | "external";
+            enabled: boolean;
+            input_cents_per_1k: number;
+            output_cents_per_1k: number;
+            compute_cents_per_second: number;
+            max_output_tokens: number;
+        };
+        SessionBudgetDefault: {
+            cents: number;
+            tokens: number;
+        };
+        /** @description policies/guardrails.yaml as the Gateway parsed it. */
+        GuardrailsConfig: {
+            version: number;
+            profiles: {
+                [key: string]: components["schemas"]["GuardrailProfile"];
+            };
+            assignments: {
+                default: string;
+                use_cases: {
+                    [key: string]: string;
+                };
+            };
+            semantic: {
+                model: string;
+                llm_judge: boolean;
+                scan_tool_output: boolean;
+            };
+            signatures: {
+                baseline: string;
+                feed_url: string | null;
+                poll_seconds: number;
+            };
+            models: components["schemas"]["ModelPrice"][];
+            budgets: {
+                max_session_cents: number;
+                sessions: {
+                    default: components["schemas"]["SessionBudgetDefault"];
+                    use_cases: {
+                        [key: string]: components["schemas"]["SessionBudgetDefault"];
+                    };
+                };
+                /** @description Cents per capability; "default" prices the rest. */
+                action_cost_cents: {
+                    [key: string]: number;
+                };
+            };
+            supply_chain: {
+                allowed_orgs: string[];
+                safe_formats: string[];
+                unsafe_formats: string[];
+                require_pinned_revision: boolean;
+                forbid_trust_remote_code: boolean;
+                typosquat_distance: number;
+            };
+        };
+        ClassifierMetric: {
+            threshold: number;
+            precision: number;
+            recall: number;
+            false_positive_rate: number;
+            tp: number;
+            fp: number;
+            fn: number;
+            tn: number;
+        };
+        ClassifierCard: {
+            id: string;
+            version: string;
+            sha256: string;
+            format: string;
+            features: number;
+            training: {
+                examples?: number;
+                handwritten?: {
+                    attack: number;
+                    benign: number;
+                };
+                templated?: {
+                    attack: number;
+                    benign: number;
+                };
+                public_datasets?: {
+                    attack: number;
+                    benign: number;
+                    sources: string[];
+                };
+                languages?: string[];
+                algorithm?: string;
+            } & {
+                [key: string]: unknown;
+            };
+            evaluation: {
+                cross_validated_handwritten?: components["schemas"]["ClassifierMetric"][];
+                holdout?: components["schemas"]["ClassifierMetric"][];
+            } & {
+                [key: string]: unknown;
+            };
+        };
+        Signature: {
+            id: string;
+            name: string;
+            category: string;
+            severity: string;
+            /** @enum {string} */
+            action: "block" | "review";
+            references: string[];
+            description: string;
+            targets: string[];
+            /** @enum {string} */
+            source: "baseline" | "feed";
+        };
+        /** @description CTL-CFG-001: the configuration in force, where it came from, and whether the last change was accepted. */
+        GuardrailsStatus: {
+            policy: {
+                /** @description First 12 hex digits of a SHA-256 over every policy file. */
+                version: string;
+                /** Format: date-time */
+                loaded_at: string;
+                files: {
+                    path: string;
+                    sha256: string;
+                }[];
+            };
+            /** @description Hot reload of policies/: a change that does not validate is rejected and the last good version stays active. */
+            reload: {
+                active_version: string;
+                loaded_at: string;
+                reloads: number;
+                last_checked_at: string | null;
+                last_rejected_at: string | null;
+                last_error: string | null;
+            };
+            guardrails: components["schemas"]["GuardrailsConfig"];
+            classifier: components["schemas"]["ClassifierCard"];
+            signatures: {
+                count: number;
+                baseline: {
+                    feed: string;
+                    version: string;
+                    signatures: number;
+                };
+                external: {
+                    feed: string;
+                    version: string;
+                    published_at: string | null;
+                    signatures: number;
+                } | null;
+                signatures: components["schemas"]["Signature"][];
+            };
+            feed: {
+                url: string | null;
+                last_fetch_at: string | null;
+                last_success_at: string | null;
+                last_error: string | null;
+                version: string | null;
+                sha256: string | null;
+                updates: number;
+            };
+        };
+        GuardrailEvaluate: {
+            text: string;
+            /**
+             * @default input
+             * @enum {string}
+             */
+            direction: "input" | "output";
+            use_case_id?: string;
+            /** @description Wins over use_case_id; without either the default profile applies. */
+            profile?: string;
+        };
+        GuardrailFinding: {
+            /** @enum {string} */
+            class: "payment_card" | "iban" | "pesel" | "secret" | "email" | "phone" | "resource_above_tier";
+            label: string;
+            /** @description Masked value; the matched text is never returned or stored. */
+            masked: string;
+            /** @enum {string} */
+            action: "block" | "redact" | "allow";
+        };
+        /** @description The playground runs the detectors, profile actions, signatures and classifier of the enforced paths, without an agent or a session. */
+        GuardrailEvaluation: {
+            /** @enum {string} */
+            decision: "allow" | "allow_redacted" | "flag_untrusted" | "block" | "withhold";
+            /** @enum {string} */
+            direction: "input" | "output";
+            profile: string;
+            policy_version: string;
+            findings: components["schemas"]["GuardrailFinding"][];
+            /** @description The text as it would go on, with [REDACTED:<class>] and [REMOVED:<signature id>] in place of what was taken out. */
+            forwarded_text: string;
+            withheld_classes: string[];
+            signatures: components["schemas"]["Hit"][];
+            semantic: components["schemas"]["Analyzer"];
+            latency_ms: number;
+        };
+        ArtifactScanRequest: {
+            name: string;
+            /** @description The file, base64; at most 8 MiB decoded. */
+            content_base64: string;
+        };
+        /** @description CTL-FILE-002 and CTL-SUP-001: what the Gateway read out of a model or data artifact without loading it. */
+        ArtifactScan: {
+            name: string;
+            size: number;
+            /** @description sha256:<hex> */
+            sha256: string;
+            /** @enum {string} */
+            verdict: "block" | "review" | "clean";
+            artifact: {
+                format: string;
+                pickle_imports: string[];
+                chat_templates: number;
+                members_scanned: number;
+            };
+            signatures: components["schemas"]["Hit"][];
+            latency_ms: number;
         };
         ChatInput: {
             session_id: string;
@@ -553,13 +984,15 @@ export interface components {
         };
         InputFinding: {
             /** @enum {string} */
-            class: "payment_card" | "iban" | "pesel" | "secret" | "resource_above_tier";
+            class: "payment_card" | "iban" | "pesel" | "secret" | "email" | "phone" | "resource_above_tier";
             label: string;
             /** @description Masked value; the matched text is never returned or stored. */
             masked: string;
         };
         ChatInputResult: components["schemas"]["ActionSummary"] & {
             findings: components["schemas"]["InputFinding"][];
+            /** @description The message as forwarded to the agent, with [REDACTED:<class>] in place of redacted values; only when it was allowed. */
+            forwarded_text?: string;
         };
         ChatSession: {
             chat_id: string;
@@ -625,12 +1058,15 @@ export interface components {
             step_up_required: boolean;
             caller_trace_id: string | null;
             analysis?: components["schemas"]["Analyzer"];
+            guardrails?: components["schemas"]["TraceGuardrails"];
+            cost?: components["schemas"]["ActionCost"];
+            output_filter?: components["schemas"]["OutputFilter"];
         };
         Span: {
             span_id: string;
             parent_span_id: string | null;
             /** @enum {string} */
-            stage: "authenticate" | "resolve_context" | "identity" | "capability" | "cedar_authz" | "information_tier" | "command_validation" | "budget" | "ai_analysis" | "decision" | "approval" | "step_up" | "connector" | "output_controls" | "audit";
+            stage: "authenticate" | "resolve_context" | "identity" | "capability" | "cedar_authz" | "information_tier" | "command_validation" | "threat_signatures" | "budget" | "ai_analysis" | "decision" | "approval" | "step_up" | "connector" | "output_controls" | "audit";
             /** @enum {string} */
             status: "passed" | "denied" | "tightened" | "pending" | "skipped";
             /** Format: date-time */
@@ -647,7 +1083,7 @@ export interface components {
              * @description Cedar-derived identity, capability and information_tier statuses refer to cedar_authz.
              * @enum {string|null}
              */
-            parent_stage?: "authenticate" | "resolve_context" | "identity" | "capability" | "cedar_authz" | "information_tier" | "command_validation" | "budget" | "ai_analysis" | "decision" | "approval" | "step_up" | "connector" | "output_controls" | "audit" | null;
+            parent_stage?: "authenticate" | "resolve_context" | "identity" | "capability" | "cedar_authz" | "information_tier" | "command_validation" | "threat_signatures" | "budget" | "ai_analysis" | "decision" | "approval" | "step_up" | "connector" | "output_controls" | "audit" | null;
         };
         Trace: {
             trace_id: string;
@@ -687,6 +1123,9 @@ export interface components {
                 [key: string]: unknown;
             };
             analysis?: components["schemas"]["Analyzer"];
+            guardrails?: components["schemas"]["TraceGuardrails"];
+            cost?: components["schemas"]["ActionCost"];
+            output_filter?: components["schemas"]["OutputFilter"];
         };
         AgentSession: {
             id: string;
@@ -704,6 +1143,8 @@ export interface components {
             started_at: string;
             /** Format: date-time */
             expires_at: string;
+            /** @description Guardrail profile of the use case at session start. */
+            guardrail_profile?: string;
         };
         Agent: {
             id: string;
@@ -731,6 +1172,8 @@ export interface components {
             budget: components["schemas"]["Budget"];
             agent_ids: string[];
             peer_ids: string[];
+            /** @description Guardrail profile assigned in policies/guardrails.yaml. */
+            guardrail_profile?: string;
         };
         CreateSession: {
             agent_id: string;
@@ -926,6 +1369,7 @@ export interface components {
             stage_counts: {
                 [key: string]: unknown;
             };
+            guardrails?: components["schemas"]["SummaryGuardrails"];
         };
         ToolDescriptorChanged: {
             connector_id: string;
@@ -2234,6 +2678,182 @@ export interface operations {
             };
             /** @description State conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__api_v1_guardrails: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardrailsStatus"];
+                };
+            };
+            /** @description Missing or invalid authentication */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Security role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__api_v1_guardrails_evaluate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuardrailEvaluate"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardrailEvaluation"];
+                };
+            };
+            /** @description Empty or oversized text, unknown profile or direction */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid authentication */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Security role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__api_v1_artifacts_scan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtifactScanRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactScan"];
+                };
+            };
+            /** @description content_base64 is not base64 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid authentication */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Security role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Artifact larger than 8 MiB */
+            413: {
                 headers: {
                     [name: string]: unknown;
                 };
