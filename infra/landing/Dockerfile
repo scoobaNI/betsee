@@ -1,0 +1,4 @@
+FROM caddy:2-alpine
+COPY infra/landing/Caddyfile /etc/caddy/Caddyfile
+COPY landing/ /srv/landing/
+COPY docs/design/tokens.css /srv/landing/tokens.css

@@ -1150,6 +1150,11 @@ function Workspace({
                   {runtime?.version?.split(" ")[0] ?? ""}
                 </span>
               </p>
+              {thread.model && (
+                <p className="truncate font-mono text-2xs text-fg-tertiary 2xl:hidden">
+                  {thread.model}
+                </p>
+              )}
             </div>
           </div>
           <div className="mt-4 flex items-center justify-between gap-3 text-sm">

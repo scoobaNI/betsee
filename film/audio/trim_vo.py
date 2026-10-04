@@ -1,5 +1,7 @@
 """Trims each voiced line to its speech (with a short pad) and reports the spoken length, which the
-film's timeline is fitted to. Writes out/vo/<id>.wav (48 kHz stereo) and out/vo/spans.json."""
+film's timeline is fitted to. Writes out/vo/<id>.wav (48 kHz stereo) and out/vo/spans.json.
+
+narration.json's "tempo" (default 1.0) speeds every line up without changing pitch (ffmpeg atempo)."""
 import json
 import subprocess
 from pathlib import Path
@@ -12,13 +14,32 @@ RATE = 48_000
 PAD = 0.03
 
 
+SCRIPT = json.loads((HERE / "narration.json").read_text())
+TEMPO = SCRIPT.get("tempo", 1.0)
+
+
 def decode(path: Path) -> np.ndarray:
     raw = subprocess.run(
-        ["ffmpeg", "-v", "error", "-i", str(path), "-f", "f32le", "-ac", "1", "-ar", str(RATE), "-"],
+        ["ffmpeg", "-v", "error", "-i", str(path), "-af", f"atempo={TEMPO}", "-f", "f32le", "-ac", "1", "-ar", str(RATE), "-"],
         check=True,
         capture_output=True,
     ).stdout
     return np.frombuffer(raw, dtype=np.float32)
+
+
+def phrases(samples: np.ndarray, min_gap: float = 0.16) -> list[float]:
+    """Start times (s) of the phrases in a trimmed line: speech after a pause of at least min_gap."""
+    window = RATE // 100
+    frames = len(samples) // window
+    rms = np.sqrt(np.mean(samples[: frames * window].reshape(frames, window) ** 2, axis=1))
+    loud = rms > max(rms.max() * 0.05, 1e-3)
+    starts, quiet = [], int(min_gap * 100)
+    run = quiet
+    for i, on in enumerate(loud):
+        if on and run >= quiet:
+            starts.append(round(i / 100, 2))
+        run = 0 if on else run + 1
+    return starts
 
 
 def speech_span(samples: np.ndarray) -> tuple[int, int]:
@@ -30,7 +51,7 @@ def speech_span(samples: np.ndarray) -> tuple[int, int]:
 
 
 spans = {}
-for line in json.loads((HERE / "narration.json").read_text())["lines"]:
+for line in SCRIPT["lines"]:
     samples = decode(OUT / f"{line['id']}.mp3")
     start, end = speech_span(samples)
     pad = int(PAD * RATE)
@@ -41,6 +62,6 @@ for line in json.loads((HERE / "narration.json").read_text())["lines"]:
         input=stereo.tobytes(),
         check=True,
     )
-    spans[line["id"]] = round(len(clip) / RATE, 3)
-    print(f"{line['id']} {spans[line['id']]:5.2f}s  {line['text']}")
+    spans[line["id"]] = {"dur": round(len(clip) / RATE, 3), "phrases": phrases(clip)}
+    print(f"{line['id']} {spans[line['id']]['dur']:5.2f}s  {spans[line['id']]['phrases']}  {line['text']}")
 (OUT / "spans.json").write_text(json.dumps(spans, indent=1))

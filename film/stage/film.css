@@ -1,0 +1,516 @@
+@font-face {
+  font-family: "Mona";
+  src: url("fonts/mona-sans-latin-standard-normal.woff2") format("woff2-variations");
+  font-weight: 200 900;
+  font-stretch: 75% 125%;
+}
+@font-face {
+  font-family: "Mona";
+  src: url("fonts/mona-sans-latin-ext-standard-normal.woff2") format("woff2-variations");
+  font-weight: 200 900;
+  font-stretch: 75% 125%;
+  unicode-range: U+0100-024F, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "JBMono";
+  src: url("/web/node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2") format("woff2");
+  font-weight: 100 800;
+}
+@font-face {
+  font-family: "Urbanist";
+  src: url("/web/node_modules/@fontsource-variable/urbanist/files/urbanist-latin-wght-normal.woff2") format("woff2");
+  font-weight: 100 900;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/web/node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2");
+  font-weight: 100 900;
+}
+
+/* A white stage; hue is kept for meaning, exactly as in the Director. */
+:root {
+  --paper: #fbfbfd;
+  --ink: #0b1220;
+  --ink-2: #4b5466;
+  --ink-3: #8a94a6;
+  --line: #e7e9ee;
+  --accent: #3a5bd9;
+  --accent-2: #6a8cff;
+  --accent-soft: #eef2fd;
+  --ok: #14a05a;
+  --bad: #e0484e;
+  --wait: #e28a0c;
+  --verify: #8a52c7;
+  --ai: #cf3f97;
+  --quar: #ea6a1e;
+  --shadow: 0 0 0 1px rgba(16, 24, 40, 0.06), 0 2px 6px rgba(16, 24, 40, 0.04), 0 30px 70px -20px rgba(16, 24, 40, 0.22);
+  --shadow-lg: 0 0 0 1px rgba(16, 24, 40, 0.06), 0 4px 10px rgba(16, 24, 40, 0.04), 0 60px 120px -30px rgba(16, 24, 40, 0.32);
+}
+
+html,
+body {
+  margin: 0;
+  background: #fff;
+  overflow: hidden;
+}
+
+#stage {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background: var(--paper);
+  font-family: "Mona", system-ui, sans-serif;
+  font-stretch: 104%;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+.scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(1100px 700px at 8% 0%, rgba(58, 91, 217, 0.07), transparent 70%),
+    radial-gradient(900px 700px at 100% 100%, rgba(20, 160, 90, 0.05), transparent 70%),
+    var(--paper);
+}
+.scene.plain {
+  background: var(--paper);
+}
+.abs {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform, opacity;
+}
+.fill {
+  position: absolute;
+  inset: 0;
+}
+.cut {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background-repeat: no-repeat;
+}
+.lifted {
+  box-shadow: var(--shadow-lg);
+}
+.dots {
+  background-image: radial-gradient(rgba(16, 24, 40, 0.07) 1px, transparent 1.4px);
+  background-size: 26px 26px;
+}
+.mono {
+  font-family: "JBMono", ui-monospace, monospace;
+  font-stretch: 100%;
+}
+#grain {
+  position: absolute;
+  inset: -64px;
+  pointer-events: none;
+  z-index: 95;
+  opacity: 0.025;
+  mix-blend-mode: multiply;
+}
+#fade {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  pointer-events: none;
+  z-index: 99;
+}
+
+/* Type */
+.h {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  font-weight: 640;
+  font-size: 68px;
+  font-stretch: 106%;
+  letter-spacing: -0.035em;
+  line-height: 1.04;
+  color: var(--ink);
+  will-change: transform, opacity, filter;
+}
+.h.xl {
+  font-size: 104px;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+}
+.h.lg {
+  font-size: 84px;
+  font-weight: 680;
+}
+.h.md {
+  font-size: 52px;
+  font-weight: 620;
+  letter-spacing: -0.028em;
+}
+.h.sm {
+  font-size: 36px;
+  font-weight: 560;
+  letter-spacing: -0.02em;
+}
+.h .dim,
+.dim {
+  color: var(--ink-3);
+}
+.h .soft {
+  color: var(--ink-2);
+}
+.h .blue {
+  color: var(--accent);
+}
+.h .pink {
+  color: var(--ai);
+}
+.h.center {
+  text-align: center;
+}
+.eyebrow {
+  white-space: nowrap;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-stretch: 112%;
+}
+.body {
+  font-size: 26px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  font-weight: 450;
+}
+
+/* The wordmark */
+.letter {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-weight: 760;
+  color: var(--ink);
+  line-height: 1;
+  will-change: transform, opacity;
+}
+
+/* Decision chips in the Director's vocabulary */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 15px 0 11px;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--ink);
+  font-weight: 620;
+  font-size: 17px;
+  white-space: nowrap;
+}
+.chip .ic {
+  color: var(--c);
+  flex: none;
+}
+.chip-lg {
+  height: 50px;
+  font-size: 23px;
+  padding: 0 21px 0 15px;
+  gap: 10px;
+}
+.chip-xl {
+  height: 76px;
+  font-size: 34px;
+  padding: 0 30px 0 20px;
+  gap: 14px;
+}
+
+/* Cards, pills, tokens */
+.card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background: #fff;
+  color: var(--ink);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line), 0 6px 16px -8px rgba(16, 24, 40, 0.18);
+  font-size: 18px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.pill.mono {
+  font-size: 17px;
+}
+.token {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  height: 54px;
+  padding: 0 22px 0 8px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line), 0 14px 34px -14px rgba(16, 24, 40, 0.35);
+  white-space: nowrap;
+  font-size: 20px;
+  font-weight: 560;
+}
+.token .bot,
+.mark-bot {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex: none;
+}
+.token .sub {
+  color: var(--ink-2);
+  font-size: 18px;
+}
+.agent {
+  display: grid;
+  place-items: center;
+  border-radius: 28%;
+  background: linear-gradient(160deg, #6a96ff, #2f5bea);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 8px 18px -8px rgba(47, 91, 234, 0.6);
+  flex: none;
+}
+.agent.tool {
+  background: linear-gradient(160deg, #9fb0c6, #52627a);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 8px 18px -8px rgba(52, 70, 95, 0.6);
+}
+.agent.model {
+  background: linear-gradient(160deg, #f08ccf, #c2338a);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 8px 18px -8px rgba(207, 63, 151, 0.6);
+}
+.avatar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 999px;
+  background-size: cover;
+  background-position: center;
+  box-shadow:
+    0 0 0 3px #fff,
+    0 8px 20px -6px rgba(16, 24, 40, 0.35);
+}
+
+/* App windows: the real screens, framed */
+.screen {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #f7f8fa;
+  box-shadow: var(--shadow-lg);
+  will-change: transform, opacity;
+}
+.screen .bar {
+  position: relative;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f4f7;
+  border-bottom: 1px solid #e3e6eb;
+}
+.screen .bar .lights {
+  position: absolute;
+  left: 18px;
+  top: 0;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.screen .bar .lights i {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #d9dce2;
+}
+.screen .bar .url {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 16px;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 0 0 1px #e3e6eb;
+  font-size: 15px;
+  color: #4b5466;
+  font-family: "JBMono", monospace;
+}
+.screen .bar .title {
+  font-size: 16px;
+  font-weight: 640;
+  color: #2b3240;
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+}
+.screen .bar .controls {
+  position: absolute;
+  right: 16px;
+  top: 0;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.screen .bar .controls i {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #e3e6eb;
+}
+.screen .view {
+  position: relative;
+  overflow: hidden;
+}
+.screen .page {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+.screen.dark .bar {
+  background: #16181d;
+  border-bottom-color: #23262d;
+}
+.screen.dark .bar .url {
+  background: #0d0f12;
+  box-shadow: 0 0 0 1px #2a2e36;
+  color: #a2aaa2;
+}
+.screen.dark .bar .lights i {
+  background: #353943;
+}
+
+/* Callouts: a dot on the real element, a hairline, a label */
+.callout {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 0 0 1px rgba(58, 91, 217, 0.18), 0 18px 40px -16px rgba(16, 24, 40, 0.35);
+  white-space: nowrap;
+  will-change: transform, opacity;
+}
+.callout b {
+  font-size: 20px;
+  font-weight: 640;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.callout span {
+  font-size: 16px;
+  color: var(--ink-2);
+}
+.callout .mono {
+  font-size: 15px;
+  color: var(--accent);
+}
+.ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 2.5px var(--rc, #3a5bd9),
+    0 0 0 8px color-mix(in srgb, var(--rc, #3a5bd9) 14%, transparent);
+}
+
+/* Code */
+.code {
+  font-family: "JBMono", monospace;
+  font-size: 21px;
+  line-height: 1.6;
+  color: #24324f;
+  white-space: pre;
+}
+.code .k {
+  color: #3a5bd9;
+  font-weight: 600;
+}
+.code .s {
+  color: #0d7a43;
+}
+.code .a {
+  color: #9a5800;
+}
+.code .c {
+  color: #8a94a6;
+}
+.code .hl {
+  background: rgba(58, 91, 217, 0.1);
+  box-shadow: 0 0 0 5px rgba(58, 91, 217, 0.1);
+  border-radius: 4px;
+}
+
+/* Gateway stages */
+.stage-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 322px;
+  height: 128px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: var(--shadow);
+  padding: 20px 22px;
+  box-sizing: border-box;
+  will-change: transform, opacity;
+}
+.stage-card .n {
+  font-family: "JBMono", monospace;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+.stage-card .t {
+  font-size: 22px;
+  white-space: nowrap;
+  font-weight: 640;
+  letter-spacing: -0.015em;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.stage-card .d {
+  font-family: "JBMono", monospace;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-top: 8px;
+}

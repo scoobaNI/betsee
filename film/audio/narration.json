@@ -5,58 +5,127 @@
   },
   "model": "eleven_v4",
   "seed": 7,
+  "tempo": 1.08,
   "lines": [
     {
-      "id": "v01",
-      "text": "AI agents are already inside the enterprise."
+      "id": "n01",
+      "text": "AI agents are already part of how companies work."
     },
     {
-      "id": "v03",
-      "text": "But AI is probabilistic."
+      "id": "n02",
+      "text": "People ask them to read files, answer customers, write code, and move money."
     },
     {
-      "id": "v04",
-      "text": "Enterprise control cannot be."
+      "id": "n04",
+      "text": "But a language model is non-deterministic."
     },
     {
-      "id": "v05",
-      "text": "Betsee. Better see what your agents do."
+      "id": "n05",
+      "text": "Ask the same thing twice, and the reasoning, the plan, even the action can change."
     },
     {
-      "id": "v07",
-      "text": "Betsee decides what those tools may actually do."
+      "id": "n06",
+      "text": "That's fine for a first draft. It's not fine for permissions."
     },
     {
-      "id": "v09",
+      "id": "n07",
+      "text": "So who decides what an agent may actually do? The model, or the company?"
+    },
+    {
+      "id": "n08",
+      "text": "Betsee. Better see what your agents do, and deterministically control what they can do."
+    },
+    {
+      "id": "n09",
+      "text": "Your people keep the assistants they already use: Claude Code or Codex, inside Betsee Desk."
+    },
+    {
+      "id": "n10",
+      "text": "Every message is checked before the model sees it. Card numbers, IBANs, keys, and restricted names never leave."
+    },
+    {
+      "id": "n11",
+      "text": "Every tool call the assistant attempts goes to the Betsee Gateway first. If the Gateway can't be reached, nothing runs."
+    },
+    {
+      "id": "n12",
+      "text": "The Gateway decides every action in fifteen deterministic stages."
+    },
+    {
+      "id": "n13",
+      "text": "Identity, context, capability, Cedar policy, information tier, command validation, and budget."
+    },
+    {
+      "id": "n14",
+      "text": "AI analysis comes after policy, and it can only make a decision stricter."
+    },
+    {
+      "id": "n15",
+      "text": "Then approval, step-up, execution, and audit. Every stage is a span. Every decision is a trace."
+    },
+    {
+      "id": "n16",
       "text": "Same conditions. Same policy. Same decision."
     },
     {
-      "id": "v10",
-      "text": "AI can make a decision stricter. It cannot loosen your boundary."
+      "id": "n17",
+      "text": "Run it again and again: the answer never changes. Change one real condition, and the decision changes predictably."
     },
     {
-      "id": "v12",
-      "text": "Follow any request down to the exact rule that decided it."
+      "id": "n18",
+      "text": "AI may tighten a decision. It can never silently loosen your boundary."
     },
     {
-      "id": "v14",
-      "text": "The approval changes the context. The same policy decides."
+      "id": "n19",
+      "text": "The Director shows your entire AI organization, live."
     },
     {
-      "id": "v15",
-      "text": "Agents get what policy resolves. Not what a model asks for."
+      "id": "n20",
+      "text": "What needs attention right now. Every decision as it happens. And who touched what."
     },
     {
-      "id": "v17",
-      "text": "Sensitive data. Changed tools. Runaway agents. Predictable outcomes."
+      "id": "n21",
+      "text": "People, the agents they launch, and each agent's exact permissions: delegated by a person, intersected with policy."
     },
     {
-      "id": "v20",
-      "text": "Your enterprise boundary remains yours."
+      "id": "n22",
+      "text": "Open any decision and follow it down: who asked, through which agent, for what, on which resource, and the exact rule that decided it."
     },
     {
-      "id": "v21",
-      "text": "Betsee. Probabilistic AI. Deterministic control."
+      "id": "n23",
+      "text": "High-impact actions wait for a human. The approver sees the exact action and parameters the Gateway recorded."
+    },
+    {
+      "id": "n24",
+      "text": "They prove who they are with a fresh one-time code. The approval becomes part of the context, and the same policy decides again."
+    },
+    {
+      "id": "n25",
+      "text": "In Policy Studio, business intent sits on top. Underneath, Cedar policies enforce it, before anything executes."
+    },
+    {
+      "id": "n26",
+      "text": "Sensitive data stays inside its boundary. A changed tool is blocked before any agent sees it."
+    },
+    {
+      "id": "n27",
+      "text": "A runaway agent hits its budget and is quarantined. And one agent can't borrow another agent's permissions."
+    },
+    {
+      "id": "n28",
+      "text": "Every control maps to a risk, and every decision leaves evidence."
+    },
+    {
+      "id": "n29",
+      "text": "Models will change. Agents will change. Your enterprise boundary remains yours."
+    },
+    {
+      "id": "n30",
+      "text": "Use AI, without handing control to AI."
+    },
+    {
+      "id": "n31",
+      "text": "Betsee. Non-deterministic AI. Deterministic control."
     }
   ]
 }

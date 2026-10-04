@@ -32,6 +32,7 @@ kept, measured 97 seconds. Later starts reuse everything.
 | http://director.betsee.localhost | Director: the live control room                             |
 | http://auth.betsee.localhost     | Keycloak sign-in and step-up                                |
 | http://api.betsee.localhost      | Gateway API, for agents, scripts and tests                  |
+| http://localhost:8088            | Landing page, its own container (`landing`)                 |
 
 Sign in as **Daniel Ortiz** (`daniel`, security officer and approver); the demo passwords are in
 `.env.example`. Step-up asks for a one-time code: `scripts/otp.sh` prints Daniel's current code.
@@ -41,6 +42,10 @@ the Director: [`docs/running.md`](docs/running.md). What a production and commer
 [`docs/prod_commercial_deployment.md`](docs/prod_commercial_deployment.md).
 
 Before presenting, `./scripts/stage-check.sh` runs a read-only preflight and prints GO or NO-GO.
+
+The landing page is static and needs nothing else from the stack: `docker compose up -d --build landing`
+serves it alone. Its clips are recorded from the real interfaces in mock mode by
+`node landing/record/record.mjs`, which lists the dev servers it needs.
 
 The seven-act stage demo is in [`docs/demo-script.md`](docs/demo-script.md). Each act launches from
 the Director's command palette (`Ctrl+K`); `demo/` holds the scenarios and the runner that drives them through the
@@ -219,6 +224,7 @@ expected one in [`demo/scenarios/`](demo/scenarios/).
 | `demo/`                        | Demo scenarios and the scenario runner                                                                        |
 | `tests/`                       | Security suite                                                                                                |
 | `docs/`                        | Design Contract, security decisions and OWASP mapping, demo script                                            |
+| `landing/`                     | Static landing page, its recorded product clips, and the script that records them                             |
 
 ## Demo-only shortcuts
 

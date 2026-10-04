@@ -12,3 +12,10 @@ infra/keycloak/themes/betsee/login/resources/css/tokens.css
 
 # Tauri regenerates its capability schemas on every build.
 desk/src-tauri/gen/
+
+# Launch film renders (film/render, film/audio/score.py). Captures and the paid ElevenLabs assets
+# (voice takes, music, sound effects) stay tracked.
+film/out/*
+!film/out/vo/
+!film/out/music/
+!film/out/sfx/

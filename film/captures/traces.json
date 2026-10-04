@@ -146,18 +146,18 @@
  },
  {
   "id": "9aaaf7fb9d4dd122a876d06c2291efaa",
-  "cap": "files.read",
-  "decision": "allow",
-  "controls": [
-   "CTL-CAP-001"
-  ]
- },
- {
-  "id": "37375a3fe3d1f1ebb92f5e414fb0ef12",
   "cap": "crm.read",
   "decision": "deny",
   "controls": [
    "CTL-RUN-001"
+  ]
+ },
+ {
+  "id": "3fe3d1f1ebb92f5e414fb0ef127823d7",
+  "cap": "tickets.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
   ]
  },
  {

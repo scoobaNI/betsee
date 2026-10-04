@@ -362,9 +362,10 @@ async function deskPage(context, kind, { runtime = "claude" } = {}) {
 const browser = await chromium.launch();
 const common = { deviceScaleFactor: 2, timezoneId: "Europe/Warsaw", locale: "en-GB", reducedMotion: "reduce" };
 
-// Desk: the native window is 1320 x 860 (desk/src-tauri/tauri.conf.json).
+// Desk: a native window widened from its 1320 x 860 default (desk/src-tauri/tauri.conf.json) so the
+// three columns sit without wrapping.
 {
-  const context = await browser.newContext({ ...common, viewport: { width: 1320, height: 860 } });
+  const context = await browser.newContext({ ...common, viewport: { width: 1600, height: 960 } });
   const thread = {
     conversation: ["", { selector: "section[aria-label=Conversation]" }],
     composer: ["", { selector: "form" }],
@@ -537,6 +538,10 @@ const common = { deviceScaleFactor: 2, timezoneId: "Europe/Warsaw", locale: "en-
       { fullPage: true },
     );
   }
+
+  await goInApp(page, "/access");
+  await settle(page, 2000);
+  await shot(page, "dir-access", { matrix: ["", { selector: "table" }] }, { fullPage: true });
 
   await goInApp(page, "/coverage");
   await settle(page, 2000);

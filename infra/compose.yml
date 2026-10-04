@@ -219,6 +219,21 @@ services:
       retries: 20
     restart: unless-stopped
 
+  # The public landing page: static, its own image and port, nothing else in the stack needed.
+  landing:
+    image: betsee-landing:local
+    build:
+      context: .
+      dockerfile: infra/landing/Dockerfile
+    ports:
+      - "8088:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   postgres-data:
   caddy-data:

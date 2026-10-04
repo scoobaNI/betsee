@@ -2,7 +2,9 @@
 // scene. The key comes from ELEVENLABS_API_KEY and is never written anywhere. Clips that already
 // exist are kept, because the API meters characters; pass --force to re-voice them.
 //
-//   ELEVENLABS_API_KEY=... node film/audio/narrate.mjs [--force] [line-id ...]
+//   ELEVENLABS_API_KEY=... node film/audio/narrate.mjs [--force] [--voice <id>] [line-id ...]
+// --voice overrides narration.json's voice, e.g. a default voice while the account cannot use a
+// library one.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,8 +15,11 @@ const out = join(here, "../out/vo");
 mkdirSync(out, { recursive: true });
 const key = process.env.ELEVENLABS_API_KEY;
 if (!key) throw new Error("ELEVENLABS_API_KEY is not set");
-const force = process.argv.includes("--force");
-const wanted = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+const args = process.argv.slice(2);
+const force = args.includes("--force");
+const voiceAt = args.indexOf("--voice");
+const voice = voiceAt >= 0 ? args[voiceAt + 1] : script.voice.id;
+const wanted = args.filter((a, i) => !a.startsWith("--") && !(voiceAt >= 0 && i === voiceAt + 1));
 
 const lines = script.lines;
 for (const [index, line] of lines.entries()) {
@@ -30,7 +35,7 @@ for (const [index, line] of lines.entries()) {
     ...(line.settings ? { voice_settings: line.settings } : script.settings ? { voice_settings: script.settings } : {}),
   };
   const response = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${script.voice.id}?output_format=mp3_44100_128`,
+    `https://api.elevenlabs.io/v1/text-to-speech/${voice}?output_format=mp3_44100_128`,
     { method: "POST", headers: { "xi-api-key": key, "Content-Type": "application/json" }, body: JSON.stringify(body) },
   );
   if (!response.ok) throw new Error(`${line.id}: HTTP ${response.status} ${await response.text()}`);

@@ -164,8 +164,8 @@ try {
   check(!existsSync(join(workspace, "notes/scorecard.md")), "nothing is written before approval");
   const approver = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const daniel = await approver.newPage();
+  // The ecosystem sends a tab without a token straight to Keycloak (once per tab).
   await daniel.goto("http://betsee.localhost/approvals");
-  await daniel.getByRole("button", { name: "Continue with SSO" }).click();
   await daniel.locator("#username").fill("daniel");
   await daniel.locator("#password").fill(process.env.DEMO_PASSWORD_DANIEL);
   await daniel.locator("#kc-login, button[type=submit], input[type=submit]").first().click();

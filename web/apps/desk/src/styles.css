@@ -347,3 +347,9 @@ body {
   outline: 2px dashed var(--bs-color-border-focus);
   outline-offset: -12px;
 }
+/* The composer frame and the chat search box carry the focus ring (focus-within); the global
+   :focus-visible outline from @betsee/ui is unlayered, so it beats their focus:outline-none. */
+.desk-frame form textarea:focus-visible,
+.desk-chats input:focus-visible {
+  outline: none;
+}

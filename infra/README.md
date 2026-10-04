@@ -11,11 +11,11 @@ fresh isolated startup with no host ports, generated `.env`, imported identities
 user links and both static hosts. It retains its stack for independent inspection; use a
 new `betsee-cold-*` project name for each fresh-volume run.
 
-The project is named `betsee`. Caddy publishes port 80; PostgreSQL 17 publishes only
-`127.0.0.1:55432`. Gateway, MCP, the mock model, the demo runner and Keycloak have no
-published host ports. Both frontend hosts proxy `/api/v1/demo/*` to the runner first and
-other `/api/*` requests to the Gateway. SSE responses use immediate proxy flushing and
-no compression. MCP is on an internal network with Gateway, the scenario runner and
+The project is named `betsee`. Caddy publishes port 80 and the static landing page port
+8088; PostgreSQL 17 publishes only `127.0.0.1:55432`. Gateway, MCP, the mock model, the demo
+runner and Keycloak have no published host ports. Both frontend hosts proxy `/api/v1/demo/*`
+to the runner first and other `/api/*` requests to the Gateway. SSE responses use immediate
+proxy flushing and no compression. MCP is on an internal network with Gateway, the scenario runner and
 PostgreSQL. The model, proxy and identity provider cannot reach it. `/mcp` requires
 `MCP_GATEWAY_TOKEN`, supplied only to Gateway and MCP; descriptor drift/restore uses
 the separate `MCP_ADMIN_TOKEN`. Neither MCP route is exposed by Caddy.
