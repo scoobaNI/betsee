@@ -1,0 +1,796 @@
+[
+ {
+  "id": "7f9b7b7a841ae95797d4a59e3b7f6ba7",
+  "cap": "crm.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-AI-001"
+  ]
+ },
+ {
+  "id": "c5af2fcb9803449455d1449d4294e905",
+  "cap": "tickets.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "9f901d97873c0da11023de9fee68acf3",
+  "cap": "shell.exec",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "e4606740579393139c9bc88764043133",
+  "cap": "crm.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-AI-001"
+  ]
+ },
+ {
+  "id": "4a507d209b9b1b4de2257eada2224073",
+  "cap": "files.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-TIER-001"
+  ]
+ },
+ {
+  "id": "01b19771d8598c3eeb8a032fea564892",
+  "cap": "crm.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-ID-002"
+  ]
+ },
+ {
+  "id": "67221bdfac6f03177bdeb18550fa8456",
+  "cap": "crm.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-ID-002"
+  ]
+ },
+ {
+  "id": "93d19e12030b35b8506f8ea6a70f545e",
+  "cap": "crm.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-ID-002"
+  ]
+ },
+ {
+  "id": "63b7a0d7bc0906c058b995107fdc24a1",
+  "cap": "crm.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-ID-002"
+  ]
+ },
+ {
+  "id": "83bf9b4d48876eb4e3cf517da24ba6ea",
+  "cap": "crm.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-ID-002"
+  ]
+ },
+ {
+  "id": "df40287e7909a8d072d121bdaf567e09",
+  "cap": "crm.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-ID-002"
+  ]
+ },
+ {
+  "id": "fc15c3b356627d3a82cad7886f7c4649",
+  "cap": "crm.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-ID-002"
+  ]
+ },
+ {
+  "id": "e82bf40bbe1e8b80883e772c2197272b",
+  "cap": "crm.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-RUN-001",
+   "CTL-RUN-003"
+  ]
+ },
+ {
+  "id": "a5d99baab0aadfbbf6e6418a2cd2bf2e",
+  "cap": "crm.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-RUN-001"
+  ]
+ },
+ {
+  "id": "bbb5935498685619147fd1e03417ad51",
+  "cap": "crm.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-RUN-001"
+  ]
+ },
+ {
+  "id": "3a7c4d0ce993d6109131841f06ca2857",
+  "cap": "crm.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-RUN-001"
+  ]
+ },
+ {
+  "id": "bfc22cb4d554a9f601c7943a4060c27d",
+  "cap": "memory.write",
+  "decision": "require_approval",
+  "controls": [
+   "CTL-AI-001"
+  ]
+ },
+ {
+  "id": "6d3a8e97bb3211405858a1c2d5ba1088",
+  "cap": "agent.message",
+  "decision": "deny",
+  "controls": [
+   "CTL-ID-002"
+  ]
+ },
+ {
+  "id": "9aaaf7fb9d4dd122a876d06c2291efaa",
+  "cap": "files.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "37375a3fe3d1f1ebb92f5e414fb0ef12",
+  "cap": "crm.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-RUN-001"
+  ]
+ },
+ {
+  "id": "d19c41a8a876549ee5419221e850f822",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "c5d63de77208035d6495f0760473f238",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "a3dd732febcae010cc5b11901fa5ce78",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "248ce0ba6860fe802f2c39b5cbfec8fa",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "a15c1d2daa684bb0caa6b24f21bb0ca1",
+  "cap": "agent.message",
+  "decision": "deny",
+  "controls": [
+   "CTL-ID-002"
+  ]
+ },
+ {
+  "id": "7290c1863211009c17dc34aa6b9df83d",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "f455219e6545c10096d8aaae67b81892",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "913955ec578e90089df3078c88916c65",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "7530aa46bea6bdd7e30aff3299ad1124",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "7dc966b4cbcbbd4fa3577acb77684326",
+  "cap": "agent.message",
+  "decision": "deny",
+  "controls": [
+   "CTL-RUN-003"
+  ]
+ },
+ {
+  "id": "6262069ab7e0658ed31ba9535557509c",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "e9f0e6788b6b3b9aa0df051af59b4dd9",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "5af303f5b6dbe438a5acb892557d617f",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "d42d19ea3c46bdc39bd4ce1e90024d9f",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "3376c513e1f525937b92351a8e94218b",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "76485cdf73c60a7be70c2ceb5cc951b7",
+  "cap": "agent.message",
+  "decision": "deny",
+  "controls": [
+   "CTL-A2A-003"
+  ]
+ },
+ {
+  "id": "71453b6046300b6a833fd75c8960edda",
+  "cap": "shell.exec",
+  "decision": "deny",
+  "controls": [
+   "CTL-EXEC-001"
+  ]
+ },
+ {
+  "id": "9d3da72c1958864ae39a9279a14dc5ae",
+  "cap": "email.send",
+  "decision": "deny",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "2ef743ad8b0258a96a70a03871708893",
+  "cap": "agent.message",
+  "decision": "deny",
+  "controls": [
+   "CTL-A2A-003"
+  ]
+ },
+ {
+  "id": "24bb7e7052fb129a966d5ca8f00458a1",
+  "cap": "tickets.write",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "95cb8ebab30bf0720dadda811b0a9104",
+  "cap": "agent.message",
+  "decision": "deny",
+  "controls": [
+   "CTL-A2A-003"
+  ]
+ },
+ {
+  "id": "629730d476970a9f6c24fce1b0827a30",
+  "cap": "agent.message",
+  "decision": "deny",
+  "controls": [
+   "CTL-A2A-003"
+  ]
+ },
+ {
+  "id": "635df6535e4a64b778697a205c9a28a0",
+  "cap": "payments.transfer",
+  "decision": "require_approval",
+  "controls": [
+   "CTL-APR-003",
+   "CTL-APR-002"
+  ]
+ },
+ {
+  "id": "829ba65d38852820d25c415940fd2ef8",
+  "cap": "tickets.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "0e77b8a347f3ab550f9e4541a412c058",
+  "cap": "payments.transfer",
+  "decision": "deny",
+  "controls": [
+   "CTL-TOOL-001"
+  ]
+ },
+ {
+  "id": "0d1291d11d50cdd54579ee8fb10e4b00",
+  "cap": "files.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-TIER-001"
+  ]
+ },
+ {
+  "id": "9f8bfe66a8b1f7a4947cbd6356661802",
+  "cap": "crm.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-AI-001"
+  ]
+ },
+ {
+  "id": "86353b28d951482915df345e15e51459",
+  "cap": "email.send",
+  "decision": "deny",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "d0876537aa004f8cf9ae53acd199c9dc",
+  "cap": "files.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "47eed43bd1904813d2ab556a735dea3b",
+  "cap": "shell.exec",
+  "decision": "deny",
+  "controls": [
+   "CTL-EXEC-001"
+  ]
+ },
+ {
+  "id": "ca1da64463999f778c539068eb6fdd3f",
+  "cap": "files.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-TIER-001"
+  ]
+ },
+ {
+  "id": "e7cf881d2c49c3ee8a918f93882c4219",
+  "cap": "shell.exec",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "9d082d305b9b3164a5e5319325b68027",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "26182870f6b115fa16a0f2663bb9e4ba",
+  "cap": "llm.complete",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "6690012ee33e5643985df0d038471184",
+  "cap": "memory.write",
+  "decision": "require_approval",
+  "controls": [
+   "CTL-AI-001"
+  ]
+ },
+ {
+  "id": "6332a1e19e70d29bda93cc3de58a9277",
+  "cap": "files.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-TIER-001"
+  ]
+ },
+ {
+  "id": "df61f7c21e0c80c7fd2e7ada89f55b69",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "62325018459cbc937760c69c30f91cfd",
+  "cap": "shell.exec",
+  "decision": "deny",
+  "controls": [
+   "CTL-EXEC-001"
+  ]
+ },
+ {
+  "id": "b3014b3318949be107219d70de4a3488",
+  "cap": "tickets.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "d0d50be50ae9f0b8231b1faa098b60a4",
+  "cap": "email.send",
+  "decision": "deny",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "5544b6a5c27faae04f8d316fa13a80d6",
+  "cap": "shell.exec",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "2892776b4cb63f0d2961586c94b5ceab",
+  "cap": "shell.exec",
+  "decision": "deny",
+  "controls": [
+   "CTL-EXEC-001"
+  ]
+ },
+ {
+  "id": "f63b84ba85827caa3c6da6c2cde511f6",
+  "cap": "tickets.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "58ab3a647e2420a4d3df2491fe2a6bb7",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "22598f40d1198397ea9f4c207b970a03",
+  "cap": "files.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "25be6f825688958ec40f719d35b0f132",
+  "cap": "shell.exec",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "ed1cc0eb603438689589e4be290e605b",
+  "cap": "llm.complete",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "af71b7df4e9bf50ac5f3002b592cd12b",
+  "cap": "shell.exec",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "2bb2484ee0654b17f02864c73d2533b4",
+  "cap": "shell.exec",
+  "decision": "require_step_up",
+  "controls": [
+   "CTL-APR-002"
+  ]
+ },
+ {
+  "id": "6ba704b77bb29b3a28eb2a4ba7a16538",
+  "cap": "tickets.write",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "8442c55066dee896c3690b9a30372d94",
+  "cap": "memory.write",
+  "decision": "require_approval",
+  "controls": [
+   "CTL-AI-001"
+  ]
+ },
+ {
+  "id": "eb892bcfcb92f97b22539baa77032028",
+  "cap": "shell.exec",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "c395b8d3673dab80fc4ac5427ee38975",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "7ae1840e1b290f63493301cd5deb3a01",
+  "cap": "llm.complete",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "b18f89e9ec10ea4f2fef216c8878abbb",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "82d49cab36de45a09e593c4225a883bc",
+  "cap": "email.send",
+  "decision": "deny",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "8229b46b154be8828c5f948eefc16bc3",
+  "cap": "tickets.write",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "a69ba1fde4be7767958e291588fccb7c",
+  "cap": "payments.transfer",
+  "decision": "require_approval",
+  "controls": [
+   "CTL-APR-003"
+  ]
+ },
+ {
+  "id": "9b6a7357139b51cf292c2d6f7957a8e2",
+  "cap": "memory.write",
+  "decision": "require_approval",
+  "controls": [
+   "CTL-AI-001"
+  ]
+ },
+ {
+  "id": "5c9afca50ded498456fe8b5912a58b3b",
+  "cap": "shell.exec",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "6d7c61d2233c0858110b44a94762e4c7",
+  "cap": "shell.exec",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "802d228e7ee5007fd78bc61a227804f9",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "1edbd7ced52600c1363eb5f5498fd0df",
+  "cap": "llm.complete",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "c25ca68cba42fd579d104edfc7551731",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "c32791f1a82cea029346217bfaa75159",
+  "cap": "tickets.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "5cbab9d1ce26bc86ff2a39786a9d13d1",
+  "cap": "tickets.write",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "c09937ae40970062abccc8ee8fe5ec76",
+  "cap": "tickets.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "e9bd0336727500a6407cd8bff5ddcebb",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "a514f124b0b0f8f96c45ac8b693163c2",
+  "cap": "files.read",
+  "decision": "deny",
+  "controls": [
+   "CTL-AI-001"
+  ]
+ },
+ {
+  "id": "1a187adb9c8c999acbedaa24f3e0b8d4",
+  "cap": "llm.complete",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "16fb8b5f1c7373df8f2720bc307a48f4",
+  "cap": "tickets.write",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "0e4245cddcbdabb46a5379a6b3b876d1",
+  "cap": "crm.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "4da511fb48186c2b233e00fe79b2819b",
+  "cap": "llm.complete",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "5efd02c11e494cb07f116cb4717682c4",
+  "cap": "llm.complete",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "641abf541becdf3f486bc9b994d72b78",
+  "cap": "files.read",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "0267b55cbc8c6948c14ddc65e457d6f8",
+  "cap": "shell.exec",
+  "decision": "require_step_up",
+  "controls": [
+   "CTL-APR-002"
+  ]
+ },
+ {
+  "id": "d2f89263ddbaf9bf739cd38782477202",
+  "cap": "shell.exec",
+  "decision": "allow",
+  "controls": [
+   "CTL-CAP-001"
+  ]
+ },
+ {
+  "id": "3a50ae8dae18aefd9ff8d085b8cf8d6a",
+  "cap": "shell.exec",
+  "decision": "require_step_up",
+  "controls": [
+   "CTL-APR-002"
+  ]
+ },
+ {
+  "id": "86738b42c835484f3e32248c1e89af9e",
+  "cap": "shell.exec",
+  "decision": "require_step_up",
+  "controls": [
+   "CTL-APR-002"
+  ]
+ }
+]

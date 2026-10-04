@@ -1,6 +1,6 @@
 // Shared pieces of a governed chat: the thread (messages, tool cards with their Gateway decision,
-// blocked messages, files) and the composer. Used by the ecosystem /chat page and by Betsee Desk.
-import { Fragment, useEffect, useRef, type ReactNode } from "react";
+// blocked messages, files) and the composer. Used by Betsee Desk.
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { DecisionChip, Icon, IdToken, TierBadge } from "@betsee/ui";
 import type { ThreadItem, ToolDecision } from "@betsee/api/chat";
@@ -107,6 +107,44 @@ export function RichText({ text }: { text: string }) {
         );
       })}
     </div>
+  );
+}
+
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // WebKitGTK (Tauri on Linux) can refuse the async clipboard; the selection fallback works there.
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.append(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+  }
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1600);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  return (
+    <button
+      type="button"
+      onClick={() => void copyText(text).then(() => setCopied(true))}
+      className="inline-flex h-7 items-center gap-1.5 rounded-sm px-2 text-xs font-medium text-fg-tertiary hover:bg-surface-2 hover:text-fg-primary"
+    >
+      <Icon
+        name={copied ? "streamline:check" : "streamline:copy-paste"}
+        size={12}
+      />
+      {copied ? "Copied" : "Copy"}
+    </button>
   );
 }
 
@@ -419,19 +457,23 @@ export function Thread({
   items,
   busy,
   onDownload,
+  follow = true,
 }: {
   items: ThreadItem[];
   busy: boolean;
   onDownload?: (path: string) => void;
+  /** Scroll to the newest item as it arrives. Off while the reader has scrolled up. */
+  follow?: boolean;
 }) {
   const reduced = useReducedMotion();
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    if (!follow) return;
     end.current?.scrollIntoView({
       block: "end",
       behavior: reduced ? "auto" : "smooth",
     });
-  }, [items.length, busy, reduced]);
+  }, [items.length, busy, reduced, follow]);
   let previousAgent = false;
   return (
     <div className="flex flex-col gap-5 pb-6 pt-8">
@@ -471,7 +513,14 @@ export function Thread({
               </div>
             )}
             {item.kind === "blocked" && <BlockedMessage item={item} />}
-            {item.kind === "assistant" && <RichText text={item.text} />}
+            {item.kind === "assistant" && (
+              <div className="group">
+                <RichText text={item.text} />
+                <div className="mt-1 -ml-2 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                  <CopyButton text={item.text} />
+                </div>
+              </div>
+            )}
             {item.kind === "tool" && (
               <ToolCard item={item} onDownload={onDownload} />
             )}

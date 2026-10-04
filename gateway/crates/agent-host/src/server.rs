@@ -87,8 +87,27 @@ impl Chat {
         let _ = self.sender.send(event.clone());
         event
     }
+    /// The first message that passed the input filter, on one line. A blocked message never
+    /// becomes a title: its text is not kept here.
+    fn title(&self) -> Option<String> {
+        let text = self
+            .events
+            .iter()
+            .find(|event| event["type"] == "user_message")?["text"]
+            .as_str()?;
+        let line = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        Some(match line.char_indices().nth(80) {
+            Some((end, _)) => format!("{}...", line[..end].trim_end()),
+            None => line,
+        })
+    }
     fn summary(&self) -> Value {
-        json!({"chat_id":self.id,"session":self.session,"busy":self.busy,"created_at":self.created_at,"events":self.events.len(),"agent_id":AGENT_ID,"runtime":self.runtime,"use_case":{"id":USE_CASE,"name":"Employee assistance"}})
+        let updated_at = self
+            .events
+            .last()
+            .and_then(|event| event["at"].as_str())
+            .unwrap_or(&self.created_at);
+        json!({"chat_id":self.id,"session":self.session,"busy":self.busy,"created_at":self.created_at,"updated_at":updated_at,"title":self.title(),"events":self.events.len(),"agent_id":AGENT_ID,"runtime":self.runtime,"use_case":{"id":USE_CASE,"name":"Employee assistance"}})
     }
 }
 
@@ -987,4 +1006,47 @@ pub async fn serve(config: Config) -> Result<()> {
         server.await??;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn chat() -> Chat {
+        Chat {
+            id: "c1".into(),
+            owner: "maya".into(),
+            human_name: "Maya".into(),
+            session: json!({"id":"s1"}),
+            claude_session: None,
+            run_token: "t".into(),
+            busy: false,
+            events: Vec::new(),
+            pending: HashMap::new(),
+            sender: broadcast::channel(4).0,
+            created_at: "2026-10-04T00:00:00Z".into(),
+            runtime: Runtime::Claude,
+            allowed: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn title_is_the_first_message_that_passed_the_filter() {
+        let mut chat = chat();
+        chat.push(json!({"type":"session"}));
+        assert_eq!(chat.summary()["title"], Value::Null);
+        assert_eq!(chat.summary()["updated_at"], chat.events[0]["at"]);
+        chat.push(json!({"type":"input_blocked","message_id":"m0"}));
+        chat.push(json!({"type":"user_message","text":"  Who owns\nthe   scorecard? "}));
+        chat.push(json!({"type":"user_message","text":"second"}));
+        assert_eq!(chat.summary()["title"], "Who owns the scorecard?");
+    }
+
+    #[test]
+    fn a_long_title_is_cut_on_a_char_boundary() {
+        let mut chat = chat();
+        chat.push(json!({"type":"user_message","text":"ż".repeat(100)}));
+        let title = chat.summary()["title"].as_str().unwrap().to_owned();
+        assert_eq!(title, format!("{}...", "ż".repeat(80)));
+    }
 }

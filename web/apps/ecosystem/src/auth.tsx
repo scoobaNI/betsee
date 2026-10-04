@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useRef,
   useLayoutEffect,
   type ReactNode,
@@ -20,6 +21,10 @@ interface SessionAuth {
   stepUp: (approvalId: string) => Promise<void>;
 }
 const Session = createContext<SessionAuth | null>(null);
+// Set once per tab so a tab arriving without a token (e.g. from the Director, another origin)
+// rides the Keycloak SSO session without a click, while a failed sign-in or a sign-out still
+// lands on the card instead of looping back to Keycloak.
+const AUTO_SIGNIN_KEY = "betsee-auto-signin-attempted";
 export function useSessionAuth() {
   const value = useContext(Session);
   if (!value) throw new Error("Session auth is missing");
@@ -43,7 +48,22 @@ function LiveSession({ children }: { children: ReactNode }) {
     retry: false,
     staleTime: 0,
   });
-  if (auth.isLoading)
+  const signIn = () =>
+    auth.signinRedirect({
+      state: { returnTo: location.pathname + location.search },
+    });
+  const autoSignIn =
+    !auth.isLoading &&
+    !auth.isAuthenticated &&
+    !auth.error &&
+    !auth.activeNavigator &&
+    sessionStorage.getItem(AUTO_SIGNIN_KEY) === null;
+  useEffect(() => {
+    if (!autoSignIn) return;
+    sessionStorage.setItem(AUTO_SIGNIN_KEY, "1");
+    void signIn();
+  });
+  if (auth.isLoading || autoSignIn)
     return (
       <main className="mx-auto max-w-lg p-8">
         <p role="status">Connecting to Identity…</p>
@@ -69,9 +89,7 @@ function LiveSession({ children }: { children: ReactNode }) {
         <button
           className="mt-6 h-11 rounded-md bg-accent px-5 font-semibold text-fg-on-accent"
           onClick={() => {
-            void auth.signinRedirect({
-              state: { returnTo: location.pathname + location.search },
-            });
+            void signIn();
           }}
         >
           Sign in with Identity

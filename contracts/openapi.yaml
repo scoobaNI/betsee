@@ -3476,6 +3476,17 @@
                   "session": { "$ref": "#/components/schemas/AgentSession" },
                   "busy": { "type": "boolean" },
                   "created_at": { "type": "string", "format": "date-time" },
+                  "updated_at":
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "Time of the chat's latest event",
+                    },
+                  "title":
+                    {
+                      "type": ["string", "null"],
+                      "description": "The first message that passed the input filter, on one line, cut at 80 characters; null until one does. Blocked messages never become a title.",
+                    },
                   "events": { "type": "integer" },
                   "agent_id": { "type": "string" },
                   "use_case": { "$ref": "#/components/schemas/UseCaseRef" },

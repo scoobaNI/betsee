@@ -2,17 +2,20 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { Icon, IdToken, LogoMark, TierBadge } from "@betsee/ui";
-import { chatApi, useChatThread } from "@betsee/api/chat";
+import { chatApi, useChatThread, type ChatSession } from "@betsee/api/chat";
 import {
   AGENT,
   AgentMark,
   Composer,
   GovernedMarker,
   Thread,
+  time,
 } from "@betsee/chat";
 import {
   desk,
@@ -83,17 +86,30 @@ function Brand() {
 function Notice({
   tone,
   children,
+  onDismiss,
 }: {
   tone: "deny" | "info";
   children: ReactNode;
+  onDismiss?: () => void;
 }) {
   return (
-    <p
+    <div
       role={tone === "deny" ? "alert" : "status"}
-      className={`rounded-md border p-3 text-sm ${tone === "deny" ? "border-deny-border bg-deny-bg text-deny-fg" : "border-line-default bg-surface-1 text-fg-secondary"}`}
+      className={`flex items-start gap-3 rounded-md border p-3 text-sm ${tone === "deny" ? "border-deny-border bg-deny-bg text-deny-fg" : "border-line-default bg-surface-1 text-fg-secondary"}`}
     >
-      {children}
-    </p>
+      <p className="min-w-0 flex-1">{children}</p>
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          title="Dismiss"
+          className="-m-1 rounded-xs p-1 text-fg-tertiary hover:bg-surface-2 hover:text-fg-primary"
+        >
+          <Icon name="streamline:delete-1" size={12} />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -508,6 +524,160 @@ function Dock({
   );
 }
 
+const STARTERS = [
+  "What files are in my workspace, and what is each one for?",
+  "Summarise the newest document in my workspace in five bullets.",
+  "Draft a short status update for my team from my workspace notes.",
+  "Check uploads/ for anything I should not share outside the company.",
+];
+
+const emptyChat = (chat: ChatSession) => !chat.title && chat.events <= 1;
+
+const chatTime = (at: string) => {
+  const date = new Date(at);
+  return date.toDateString() === new Date().toDateString()
+    ? time(at)
+    : date.toLocaleDateString([], { day: "numeric", month: "short" });
+};
+
+// Chats live in the embedded service, not in the window, so the open chat survives the Workspace
+// remounting (a trip to the assistant settings) as long as the service has it.
+let lastChatId: string | null = null;
+let opening: Promise<string> | null = null;
+
+/** The chat to show on entry: the one open before, else the newest if nothing was asked in it yet,
+ * else a new one. Shared while in flight, so StrictMode's double effect starts one chat, not two. */
+function initialChat(): Promise<string> {
+  opening ??= (async () => {
+    const list = await chatApi.sessions();
+    const remembered = list.find((chat) => chat.chat_id === lastChatId);
+    if (remembered) return remembered.chat_id;
+    if (list[0] && emptyChat(list[0])) return list[0].chat_id;
+    return (await chatApi.start()).chat_id;
+  })().finally(() => {
+    opening = null;
+  });
+  return opening;
+}
+
+const modKey = (event: KeyboardEvent) =>
+  (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
+
+function ChatList({
+  chats,
+  activeId,
+  activeTitle,
+  activeBusy,
+  drafts,
+  query,
+  onQuery,
+  onOpen,
+  onNew,
+  searchRef,
+}: {
+  chats: ChatSession[];
+  activeId: string | null;
+  activeTitle: string | null;
+  activeBusy: boolean;
+  drafts: ReadonlyMap<string, string>;
+  query: string;
+  onQuery: (query: string) => void;
+  onOpen: (chatId: string) => void;
+  onNew: () => void;
+  searchRef: RefObject<HTMLInputElement | null>;
+}) {
+  return (
+    <nav
+      aria-label="Chats"
+      className="desk-chats min-h-0 flex-col rounded-lg bg-surface-1 shadow-e1"
+    >
+      <div className="flex items-center justify-between gap-2 px-4 pt-4">
+        <h2 className="font-display text-xl font-bold tracking-[-0.02em]">
+          Chats
+        </h2>
+        <button
+          type="button"
+          onClick={onNew}
+          title="New chat (Ctrl+N)"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-semibold text-fg-on-accent hover:bg-accent-hover"
+        >
+          <Icon name="streamline:add-1" size={12} />
+          New
+        </button>
+      </div>
+      <label className="mx-4 mt-3 flex h-9 items-center gap-2 rounded-md border border-line-default bg-surface-inset px-2.5 focus-within:border-line-focus">
+        <Icon
+          name="streamline:magnifying-glass"
+          size={13}
+          className="shrink-0 text-fg-tertiary"
+        />
+        <span className="sr-only">Search chats</span>
+        <input
+          ref={searchRef}
+          type="search"
+          value={query}
+          onChange={(event) => onQuery(event.target.value)}
+          placeholder="Search chats"
+          className="min-w-0 flex-1 bg-transparent text-sm placeholder:text-fg-tertiary focus:outline-none"
+        />
+        <kbd className="desk-kbd">Ctrl K</kbd>
+      </label>
+      <ul className="mt-3 min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
+        {chats.length === 0 && (
+          <li className="px-2 py-3 text-xs text-fg-tertiary">
+            {query ? "No chats match." : "No chats yet."}
+          </li>
+        )}
+        {chats.map((chat) => {
+          const active = chat.chat_id === activeId;
+          const title =
+            chat.title ?? (active ? activeTitle : null) ?? "New chat";
+          const busy = active ? activeBusy : chat.busy;
+          const draft = !active && (drafts.get(chat.chat_id) ?? "").trim();
+          return (
+            <li key={chat.chat_id}>
+              <button
+                type="button"
+                onClick={() => onOpen(chat.chat_id)}
+                aria-current={active ? "true" : undefined}
+                className={`desk-chat-row w-full rounded-md px-2.5 py-2 text-left ${active ? "bg-accent-tint" : "hover:bg-surface-2"}`}
+              >
+                <span className="flex items-center gap-2">
+                  <span
+                    className={`min-w-0 flex-1 truncate text-sm ${active ? "font-semibold text-fg-primary" : "font-medium text-fg-secondary"} ${chat.title || (active && activeTitle) ? "" : "italic"}`}
+                    title={title}
+                  >
+                    {title}
+                  </span>
+                  {busy && (
+                    <span
+                      className="bs-live-pulse h-2 w-2 shrink-0 rounded-pill bg-allow-solid"
+                      role="img"
+                      aria-label="Working"
+                    />
+                  )}
+                </span>
+                <span className="mt-0.5 flex items-center gap-2 text-2xs text-fg-tertiary">
+                  {chatTime(chat.updated_at ?? chat.created_at)}
+                  {draft && (
+                    <span className="font-semibold text-approval-fg">
+                      Draft
+                    </span>
+                  )}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="border-t border-line-subtle px-4 py-2.5 text-2xs text-fg-tertiary">
+        <kbd className="desk-kbd">Alt Up</kbd>{" "}
+        <kbd className="desk-kbd">Alt Down</kbd> switch chats
+      </p>
+    </nav>
+  );
+}
+
 function Workspace({
   state,
   onSettings,
@@ -517,30 +687,173 @@ function Workspace({
   onSettings: () => void;
   onSignOut: () => void;
 }) {
+  const [chats, setChats] = useState<ChatSession[]>([]);
   const [chatId, setChatId] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
-  const [notices, setNotices] = useState<string[]>([]);
+  const [drafts, setDrafts] = useState<ReadonlyMap<string, string>>(new Map());
+  const [query, setQuery] = useState("");
+  const [sendingChat, setSendingChat] = useState<string | null>(null);
+  const [notices, setNotices] = useState<{ id: number; text: string }[]>([]);
   const [sent, setSent] = useState<ReadonlyMap<string, string>>(new Map());
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
   const [dropping, setDropping] = useState(false);
   const [uploading, setUploading] = useState(0);
+  const [atBottom, setAtBottom] = useState(true);
+  const scroller = useRef<HTMLDivElement>(null);
+  const composer = useRef<HTMLDivElement>(null);
+  const search = useRef<HTMLInputElement>(null);
   const thread = useChatThread(chatId, sent);
   const runtime = state.runtimes.find((r) => r.runtime === state.runtime);
-  const notify = (text: string) =>
-    setNotices((current) => [...current.slice(-2), text]);
+  const draft = (chatId && drafts.get(chatId)) || "";
+  const activeTitle =
+    thread.items.find((item) => item.kind === "user")?.text ?? null;
 
-  const startChat = useCallback(async () => {
+  const notify = useCallback((text: string) => {
+    const id = Date.now() + Math.random();
+    setNotices((current) => [...current.slice(-2), { id, text }]);
+    setTimeout(
+      () => setNotices((current) => current.filter((n) => n.id !== id)),
+      6000,
+    );
+  }, []);
+  const failed = useCallback(
+    (error: unknown, fallback: string) =>
+      notify(error instanceof Error ? error.message : fallback),
+    [notify],
+  );
+
+  const focusComposer = useCallback(() => {
+    requestAnimationFrame(() =>
+      composer.current?.querySelector("textarea")?.focus(),
+    );
+  }, []);
+
+  const refreshChats = useCallback(
+    () =>
+      chatApi
+        .sessions()
+        .then((list) => {
+          setChats(list);
+          return list;
+        })
+        .catch(() => [] as ChatSession[]),
+    [],
+  );
+
+  const openChat = useCallback(
+    (id: string) => {
+      lastChatId = id;
+      setChatId(id);
+      setAtBottom(true);
+      focusComposer();
+    },
+    [focusComposer],
+  );
+
+  useEffect(() => {
+    let live = true;
+    void initialChat()
+      .then((id) => {
+        if (!live) return;
+        openChat(id);
+        void refreshChats();
+      })
+      .catch((error) => failed(error, "Could not start a chat"));
+    return () => {
+      live = false;
+    };
+  }, [openChat, refreshChats, failed]);
+
+  useEffect(() => {
+    const timer = setInterval(() => void refreshChats(), 5000);
+    return () => clearInterval(timer);
+  }, [refreshChats]);
+  useEffect(() => {
+    void refreshChats();
+  }, [thread.busy, refreshChats]);
+
+  const newChat = useCallback(async () => {
+    setQuery("");
+    if (chatId && thread.items.length === 0 && !thread.busy) {
+      focusComposer();
+      return;
+    }
+    const spare = chats.find(
+      (chat) => chat.chat_id !== chatId && emptyChat(chat),
+    );
+    if (spare) {
+      openChat(spare.chat_id);
+      return;
+    }
     try {
       const chat = await chatApi.start();
-      setChatId(chat.chat_id);
+      await refreshChats();
+      openChat(chat.chat_id);
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not start a chat");
+      failed(error, "Could not start a chat");
     }
-  }, []);
+  }, [
+    chatId,
+    chats,
+    thread.items.length,
+    thread.busy,
+    focusComposer,
+    openChat,
+    refreshChats,
+    failed,
+  ]);
+
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return chats;
+    return chats.filter((chat) =>
+      (
+        chat.title ??
+        (chat.chat_id === chatId ? activeTitle : null) ??
+        "New chat"
+      )
+        .toLowerCase()
+        .includes(needle),
+    );
+  }, [chats, query, chatId, activeTitle]);
+
   useEffect(() => {
-    void startChat();
-  }, [startChat]);
+    const onKey = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      if (modKey(event) && key === "n") {
+        event.preventDefault();
+        void newChat();
+      } else if (modKey(event) && key === "k") {
+        event.preventDefault();
+        search.current?.focus();
+        search.current?.select();
+      } else if (
+        event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        (event.key === "ArrowUp" || event.key === "ArrowDown")
+      ) {
+        event.preventDefault();
+        if (visible.length === 0) return;
+        const at = visible.findIndex((chat) => chat.chat_id === chatId);
+        const next =
+          at === -1
+            ? 0
+            : Math.min(
+                visible.length - 1,
+                Math.max(0, at + (event.key === "ArrowDown" ? 1 : -1)),
+              );
+        if (visible[next].chat_id !== chatId) openChat(visible[next].chat_id);
+      } else if (
+        event.key === "Escape" &&
+        document.activeElement === search.current
+      ) {
+        setQuery("");
+        focusComposer();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [newChat, visible, chatId, openChat, focusComposer]);
 
   const refreshFiles = useCallback(() => {
     void desk<{ items: WorkspaceFile[] }>("/desk/files")
@@ -575,7 +888,7 @@ function Workspace({
       }
       refreshFiles();
     },
-    [chatId, refreshFiles],
+    [chatId, refreshFiles, notify],
   );
 
   const download = useCallback(
@@ -598,7 +911,7 @@ function Workspace({
         // The refusal and its reason arrive in the thread as a file card.
       }
     },
-    [chatId],
+    [chatId, notify],
   );
 
   useEffect(() => {
@@ -622,21 +935,41 @@ function Workspace({
     return () => stop?.();
   }, [upload]);
 
+  const setDraft = (value: string) => {
+    if (!chatId) return;
+    setDrafts((current) => new Map(current).set(chatId, value));
+  };
+
   const send = async () => {
+    const target = chatId;
     const text = draft.trim();
-    if (!text || !chatId) return;
-    setSending(true);
+    if (!text || !target) return;
+    setSendingChat(target);
     try {
-      const result = await chatApi.send(chatId, text);
+      const result = await chatApi.send(target, text);
       setSent((current) => new Map(current).set(result.message_id, text));
-      setDraft("");
+      setDrafts((current) => {
+        const next = new Map(current);
+        next.delete(target);
+        return next;
+      });
+      setAtBottom(true);
+      void refreshChats();
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Message not sent");
+      failed(error, "Message not sent");
     } finally {
-      setSending(false);
+      setSendingChat(null);
     }
   };
 
+  const jumpToLatest = () => {
+    const box = scroller.current;
+    if (!box) return;
+    box.scrollTo({ top: box.scrollHeight, behavior: "smooth" });
+    setAtBottom(true);
+  };
+
+  const sending = sendingChat !== null && sendingChat === chatId;
   const uploads = files.filter((f) => f.path.startsWith("uploads/"));
   const others = files.filter((f) => !f.path.startsWith("uploads/"));
 
@@ -648,9 +981,21 @@ function Workspace({
           .map((part) => part[0])
           .join("")
           .slice(0, 2)}
-        onNewChat={() => void startChat()}
+        onNewChat={() => void newChat()}
         onSettings={onSettings}
         onSignOut={onSignOut}
+      />
+      <ChatList
+        chats={visible}
+        activeId={chatId}
+        activeTitle={activeTitle}
+        activeBusy={thread.busy}
+        drafts={drafts}
+        query={query}
+        onQuery={setQuery}
+        onOpen={openChat}
+        onNew={() => void newChat()}
+        searchRef={search}
       />
       <section
         aria-label="Conversation"
@@ -670,50 +1015,104 @@ function Workspace({
         }}
       >
         <header className="flex h-16 shrink-0 items-center gap-2 border-b border-line-subtle px-6">
-          <span className="inline-flex h-9 items-center gap-2 rounded-pill border border-line-default bg-surface-1 px-3">
+          <span className="inline-flex h-9 shrink-0 items-center gap-2 rounded-pill border border-line-default bg-surface-1 px-3">
             <AgentMark size={20} />
             <span className="font-mono text-sm font-medium">
               {runtime?.label}
             </span>
           </span>
           {thread.model && (
-            <span className="hidden h-9 items-center rounded-pill border border-line-default bg-surface-1 px-3 font-mono text-xs text-fg-secondary md:inline-flex">
+            <span className="hidden h-9 shrink-0 items-center rounded-pill border border-line-default bg-surface-1 px-3 font-mono text-xs text-fg-secondary 2xl:inline-flex">
               {thread.model}
             </span>
           )}
-          <span className="ml-auto" />
+          <span
+            className="min-w-0 flex-1 truncate px-2 text-sm font-semibold text-fg-primary"
+            title={activeTitle ?? undefined}
+          >
+            {activeTitle}
+          </span>
           <GovernedMarker />
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6">
-          <div className="mx-auto w-full max-w-(--bs-layout-eco-chat-column)">
-            {thread.items.length === 0 ? (
-              <div className="flex flex-col items-center pt-[10vh] text-center">
-                <span className="inline-flex h-16 w-16 items-center justify-center rounded-lg bg-surface-2 text-accent-text shadow-e2">
-                  <Icon name="streamline-flex:ai-chip-robot" size={28} />
-                </span>
-                <h1 className="mt-5 font-display text-3xl font-semibold">
-                  What do you need, {state.human?.display_name.split(" ")[0]}?
-                </h1>
-                <p className="mt-2 max-w-xl text-md text-fg-secondary">
-                  Ask {runtime?.label} about the files in your workspace, or
-                  attach your own. Drop files anywhere here: each is scanned
-                  before the assistant sees it.
-                </p>
-              </div>
-            ) : (
-              <Thread
-                items={thread.items}
-                busy={thread.busy}
-                onDownload={(path) => void download(path)}
-              />
-            )}
+        <div className="relative min-h-0 flex-1">
+          <div
+            ref={scroller}
+            className="h-full overflow-y-auto px-6"
+            onScroll={(event) => {
+              const box = event.currentTarget;
+              setAtBottom(
+                box.scrollHeight - box.scrollTop - box.clientHeight < 96,
+              );
+            }}
+          >
+            <div className="mx-auto w-full max-w-(--bs-layout-eco-chat-column)">
+              {thread.items.length === 0 ? (
+                <div className="flex flex-col items-center pt-[8vh] text-center">
+                  <span className="inline-flex h-16 w-16 items-center justify-center rounded-lg bg-surface-2 text-accent-text shadow-e2">
+                    <Icon name="streamline-flex:ai-chip-robot" size={28} />
+                  </span>
+                  <h1 className="mt-5 font-display text-3xl font-semibold">
+                    What do you need, {state.human?.display_name.split(" ")[0]}?
+                  </h1>
+                  <p className="mt-2 max-w-xl text-md text-fg-secondary">
+                    Ask {runtime?.label} about the files in your workspace, or
+                    attach your own. Drop files anywhere here: each is scanned
+                    before the assistant sees it.
+                  </p>
+                  <div className="mt-8 grid w-full max-w-2xl gap-2 sm:grid-cols-2">
+                    {STARTERS.map((starter) => (
+                      <button
+                        key={starter}
+                        type="button"
+                        onClick={() => {
+                          setDraft(starter);
+                          focusComposer();
+                        }}
+                        className="desk-starter rounded-md bg-surface-1 px-4 py-3 text-left text-sm text-fg-secondary shadow-e1 hover:text-fg-primary"
+                      >
+                        {starter}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <Thread
+                  items={thread.items}
+                  busy={thread.busy}
+                  follow={atBottom}
+                  onDownload={(path) => void download(path)}
+                />
+              )}
+            </div>
           </div>
+          {!atBottom && thread.items.length > 0 && (
+            <button
+              type="button"
+              onClick={jumpToLatest}
+              className="desk-jump glass absolute bottom-4 left-1/2 inline-flex h-9 -translate-x-1/2 items-center gap-2 rounded-pill px-4 text-sm font-semibold text-fg-primary"
+            >
+              <Icon
+                name="streamline:interface-arrows-button-down-arrow-down-keyboard"
+                size={12}
+              />
+              Jump to latest
+            </button>
+          )}
         </div>
-        <div className="shrink-0 px-6 pb-6 pt-2">
+        <div ref={composer} className="shrink-0 px-6 pb-6 pt-2">
           <div className="mx-auto w-full max-w-(--bs-layout-eco-chat-column)">
-            {notices.map((text, index) => (
-              <div key={`${index}-${text}`} className="mb-2">
-                <Notice tone="info">{text}</Notice>
+            {notices.map((notice) => (
+              <div key={notice.id} className="mb-2">
+                <Notice
+                  tone="info"
+                  onDismiss={() =>
+                    setNotices((current) =>
+                      current.filter((n) => n.id !== notice.id),
+                    )
+                  }
+                >
+                  {notice.text}
+                </Notice>
               </div>
             ))}
             <Composer

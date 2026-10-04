@@ -1,0 +1,62 @@
+{
+  "voice": {
+    "id": "DODLEQrClDo8wCz460ld",
+    "name": "chosen by the user"
+  },
+  "model": "eleven_v4",
+  "seed": 7,
+  "lines": [
+    {
+      "id": "v01",
+      "text": "AI agents are already inside the enterprise."
+    },
+    {
+      "id": "v03",
+      "text": "But AI is probabilistic."
+    },
+    {
+      "id": "v04",
+      "text": "Enterprise control cannot be."
+    },
+    {
+      "id": "v05",
+      "text": "Betsee. Better see what your agents do."
+    },
+    {
+      "id": "v07",
+      "text": "Betsee decides what those tools may actually do."
+    },
+    {
+      "id": "v09",
+      "text": "Same conditions. Same policy. Same decision."
+    },
+    {
+      "id": "v10",
+      "text": "AI can make a decision stricter. It cannot loosen your boundary."
+    },
+    {
+      "id": "v12",
+      "text": "Follow any request down to the exact rule that decided it."
+    },
+    {
+      "id": "v14",
+      "text": "The approval changes the context. The same policy decides."
+    },
+    {
+      "id": "v15",
+      "text": "Agents get what policy resolves. Not what a model asks for."
+    },
+    {
+      "id": "v17",
+      "text": "Sensitive data. Changed tools. Runaway agents. Predictable outcomes."
+    },
+    {
+      "id": "v20",
+      "text": "Your enterprise boundary remains yours."
+    },
+    {
+      "id": "v21",
+      "text": "Betsee. Probabilistic AI. Deterministic control."
+    }
+  ]
+}

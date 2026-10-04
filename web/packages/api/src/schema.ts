@@ -567,6 +567,13 @@ export interface components {
             busy: boolean;
             /** Format: date-time */
             created_at: string;
+            /**
+             * Format: date-time
+             * @description Time of the chat's latest event
+             */
+            updated_at?: string;
+            /** @description The first message that passed the input filter, on one line, cut at 80 characters; null until one does. Blocked messages never become a title. */
+            title?: string | null;
             events: number;
             agent_id: string;
             use_case: components["schemas"]["UseCaseRef"];
