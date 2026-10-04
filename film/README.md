@@ -53,8 +53,9 @@ narration re-times the whole film without touching a scene.
    python3 film/audio/trim_vo.py && python3 film/stage/plan.py
    ```
 
-   The score (`out/music/score-a.mp3`) came from the Music API and the effects (`out/sfx/`) from
-   Sound Effects; both are committed, so a rebuild does not spend credits. 192 kbps output needs the
+   The score (`out/music/score-b.mp3`; `score-a.mp3` is the earlier take) came from the Music API
+   and the effects (`out/sfx/`) from Sound Effects; both are committed, so a rebuild does not spend
+   credits. 192 kbps output needs the
    Creator plan; 128 kbps works on Starter.
 
 3. Mix: `node film/render/render.mjs --cues && python3 film/audio/score.py` writes `out/mix.wav`
@@ -66,6 +67,9 @@ narration re-times the whole film without touching a scene.
    one, for example the binary of the `imageio-ffmpeg` Python package. Fedora's own players cannot
    decode H.264 either; for local viewing transcode to AV1/WebM (`libsvtav1` + `libopus` are in
    the system ffmpeg).
+
+   Each frame waits two animation frames before its screenshot: without that, Chromium could reuse
+   stale raster tiles of a large moving layer and ghost text into the frame.
 
    `node film/render/render.mjs --stills 12.5,30` writes review stills to `out/stills/`, and
    `stage/index.html?t=12.5` (served from the repository root) shows one frame in a browser.

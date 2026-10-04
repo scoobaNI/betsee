@@ -337,12 +337,14 @@ function approval(root, ctx) {
 
 // ------------------------------------------------------------------ act 11: Policy Studio
 
-// The control page's "invoice-processing" chip under "Attached to", measured on the capture.
+// Measured on the captures: the control page's "invoice-processing" chip under "Attached to", and
+// the use case's first approval rule (two lines under the "Approval rules" heading).
 const INVOICE_CHIP = { x: 1001, y: 683, w: 172, h: 22 };
+const FIRST_RULE = { x: 417, y: 677, w: 379, h: 36 };
 
 function studio(root, ctx) {
   const n25 = ctx.vo("n25");
-  const tUnder = ctx.word("n25", "Underneath");
+  const tCedar = ctx.word("n25", "Cedar") - 0.2;
   const screen = new Screen(root, ["eco-usecases", "eco-control-apr003", "eco-policies"], { w: 1600, h: 900, url: "betsee.localhost/policy-studio/use-cases" });
   const svg = svgEl("svg", { width: 1920, height: 1080, class: "abs" }, root);
   const over = el("div", "fill", root);
@@ -352,39 +354,41 @@ function studio(root, ctx) {
   const cRules = new Callout(over, svg, { title: "Approval above 10,000.00 EUR", sub: "In plain words, for the business" });
   const cCtl = new Callout(over, svg, { title: "Attached to the use case", sub: "CTL-APR-003 applies to invoice-processing" });
   const cDec = new Callout(over, svg, { title: "Decided by Cedar policies", mono: "approval-payment-above-threshold" });
-  const rule = cedarCard(over, "policies/60-approval.cedar", PAY_CEDAR, "context.amountCents >", `<div style="display:flex;gap:12px;margin-top:20px">${chip("approval", { size: "lg", label: "require_approval" })}<span class="pill">Evaluated before anything executes</span></div>`);
-  const t1 = (n25.at + tUnder) / 2;
+  const cedar = cedarCard(over, "policies/60-approval.cedar", PAY_CEDAR, "context.amountCents >", `<div style="display:flex;gap:12px;margin-top:20px">${chip("approval", { size: "lg", label: "require_approval" })}<span class="pill">Evaluated before anything executes</span></div>`);
+  // Business intent while it is named, its control after, the Cedar rule on "Cedar".
+  const t1 = n25.at + 2.1;
   ctx.cue(t1, "whoosh");
-  ctx.cue(tUnder, "whoosh");
+  ctx.cue(tCedar, "whoosh");
   return {
     update(t) {
       const enter = soft(t, 0, 1.0);
-      const out = seg(t, tUnder + 0.5, tUnder + 1.2, ease.inOut);
+      const out = seg(t, tCedar + 0.1, tCedar + 0.8, ease.inOut);
       screen.place({ x: 960, y: 570, s: 0.98 - out * 0.05, o: enter, blur: out * 4 });
-      const page = t < t1 ? "eco-usecases" : t < tUnder ? "eco-control-apr003" : "eco-policies";
+      const page = t < t1 ? "eco-usecases" : t < tCedar ? "eco-control-apr003" : "eco-policies";
       screen.only(page);
       screen.url(page === "eco-usecases" ? "betsee.localhost/policy-studio/use-cases" : page === "eco-control-apr003" ? "betsee.localhost/policy-studio/controls/CTL-APR-003" : "betsee.localhost/policy-studio/policies");
       screen.look(
         page === "eco-usecases"
           ? camera(t, [[0, [300, 100, 1500, 844]], [t1, [380, 280, 1100, 619]]])
           : page === "eco-control-apr003"
-            ? camera(t, [[t1, [380, 260, 1450, 816]], [tUnder, [900, 380, 950, 534]]])
-            : camera(t, [[tUnder, [380, 300, 1450, 816]], [ctx.length, [900, 400, 950, 534]]]),
+            ? camera(t, [[t1, [380, 260, 1450, 816]], [tCedar, [900, 380, 950, 534]]])
+            : camera(t, [[tCedar, [380, 300, 1450, 816]], [ctx.length, [900, 400, 950, 534]]]),
       );
       // The card in focus stays lit; each label sits beside its value, moving with the page.
       const uses = page === "eco-usecases";
-      screen.spotlight(uses ? U("invoice") : page === "eco-control-apr003" ? K("card") : null, uses ? showFor(t, n25.at + 0.2, t1) : showFor(t, t1 + 0.1, tUnder));
+      screen.spotlight(uses ? U("invoice") : page === "eco-control-apr003" ? K("card") : null, uses ? showFor(t, n25.at + 0.2, t1) : showFor(t, t1 + 0.1, tCedar));
       const beside = (c, r, y = null) => {
         const b = screen.mapRect(r);
         return [b[0] + b[2] + 56 + (c.node.offsetWidth || 300) / 2, y ?? b[1] + b[3] / 2];
       };
       const card = U("invoice");
       cUse.update(screen.mapRect(card), beside(cUse, card, screen.map(0, card.y + 75)[1]), uses ? showFor(t, n25.at + 0.4, t1) : 0);
-      cRules.update(screen.mapRect(U("rules")), beside(cRules, card, screen.mapRect(U("rules"))[1] + 10), uses ? showFor(t, n25.at + 1.0, t1) : 0);
-      cCtl.update(screen.mapRect(INVOICE_CHIP), beside(cCtl, INVOICE_CHIP), page === "eco-control-apr003" ? showFor(t, t1 + 0.2, tUnder) : 0);
-      cDec.update(screen.mapRect(K("deciding")), beside(cDec, K("deciding")), page === "eco-control-apr003" ? showFor(t, t1 + 0.7, tUnder) : 0);
-      const r = soft(t, tUnder + 0.7, 1.0);
-      put(rule, { x: 960, y: 540 + (1 - r) * 30, o: r });
+      const rule = screen.mapRect(FIRST_RULE);
+      cRules.update(rule, beside(cRules, card, rule[1] + rule[3] / 2), uses ? showFor(t, n25.at + 0.9, t1) : 0);
+      cCtl.update(screen.mapRect(INVOICE_CHIP), beside(cCtl, INVOICE_CHIP), page === "eco-control-apr003" ? showFor(t, t1 + 0.2, tCedar) : 0);
+      cDec.update(screen.mapRect(K("deciding")), beside(cDec, K("deciding")), page === "eco-control-apr003" ? showFor(t, t1 + 0.8, tCedar) : 0);
+      const r = soft(t, tCedar + 0.4, 1.0);
+      put(cedar, { x: 960, y: 540 + (1 - r) * 30, o: r });
     },
   };
 }
